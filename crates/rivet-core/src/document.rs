@@ -78,6 +78,8 @@ impl Pdf {
         Ok(Document {
             pdfium: self.pdfium,
             inner,
+            path: path.to_path_buf(),
+            new_metadata: None,
         })
     }
 
@@ -180,6 +182,9 @@ pub struct RenderedPage {
 pub struct Document {
     pdfium: &'static Pdfium,
     inner: PdfDocument<'static>,
+    path: std::path::PathBuf,
+    /// Title/author/… changed by the user, written into the file on save.
+    new_metadata: Option<crate::metadata::Metadata>,
 }
 
 impl Document {
@@ -209,7 +214,10 @@ impl Document {
             .collect::<Result<_>>()?;
         Ok(DocInfo {
             page_count: self.page_count(),
-            title: meta(PdfDocumentMetadataTagType::Title),
+            title: match &self.new_metadata {
+                Some(m) => Some(m.title.trim().to_owned()).filter(|t| !t.is_empty()),
+                None => meta(PdfDocumentMetadataTagType::Title),
+            },
             author: meta(PdfDocumentMetadataTagType::Author),
             page_sizes,
             rtl: crate::direction::detect(&self.inner),
@@ -226,6 +234,79 @@ impl Document {
         self.check_index(index)?;
         let page = self.inner.pages().get(index as PdfPageIndex)?;
         Ok(links::read(&page))
+    }
+
+    /// Everything shown in the Document properties dialog.
+    pub fn properties(&self) -> crate::metadata::DocProperties {
+        use crate::metadata::{DocProperties, Metadata, Permissions, pdf_date_to_iso};
+        let tag = |t| {
+            self.inner
+                .metadata()
+                .get(t)
+                .map(|m| m.value().trim().to_owned())
+                .unwrap_or_default()
+        };
+        let stored = Metadata {
+            title: tag(PdfDocumentMetadataTagType::Title),
+            author: tag(PdfDocumentMetadataTagType::Author),
+            subject: tag(PdfDocumentMetadataTagType::Subject),
+            keywords: tag(PdfDocumentMetadataTagType::Keywords),
+        };
+        let permissions = self.inner.permissions();
+        // Newer encryption (AES-256, revisions 5–6) isn't in pdfium-render's list and
+        // comes back as an error, so anything but a clear "unprotected" counts as encrypted.
+        let encrypted = !matches!(
+            permissions.security_handler_revision(),
+            Ok(PdfSecurityHandlerRevision::Unprotected)
+        );
+        let version = format!("{:?}", self.inner.version());
+        DocProperties {
+            metadata: self.new_metadata.clone().unwrap_or(stored),
+            creator: tag(PdfDocumentMetadataTagType::Creator),
+            producer: tag(PdfDocumentMetadataTagType::Producer),
+            created: pdf_date_to_iso(&tag(PdfDocumentMetadataTagType::CreationDate)),
+            modified: pdf_date_to_iso(&tag(PdfDocumentMetadataTagType::ModificationDate)),
+            pdf_version: version.trim_start_matches("Pdf").replace('_', "."),
+            page_count: self.page_count(),
+            file_name: self
+                .path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            folder: self
+                .path
+                .parent()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
+            file_size: std::fs::metadata(&self.path).map(|m| m.len()).unwrap_or(0),
+            tagged: self.inner.catalog().is_tagged(),
+            encrypted,
+            permissions: Permissions {
+                print: permissions.can_print_high_quality().unwrap_or(true)
+                    || permissions.can_print_only_low_quality().unwrap_or(false),
+                copy: permissions.can_extract_text_and_graphics().unwrap_or(true),
+                modify: permissions.can_modify_document_content().unwrap_or(true),
+                fill_forms: permissions
+                    .can_fill_existing_interactive_form_fields()
+                    .unwrap_or(true),
+                annotate: permissions
+                    .can_add_or_modify_text_annotations()
+                    .unwrap_or(true),
+            },
+            can_edit_metadata: !encrypted,
+        }
+    }
+
+    /// Changes the title, author, subject and keywords (written on the next save).
+    pub fn set_metadata(&mut self, meta: crate::metadata::Metadata) -> Result<()> {
+        if !self.properties().can_edit_metadata {
+            return Err(Error::new(
+                ErrorCode::ReadOnlyField,
+                "password-protected PDF",
+            ));
+        }
+        self.new_metadata = Some(meta);
+        Ok(())
     }
 
     /// The interactive form fields on a page (empty if it has none).
@@ -248,10 +329,14 @@ impl Document {
     /// place, so a crash or full disk never leaves a half-written PDF behind.
     pub fn save(&self, path: &Path) -> Result<()> {
         let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
-        let bytes = self
+        let mut bytes = self
             .inner
             .save_to_bytes()
             .map_err(|e| failed(&format!("{e:?}")))?;
+        // PDFium can't write metadata; changed title/author/… are added here.
+        if let Some(meta) = &self.new_metadata {
+            bytes = crate::metadata::apply(bytes, meta)?;
+        }
         let dir = path
             .parent()
             .filter(|p| !p.as_os_str().is_empty())

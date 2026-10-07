@@ -2,9 +2,11 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { DocInfo } from "./bindings/DocInfo";
+import type { DocProperties } from "./bindings/DocProperties";
 import type { ErrorCode } from "./bindings/ErrorCode";
 import type { FieldChange } from "./bindings/FieldChange";
 import type { FormField } from "./bindings/FormField";
+import type { Metadata } from "./bindings/Metadata";
 import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageLink } from "./bindings/PageLink";
 import type { Degrees } from "./layout";
@@ -51,6 +53,15 @@ export function changeField(docId: number, page: number, field: number, change: 
 /** Saves the document, including filled-in forms, to `path`. */
 export function saveDocument(docId: number, path: string): Promise<void> {
   return invoke("save_document", { docId, path });
+}
+
+export function documentProperties(docId: number): Promise<DocProperties> {
+  return invoke("document_properties", { docId });
+}
+
+/** Changes the title, author, subject and keywords (written into the file on save). */
+export function setMetadata(docId: number, metadata: Metadata): Promise<void> {
+  return invoke("set_metadata", { docId, metadata });
 }
 
 export function setVisiblePages(docId: number, first: number, last: number): Promise<void> {

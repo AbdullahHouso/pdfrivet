@@ -28,6 +28,7 @@
     },
     "dialog:allow-save",
     "dialog:allow-ask",
-    "core:window:allow-destroy"
+    "core:window:allow-destroy",
+    "opener:allow-reveal-item-in-dir"
   ]
 }

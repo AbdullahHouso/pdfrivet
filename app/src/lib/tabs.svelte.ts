@@ -15,7 +15,8 @@ export class Tab {
   readonly docId: number;
   /** Changes after "Save as". */
   path = $state("");
-  readonly info: DocInfo;
+  /** Replaced when the title changes in Document properties. */
+  info = $state<DocInfo>() as DocInfo;
   page = $state(0);
   zoom = $state(1);
   zoomMode = $state<ZoomMode>("fit-width");

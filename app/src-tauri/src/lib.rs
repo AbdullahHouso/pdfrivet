@@ -114,6 +114,25 @@ async fn save_document(
 }
 
 #[tauri::command]
+async fn document_properties(
+    doc_id: DocId,
+    state: State<'_, AppState>,
+) -> Result<rivet_core::metadata::DocProperties, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.properties(doc_id)).await
+}
+
+#[tauri::command]
+async fn set_metadata(
+    doc_id: DocId,
+    metadata: rivet_core::metadata::Metadata,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.set_metadata(doc_id, metadata)).await
+}
+
+#[tauri::command]
 async fn list_printers() -> Result<Vec<rivet_core::print::PrinterInfo>, Error> {
     blocking(rivet_core::print::list_printers).await
 }
@@ -416,6 +435,8 @@ pub fn run() {
             change_field,
             save_document,
             list_printers,
+            document_properties,
+            set_metadata,
             print_placement,
             printer_properties,
             print_document,

@@ -23,6 +23,7 @@ interface Props {
   onsave: () => void;
   onsaveas: () => void;
   onprint: () => void;
+  onproperties: () => void;
   onactualsize: () => void;
   onpagelayout: (layout: PageLayout) => void;
   oncontinuous: (continuous: boolean) => void;
@@ -224,6 +225,9 @@ const themes: Theme[] = ["system", "light", "dark"];
     {#if tab}
       <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onsaveas}>
         {i18n.t("save-as")}
+      </button>
+      <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onproperties}>
+        {i18n.t("document-properties")}
       </button>
     {/if}
     <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onabout}>

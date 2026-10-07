@@ -20,6 +20,7 @@ use crate::{
     DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink, Pdf,
     RenderedPage, Result, Rotation,
     cache::{Key, RenderCache},
+    metadata::{DocProperties, Metadata},
     print::PrintSettings,
 };
 
@@ -62,6 +63,8 @@ enum Request {
     ChangeField(DocId, u32, u32, FieldChange, Reply<()>),
     Save(DocId, PathBuf, Reply<()>),
     Print(DocId, Box<PrintSettings>, Option<Vec<u8>>, Reply<()>),
+    Properties(DocId, Reply<DocProperties>),
+    SetMetadata(DocId, Metadata, Reply<()>),
     Render(RenderRequest),
     SetVisible(DocId, u32, u32),
     Close(DocId),
@@ -193,6 +196,16 @@ impl Engine {
         self.call(|reply| Request::Print(doc, Box::new(settings), printer_settings, reply))
     }
 
+    /// Everything shown in the Document properties dialog.
+    pub fn properties(&self, doc: DocId) -> Result<DocProperties> {
+        self.call(|reply| Request::Properties(doc, reply))
+    }
+
+    /// Changes the title, author, subject and keywords (written on the next save).
+    pub fn set_metadata(&self, doc: DocId, metadata: Metadata) -> Result<()> {
+        self.call(|reply| Request::SetMetadata(doc, metadata, reply))
+    }
+
     /// Tells the engine which pages (inclusive, 0-based) are on screen.
     pub fn set_visible_pages(&self, doc: DocId, first: u32, last: u32) {
         let _ = self.tx.send(Request::SetVisible(doc, first, last));
@@ -286,6 +299,19 @@ impl Worker {
                 let result = self
                     .doc(id)
                     .and_then(|d| d.print(&settings, printer_settings.as_deref()));
+                let _ = reply.send(result);
+            }
+            Request::Properties(id, reply) => {
+                let _ = reply.send(self.doc(id).map(Document::properties));
+            }
+            Request::SetMetadata(id, metadata, reply) => {
+                let result = match self.docs.get_mut(&id) {
+                    Some(doc) => doc.set_metadata(metadata),
+                    None => Err(Error::new(
+                        ErrorCode::DocumentNotOpen,
+                        format!("document {id}"),
+                    )),
+                };
                 let _ = reply.send(result);
             }
             Request::SetVisible(id, first, last) => {

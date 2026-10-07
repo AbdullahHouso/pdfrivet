@@ -134,6 +134,42 @@ password-prompt = “{ $name }” is protected. Enter its password to open it.
 password = Password
 cancel = Cancel
 
+## Document properties
+
+document-properties = Document properties…
+document-properties-title = Document properties
+props-description = Description
+props-protected-note = This document is password-protected, so its description can't be changed yet.
+props-title = Title
+props-author = Author
+props-subject = Subject
+props-keywords = Keywords
+props-creator = Created with
+props-producer = PDF producer
+props-created = Created
+props-modified = Modified
+props-file = File
+props-file-name = File name
+props-location = Location
+show-in-folder = Show in folder
+props-file-size = File size
+props-pages = Pages
+props-page-size = Page size
+props-unit = Unit
+props-pdf-version = PDF version
+props-advanced = Advanced
+props-tagged = Tagged PDF
+props-protected = Password-protected
+props-allowed = What this document allows
+perm-print = Printing
+perm-copy = Copying text and images
+perm-modify = Editing pages
+perm-fill-forms = Filling in forms
+perm-annotate = Comments and annotations
+yes = Yes
+no = No
+ok = OK
+
 ## About
 
 version = Version { $version }

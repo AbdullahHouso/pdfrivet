@@ -16,6 +16,15 @@ unsafe_code = "deny"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
+# Development builds: keep enough debug info for readable panics and backtraces in
+# our own code, but none for the hundreds of dependencies. This cuts target/ from
+# tens of GB to a few GB and speeds up linking.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 lto = true
 codegen-units = 1
@@ -26,4 +35,4 @@ panic = "abort"
 # Fork: https://github.com/AbdullahHouso/pdfium-render/tree/rivet/expose-raw-handles
 # Remove this once the change is available in an official pdfium-render release.
 [patch.crates-io]
-pdfium-render = { git = "https://github.com/AbdullahHouso/pdfium-render", rev = "47ad7487de011de2ae5b7955d03921c9c3ab1ec9" }
+pdfium-render = { git = "https://github.com/AbdullahHouso/pdfium-render", rev = "6b12ee53f3365d63c1054f7b2075d801626ce124" }

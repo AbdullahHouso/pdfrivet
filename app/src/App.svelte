@@ -5,13 +5,15 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { onMount } from "svelte";
 import AboutDialog from "./lib/AboutDialog.svelte";
+import type { Metadata } from "./lib/bindings/Metadata";
 import type { PrintSettings } from "./lib/bindings/PrintSettings";
 import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { type Degrees, stepZoom } from "./lib/layout";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
-import { openDocument, type RivetError, saveDocument, takePendingFiles, toRivetError } from "./lib/pdf";
+import PropertiesDialog from "./lib/PropertiesDialog.svelte";
+import { openDocument, type RivetError, saveDocument, setMetadata, takePendingFiles, toRivetError } from "./lib/pdf";
 import { type PrintProgress, printDocument as printWithSystemDialog } from "./lib/print";
 import { printDocument } from "./lib/printing";
 import type { ZoomMode } from "./lib/recent";
@@ -87,6 +89,19 @@ async function openPath(path: string, password?: string) {
     } else {
       error = err;
     }
+  }
+}
+
+let showProperties = $state(false);
+
+async function applyMetadata(tab: Tab, metadata: Metadata) {
+  showProperties = false;
+  try {
+    await setMetadata(tab.docId, metadata);
+    tab.info = { ...tab.info, title: metadata.title.trim() || null };
+    tab.dirty = true;
+  } catch (e) {
+    error = toRivetError(e);
   }
 }
 
@@ -255,6 +270,7 @@ function onKey(e: KeyboardEvent) {
     [mod && key === "o", pickFiles],
     [e.key === "F11", toggleFullscreen],
     [!!tab && mod && key === "w", () => tab && closeTab(tab)],
+    [!!tab && mod && key === "d", () => (showProperties = true)],
     [!!tab && mod && e.shiftKey && key === "s", () => tab && saveTab(tab, true)],
     [!!tab && mod && !e.shiftKey && key === "s", () => tab?.dirty && saveTab(tab)],
     [!!tab && mod && e.key === "Tab", () => tabs.cycle(e.shiftKey ? -1 : 1)],
@@ -335,6 +351,7 @@ onMount(() => {
   onsaveas={() => active && saveTab(active, true)}
   onstep={(d) => viewer?.step(d)}
   onprint={printActive}
+  onproperties={() => (showProperties = true)}
   onactualsize={() => viewer?.zoomTo(1)}
   onpagelayout={(layout) => {
     if (active) active.pageLayout = layout;
@@ -381,6 +398,18 @@ onMount(() => {
     wrong={passwordFor.wrong}
     onsubmit={(pw) => passwordFor && openPath(passwordFor.path, pw)}
     oncancel={() => (passwordFor = null)}
+  />
+{/if}
+
+{#if showProperties && active}
+  {@const tab = active}
+  <PropertiesDialog
+    docId={tab.docId}
+    path={tab.path}
+    pageSize={tab.info.pageSizes[tab.page] ?? tab.info.pageSizes[0]}
+    onsave={(m) => applyMetadata(tab, m)}
+    oncancel={() => (showProperties = false)}
+    onerror={(e) => (error = e)}
   />
 {/if}
 

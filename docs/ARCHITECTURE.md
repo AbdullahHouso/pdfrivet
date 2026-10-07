@@ -112,3 +112,11 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   - `cups.rs` (Linux/macOS): printers from `lpstat`/`lpoptions`, jobs as a PDF of the chosen
     pages sent to `lp` with CUPS options (copies, media, sides, colour mode, scaling).
   - "Use the system print dialog…" falls back to the webview flow (`print.ts`).
+
+## Document properties
+
+- `rivet-core/src/metadata.rs` reads the description and file details (with PDFium) and
+  changes title/author/subject/keywords. PDFium can't write metadata, so on save lopdf adds an
+  **incremental update** to the bytes PDFium wrote (only the Info dictionary and the XMP stream
+  are appended; nothing else is rewritten). Password-protected files are read-only for now.
+- The pdfium-render fork also fixes reading the modification date (`ModDate` key).

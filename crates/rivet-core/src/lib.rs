@@ -16,6 +16,7 @@ mod error;
 mod forms;
 mod geometry;
 mod links;
+pub mod metadata;
 mod outline;
 pub mod print;
 

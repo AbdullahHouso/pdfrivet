@@ -358,3 +358,40 @@ fn detects_reading_direction() {
             .rtl
     );
 }
+
+#[test]
+fn reads_and_changes_document_properties() {
+    let _serial = serial();
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let props = doc.properties();
+    assert_eq!(props.metadata.title, "Rivet fixture: basic");
+    assert_eq!(props.page_count, 3);
+    assert_eq!(props.file_name, "basic.pdf");
+    assert!(props.file_size > 1000 && !props.encrypted && props.can_edit_metadata);
+    assert!(props.created.is_some(), "Typst writes a creation date");
+
+    let meta = rivet_core::metadata::Metadata {
+        title: "عنوان جديد".into(),
+        author: "Rivet".into(),
+        subject: "Test".into(),
+        keywords: "a, b".into(),
+    };
+    doc.set_metadata(meta.clone()).unwrap();
+    assert_eq!(doc.info().unwrap().title.as_deref(), Some("عنوان جديد"));
+
+    let dir = temp_dir("props");
+    let out = dir.join("renamed.pdf");
+    doc.save(&out).unwrap();
+    if let Some(keep) = std::env::var_os("RIVET_KEEP_OUTPUT") {
+        std::fs::copy(&out, keep).unwrap();
+    }
+    let reopened = pdf().open(&out, None).unwrap().properties();
+    assert_eq!(reopened.metadata, meta);
+    assert_eq!(reopened.page_count, 3);
+    assert!(reopened.modified.is_some());
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let protected = pdf().open(&fixture("password.pdf"), Some("rivet")).unwrap();
+    let props = protected.properties();
+    assert!(props.encrypted && !props.can_edit_metadata);
+}

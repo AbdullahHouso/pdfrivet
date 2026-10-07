@@ -133,6 +133,42 @@ password-prompt = الملف «{ $name }» محمي. أدخل كلمة المر�
 password = كلمة المرور
 cancel = إلغاء
 
+## Document properties
+
+document-properties = خصائص المستند…
+document-properties-title = خصائص المستند
+props-description = الوصف
+props-protected-note = هذا المستند محمي بكلمة مرور، لذا لا يمكن تغيير وصفه حاليًا.
+props-title = العنوان
+props-author = المؤلف
+props-subject = الموضوع
+props-keywords = الكلمات المفتاحية
+props-creator = أُنشئ باستخدام
+props-producer = منتج PDF
+props-created = تاريخ الإنشاء
+props-modified = تاريخ التعديل
+props-file = الملف
+props-file-name = اسم الملف
+props-location = الموقع
+show-in-folder = إظهار في المجلد
+props-file-size = حجم الملف
+props-pages = الصفحات
+props-page-size = حجم الصفحة
+props-unit = الوحدة
+props-pdf-version = إصدار PDF
+props-advanced = متقدم
+props-tagged = PDF موسوم
+props-protected = محمي بكلمة مرور
+props-allowed = ما يسمح به هذا المستند
+perm-print = الطباعة
+perm-copy = نسخ النصوص والصور
+perm-modify = تعديل الصفحات
+perm-fill-forms = تعبئة النماذج
+perm-annotate = التعليقات والتعليقات التوضيحية
+yes = نعم
+no = لا
+ok = موافق
+
 ## About
 
 version = الإصدار { $version }
