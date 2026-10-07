@@ -2,6 +2,7 @@
 import Icon from "./Icon.svelte";
 import { i18n, languages } from "./i18n.svelte";
 import { ZOOM_STEPS } from "./layout";
+import { westernDigits } from "./pageRange";
 import type { ZoomMode } from "./recent";
 import { settings, type Theme } from "./settings.svelte";
 import type { PageLayout, Tab } from "./tabs.svelte";

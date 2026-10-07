@@ -9,6 +9,7 @@ import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { type Degrees, stepZoom } from "./lib/layout";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
+import PrintDialog from "./lib/PrintDialog.svelte";
 import { openDocument, type RivetError, saveDocument, takePendingFiles, toRivetError } from "./lib/pdf";
 import { type PrintProgress, printDocument } from "./lib/print";
 import type { ZoomMode } from "./lib/recent";
@@ -85,15 +86,24 @@ async function openPath(path: string, password?: string) {
   }
 }
 
-async function printActive() {
+/** Shows the "which pages?" dialog; printing starts from there. */
+let printChoice = $state(false);
+
+function printActive() {
+  if (active && !printing) printChoice = true;
+}
+
+async function printPages(pages: number[]) {
   const tab = active;
+  printChoice = false;
   if (!tab || printing) return;
   const controller = new AbortController();
-  printing = { done: 0, total: tab.info.pageCount, controller };
+  printing = { done: 0, total: pages.length, controller };
   try {
     await printDocument(
       tab.docId,
       tab.info.pageSizes,
+      pages,
       (p) => {
         if (printing) printing = { ...printing, ...p };
       },
@@ -343,6 +353,15 @@ onMount(() => {
     wrong={passwordFor.wrong}
     onsubmit={(pw) => passwordFor && openPath(passwordFor.path, pw)}
     oncancel={() => (passwordFor = null)}
+  />
+{/if}
+
+{#if printChoice && active}
+  <PrintDialog
+    pageCount={active.info.pageCount}
+    current={active.page}
+    onprint={printPages}
+    oncancel={() => (printChoice = false)}
   />
 {/if}
 

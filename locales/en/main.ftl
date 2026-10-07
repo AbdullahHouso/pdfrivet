@@ -29,6 +29,19 @@ two-pages = Two pages
 continuous-scrolling = Continuous scrolling
 print = Print…
 # Shown while pages are rendered for printing, e.g. "Preparing 3 of 15 pages for printing…"
+print-title = Print
+print-pages = Pages to print
+print-current-page = Current page ({ $page })
+print-all-pages = All pages ({ $count })
+print-custom-pages = Pages:
+print-range-example = e.g. 1-5, 8, 11-13
+print-range-invalid = Use page numbers from 1 to { $count }, like 1-5, 8.
+print-page-count = { $count ->
+    [one] One page will be prepared.
+   *[other] { $count } pages will be prepared.
+}
+print-many-pages = { $count } pages will be prepared. This can take a while; you can cancel at any time.
+print-continue = Continue…
 preparing-print = Preparing { $done } of { $total } pages for printing…
 menu = Menu
 theme = Theme

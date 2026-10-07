@@ -17,16 +17,17 @@ export interface PrintProgress {
 }
 
 /**
- * Prepares every page and opens the system print dialog.
+ * Prepares the given pages (0-based) and opens the system print dialog.
  * Resolves when the dialog closes; rejects with an AbortError if cancelled.
  */
 export async function printDocument(
   docId: number,
   pageSizes: PageSize[],
+  pages: number[],
   onprogress: (p: PrintProgress) => void,
   signal: AbortSignal,
 ): Promise<void> {
-  const dpi = dpiFor(pageSizes.length);
+  const dpi = dpiFor(pages.length);
   const root = document.createElement("div");
   root.id = "print-root";
   const style = document.createElement("style");
@@ -34,7 +35,8 @@ export async function printDocument(
   // Each paper size gets a named @page rule, so mixed page sizes print correctly.
   const pageNames = new Map<string, string>();
   const rules: string[] = [];
-  const images = pageSizes.map((size, index) => {
+  const images = pages.map((index) => {
+    const size = pageSizes[index];
     const key = `${size.width.toFixed(1)}x${size.height.toFixed(1)}`;
     let name = pageNames.get(key);
     if (!name) {

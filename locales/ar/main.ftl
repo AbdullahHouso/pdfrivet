@@ -25,6 +25,21 @@ single-page = صفحة واحدة
 two-pages = صفحتان
 continuous-scrolling = تمرير متواصل
 print = طباعة…
+print-title = طباعة
+print-pages = الصفحات المطلوب طباعتها
+print-current-page = الصفحة الحالية ({ $page })
+print-all-pages = كل الصفحات ({ $count })
+print-custom-pages = الصفحات:
+print-range-example = مثال: 1-5، 8، 11-13
+print-range-invalid = استخدم أرقام صفحات من 1 إلى { $count }، مثل 1-5، 8.
+print-page-count = { $count ->
+    [one] سيتم تجهيز صفحة واحدة.
+    [two] سيتم تجهيز صفحتين.
+    [few] سيتم تجهيز { $count } صفحات.
+   *[other] سيتم تجهيز { $count } صفحة.
+}
+print-many-pages = سيتم تجهيز { $count } صفحة. قد يستغرق ذلك بعض الوقت، ويمكنك الإلغاء في أي وقت.
+print-continue = متابعة…
 preparing-print = جارٍ تجهيز { $done } من { $total } صفحة للطباعة…
 menu = القائمة
 theme = المظهر
