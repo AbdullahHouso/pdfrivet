@@ -1,0 +1,37 @@
+{
+  "name": "rivet-app",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "license": "MPL-2.0",
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json && biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "i18n:check": "bun scripts/i18n-check.ts",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@fluent/bundle": "^0.19.1",
+    "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
+    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/plugin-dialog": "^2.8.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@fluent/syntax": "^0.19.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tauri-apps/cli": "^2.12.1",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/bun": "^1.4.2",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.6",
+    "typescript": "6.0.3",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  }
+}

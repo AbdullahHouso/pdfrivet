@@ -1,0 +1,120 @@
+/* Global styles. Use logical properties (inline/block) everywhere so the
+   layout mirrors automatically in right-to-left languages. */
+
+:root {
+  --text: #1d1f23;
+  --muted: #5f6672;
+  --surface: #ffffff;
+  --canvas: #e9ebef;
+  --border: #d5d9e0;
+  --accent: #2463eb;
+  --accent-text: #ffffff;
+  --hover: #eef1f5;
+  --error-bg: #fde8e8;
+  --error-fg: #8a1c1c;
+  --shadow-page: 0 1px 3px rgb(0 0 0 / 0.15), 0 4px 12px rgb(0 0 0 / 0.08);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --text: #e6e8ec;
+    --muted: #9aa1ad;
+    --surface: #1f2228;
+    --canvas: #15171b;
+    --border: #343842;
+    --accent: #4f86f7;
+    --hover: #2a2e36;
+    --error-bg: #4a1d1d;
+    --error-fg: #ffd6d6;
+    --shadow-page: 0 1px 3px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: "IBM Plex Sans Arabic", system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--canvas);
+}
+
+#app {
+  display: contents;
+}
+
+button,
+select {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding-block: 6px;
+  padding-inline: 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+button.icon {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  width: 32px;
+  height: 32px;
+}
+
+button.icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Arrows that mean "back"/"forward" point the other way in RTL. */
+[dir="rtl"] .flip-rtl {
+  transform: scaleX(-1);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

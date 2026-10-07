@@ -1,0 +1,22 @@
+# Rust
+/target/
+
+# PDFium binaries (download with `cargo xtask fetch-pdfium`)
+/vendor/
+
+# Frontend
+node_modules/
+/app/dist/
+*.timestamp-*.mjs
+
+# Tauri generated files
+/app/src-tauri/gen/
+
+# Private test files (never commit personal PDFs)
+/tests/private/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp

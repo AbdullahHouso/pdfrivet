@@ -1,0 +1,17 @@
+[package]
+name = "rivet-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PDF engine for Rivet: open, render and edit PDFs (built on PDFium)."
+
+[dependencies]
+pdfium-render = "0.9.4"
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+ts-rs = "12.0.1"
+
+[lints]
+workspace = true

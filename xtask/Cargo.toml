@@ -1,0 +1,17 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+anyhow = "1.0.104"
+flate2 = "1.1.10"
+tar = "0.4.46"
+ureq = "3.4.2"
+
+[lints]
+workspace = true

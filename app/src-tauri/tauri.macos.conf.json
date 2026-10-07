@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "resources": {
+      "../../vendor/pdfium/mac-univ/libpdfium.dylib": "pdfium/libpdfium.dylib",
+      "../../vendor/pdfium/mac-univ/LICENSE": "pdfium/LICENSE"
+    }
+  }
+}

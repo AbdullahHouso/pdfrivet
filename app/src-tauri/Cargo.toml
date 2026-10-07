@@ -1,0 +1,29 @@
+[package]
+name = "rivet-app"
+description = "Rivet: a free, fast PDF reader and editor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+# The `_lib` suffix avoids a name clash with the binary on Windows
+# (https://github.com/rust-lang/cargo/issues/8519).
+name = "rivet_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[build-dependencies]
+tauri-build = "2.7.1"
+
+[dependencies]
+rivet-core = { version = "0.0.1", path = "../../crates/rivet-core" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sys-locale = "0.3.2"
+tauri = "2.12.1"
+tauri-plugin-dialog = "2.8.1"

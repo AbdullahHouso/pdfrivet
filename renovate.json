@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommitsDisabled"],
+  "description": "Keep every dependency on its latest version (project rule).",
+  "schedule": ["before 6am on monday"],
+  "packageRules": [
+    {
+      "description": "Group Tauri crates and npm packages so they update together",
+      "matchPackageNames": ["tauri", "tauri-build", "tauri-plugin-*", "@tauri-apps/*"],
+      "groupName": "tauri"
+    },
+    {
+      "description": "Group Svelte tooling",
+      "matchPackageNames": ["svelte", "svelte-check", "@sveltejs/*", "vite", "vitest"],
+      "groupName": "svelte and vite"
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "PDFium release used by `cargo xtask fetch-pdfium`",
+      "customType": "regex",
+      "managerFilePatterns": ["/^xtask/src/main\\.rs$/"],
+      "matchStrings": ["const PDFIUM_RELEASE: &str = \"(?<currentValue>chromium/\\d+)\";"],
+      "depNameTemplate": "bblanchon/pdfium-binaries",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^chromium/(?<major>\\d+)$"
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Run manually from the Actions tab (also the only way macOS runs while the repo is private).
+  workflow_dispatch:
+    inputs:
+      macos:
+        description: "Also test on macOS (uses 10x CI minutes)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Rust (version from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+      - uses: oven-sh/setup-bun@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      # The Tauri crate embeds the built UI, so build it before compiling Rust.
+      - name: Build UI
+        working-directory: app
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Download PDFium
+        run: cargo xtask fetch-pdfium
+
+      - name: Format
+        if: runner.os == 'Linux'
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo nextest run --workspace
+
+      - name: TypeScript bindings are up to date
+        if: runner.os == 'Linux'
+        run: |
+          cargo test -p rivet-core --lib --quiet
+          git diff --exit-code app/src/lib/bindings || (echo "Run 'cargo test -p rivet-core' and commit app/src/lib/bindings" && exit 1)
+
+  rust-macos:
+    name: Rust (macos-latest)
+    if: github.event_name == 'workflow_dispatch' && inputs.macos
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: oven-sh/setup-bun@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - working-directory: app
+        run: bun install --frozen-lockfile && bun run build
+      - run: cargo xtask fetch-pdfium
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo nextest run --workspace
+
+  ui:
+    name: UI checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Types and lint
+        run: bun run check
+      - name: Unit tests
+        run: bun run test
+      - name: Translations
+        run: bun run i18n:check
+
+  deny:
+    name: Licenses & advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
