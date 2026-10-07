@@ -3,7 +3,6 @@
 // at a time, with one or two pages per row. Only pages near the viewport are
 // mounted; everything else is just empty space.
 import { tick, untrack } from "svelte";
-import { i18n } from "./i18n.svelte";
 import {
   type Anchor,
   anchorAt,
@@ -36,7 +35,8 @@ let viewportHeight = $state(0);
 let scrollTop = $state(0);
 
 let columns = $derived<1 | 2>(tab.pageLayout === "double" ? 2 : 1);
-let rtl = $derived(i18n.dir === "rtl");
+// Spreads follow the document's reading direction (detected, or set in Page display).
+let rtl = $derived(tab.pagesRtl);
 
 /** Layout of the whole document, or (page at a time) of just the current row. */
 function makeView(zoom: number, rotation: Degrees): Layout {

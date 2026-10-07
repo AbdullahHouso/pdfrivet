@@ -9,6 +9,8 @@ export interface RecentFile {
   page: number;
   zoom: number;
   zoomMode: ZoomMode;
+  /** Page order chosen for this file, if changed from what Rivet detected. */
+  pagesRtl?: boolean;
 }
 
 export type ZoomMode = "fit-width" | "fit-page" | "custom";
@@ -29,7 +31,7 @@ export function touchRecent(list: RecentFile[], entry: RecentFile): RecentFile[]
 export function updatePosition(
   list: RecentFile[],
   path: string,
-  position: Pick<RecentFile, "page" | "zoom" | "zoomMode">,
+  position: Pick<RecentFile, "page" | "zoom" | "zoomMode" | "pagesRtl">,
 ): RecentFile[] {
   return list.map((r) => (samePath(r.path, path) ? { ...r, ...position } : r));
 }

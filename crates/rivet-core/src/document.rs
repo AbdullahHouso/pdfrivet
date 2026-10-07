@@ -131,6 +131,8 @@ pub struct DocInfo {
     pub author: Option<String>,
     /// Size of every page, so the viewer can lay out pages before rendering them.
     pub page_sizes: Vec<PageSize>,
+    /// The text reads right to left (e.g. Arabic), so two-page spreads start on the right.
+    pub rtl: bool,
 }
 
 /// Clockwise view rotation. Only affects rendering; the file is never changed.
@@ -210,6 +212,7 @@ impl Document {
             title: meta(PdfDocumentMetadataTagType::Title),
             author: meta(PdfDocumentMetadataTagType::Author),
             page_sizes,
+            rtl: crate::direction::detect(&self.inner),
         })
     }
 

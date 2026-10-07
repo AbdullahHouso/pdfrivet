@@ -97,7 +97,9 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
 ## Page display and printing
 
 - `layout.ts` arranges pages in **rows** of one or two pages (`columns`), mirrored for
-  right-to-left languages (`rtl`). With continuous scrolling off, the viewer shows only the
+  right-to-left documents (`rtl`). The direction comes from the document, not the UI
+  language: `rivet-core/src/direction.rs` samples the text of the first pages and reports
+  `DocInfo.rtl`; users can override it per file ("Pages right to left"). With continuous scrolling off, the viewer shows only the
   current row and turns pages at the top/bottom edge (wheel, keys) or with ←/→.
 - **Printing** (`print.ts`): Rivet first asks which pages to print (`PrintDialog.svelte`,
   ranges parsed by `pageRange.ts`), because the system dialog can only print what is already

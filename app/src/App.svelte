@@ -67,6 +67,7 @@ async function openPath(path: string, password?: string) {
       tab.page = Math.min(saved.page, info.pageCount - 1);
       tab.zoomMode = saved.zoomMode;
       tab.zoom = saved.zoom;
+      if (saved.pagesRtl !== undefined) tab.pagesRtl = saved.pagesRtl;
     }
     settings.touchRecent({
       path,
@@ -75,6 +76,7 @@ async function openPath(path: string, password?: string) {
       page: tab.page,
       zoom: tab.zoom,
       zoomMode: tab.zoomMode,
+      pagesRtl: tab.pagesRtl,
     });
   } catch (e) {
     const err = toRivetError(e);
@@ -153,6 +155,7 @@ async function saveTab(tab: Tab, saveAs = false): Promise<boolean> {
       page: tab.page,
       zoom: tab.zoom,
       zoomMode: tab.zoomMode,
+      pagesRtl: tab.pagesRtl,
     });
     return true;
   } catch (e) {
@@ -206,8 +209,8 @@ async function toggleFullscreen() {
 // Remember where you are in each document (saved shortly after you stop moving).
 $effect(() => {
   if (!active) return;
-  const { path, page, zoom, zoomMode } = active;
-  const timer = setTimeout(() => settings.updatePosition(path, { page, zoom, zoomMode }), 800);
+  const { path, page, zoom, zoomMode, pagesRtl } = active;
+  const timer = setTimeout(() => settings.updatePosition(path, { page, zoom, zoomMode, pagesRtl }), 800);
   return () => clearTimeout(timer);
 });
 
@@ -317,6 +320,9 @@ onMount(() => {
   onpagelayout={(layout) => {
     if (active) active.pageLayout = layout;
     settings.pageLayout = layout;
+  }}
+  onpagesrtl={(on) => {
+    if (active) active.pagesRtl = on;
   }}
   oncontinuous={(on) => {
     if (active) active.continuous = on;

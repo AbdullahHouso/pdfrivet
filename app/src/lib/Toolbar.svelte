@@ -26,6 +26,7 @@ interface Props {
   onactualsize: () => void;
   onpagelayout: (layout: PageLayout) => void;
   oncontinuous: (continuous: boolean) => void;
+  onpagesrtl: (rtl: boolean) => void;
 }
 let props: Props = $props();
 let tab = $derived(props.tab);
@@ -183,6 +184,10 @@ const themes: Theme[] = ["system", "light", "dark"];
           <label class="menu-item option check">
             <input type="checkbox" checked={tab.continuous} onchange={(e) => props.oncontinuous(e.currentTarget.checked)} />
             {i18n.t("continuous-scrolling")}
+          </label>
+          <label class="menu-item option check sub" title={i18n.t("pages-rtl-hint")}>
+            <input type="checkbox" checked={tab.pagesRtl} onchange={(e) => props.onpagesrtl(e.currentTarget.checked)} />
+            {i18n.t("pages-rtl")}
           </label>
         </div>
         <button class="icon" onclick={props.onrotate} aria-label={i18n.t("rotate-view")} title={i18n.t("rotate-view")}>
@@ -388,6 +393,10 @@ const themes: Theme[] = ["system", "light", "dark"];
     border-block-start: 1px solid var(--border);
     border-radius: 0;
     padding-block-start: 10px;
+  }
+  .check.sub {
+    border-block-start: none;
+    padding-block-start: 4px;
   }
   .check input {
     accent-color: var(--accent);

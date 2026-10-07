@@ -88,7 +88,7 @@ export const settings = {
     recent = touchRecent(recent, entry);
     save("recent", recent);
   },
-  updatePosition(path: string, position: Pick<RecentFile, "page" | "zoom" | "zoomMode">) {
+  updatePosition(path: string, position: Pick<RecentFile, "page" | "zoom" | "zoomMode" | "pagesRtl">) {
     recent = updatePosition(recent, path, position);
     save("recent", recent);
   },

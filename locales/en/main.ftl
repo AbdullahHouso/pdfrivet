@@ -30,6 +30,8 @@ page-display = Page display
 single-page = Single page
 two-pages = Two pages
 continuous-scrolling = Continuous scrolling
+pages-rtl = Pages right to left
+pages-rtl-hint = Two-page spreads start on the right, like Arabic books. Rivet sets this from the document's language.
 print = Print…
 # Shown while pages are rendered for printing, e.g. "Preparing 3 of 15 pages for printing…"
 print-title = Print

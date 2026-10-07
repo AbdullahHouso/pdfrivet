@@ -9,6 +9,7 @@
 //!   called safely from many threads (the app uses this).
 
 mod cache;
+mod direction;
 mod document;
 mod engine;
 mod error;

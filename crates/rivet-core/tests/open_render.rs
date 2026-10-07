@@ -337,3 +337,24 @@ fn saves_over_the_open_file() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn detects_reading_direction() {
+    let _serial = serial();
+    assert!(
+        pdf()
+            .open(&fixture("arabic.pdf"), None)
+            .unwrap()
+            .info()
+            .unwrap()
+            .rtl
+    );
+    assert!(
+        !pdf()
+            .open(&fixture("basic.pdf"), None)
+            .unwrap()
+            .info()
+            .unwrap()
+            .rtl
+    );
+}

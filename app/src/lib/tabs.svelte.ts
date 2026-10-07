@@ -24,6 +24,8 @@ export class Tab {
   pageLayout = $state<PageLayout>("single");
   /** Scroll through all pages, or show one page (or spread) at a time. */
   continuous = $state(true);
+  /** Two-page spreads start on the right (Arabic, Hebrew… documents). */
+  pagesRtl = $state(false);
   /** Scroll position to restore when the tab becomes active again. */
   scrollTop = 0;
   scrollLeft = 0;
@@ -38,6 +40,7 @@ export class Tab {
     this.docId = docId;
     this.path = path;
     this.info = info;
+    this.pagesRtl = info.rtl;
   }
 
   get fileName(): string {

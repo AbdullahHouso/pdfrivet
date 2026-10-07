@@ -8,4 +8,8 @@ export type DocInfo = { pageCount: number, title: string | null, author: string 
 /**
  * Size of every page, so the viewer can lay out pages before rendering them.
  */
-pageSizes: Array<PageSize>, };
+pageSizes: Array<PageSize>, 
+/**
+ * The text reads right to left (e.g. Arabic), so two-page spreads start on the right.
+ */
+rtl: boolean, };
