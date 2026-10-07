@@ -3084,6 +3084,7 @@ dependencies = [
 name = "rivet-app"
 version = "0.1.0"
 dependencies = [
+ "image",
  "rivet-core",
  "serde",
  "serde_json",

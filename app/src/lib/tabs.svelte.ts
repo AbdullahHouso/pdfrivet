@@ -8,6 +8,8 @@ import type { Degrees } from "./layout";
 import { closeDocument } from "./pdf";
 import type { ZoomMode } from "./recent";
 
+export type PageLayout = "single" | "double";
+
 export class Tab {
   readonly id: number;
   readonly docId: number;
@@ -18,6 +20,10 @@ export class Tab {
   zoom = $state(1);
   zoomMode = $state<ZoomMode>("fit-width");
   rotation = $state<Degrees>(0);
+  /** One page per row, or two side by side. */
+  pageLayout = $state<PageLayout>("single");
+  /** Scroll through all pages, or show one page (or spread) at a time. */
+  continuous = $state(true);
   /** Scroll position to restore when the tab becomes active again. */
   scrollTop = 0;
   scrollLeft = 0;

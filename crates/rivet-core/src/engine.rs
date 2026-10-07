@@ -33,13 +33,23 @@ const VISIBLE_MARGIN: u32 = 2;
 
 type Reply<T> = mpsc::Sender<Result<T>>;
 
+/// Why a page is rendered, which decides how the engine treats the request.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Purpose {
+    /// The main view: skipped if far from the visible range; cached.
+    View,
+    /// Sidebar thumbnails: always rendered; cached.
+    Thumbnail,
+    /// Printing: always rendered; not cached (big bitmaps would push out pages you're reading).
+    Print,
+}
+
 struct RenderRequest {
     doc: DocId,
     page: u32,
     scale: f32,
     rotation: Rotation,
-    /// Skip the render if the page is far from the visible range.
-    only_if_visible: bool,
+    purpose: Purpose,
     reply: Reply<RenderedPage>,
 }
 
@@ -111,7 +121,7 @@ impl Engine {
         scale: f32,
         rotation: Rotation,
     ) -> Result<RenderedPage> {
-        self.render_request(doc, page, scale, rotation, true)
+        self.render_request(doc, page, scale, rotation, Purpose::View)
     }
 
     /// Renders a page regardless of what is visible (used for thumbnails).
@@ -122,7 +132,12 @@ impl Engine {
         scale: f32,
         rotation: Rotation,
     ) -> Result<RenderedPage> {
-        self.render_request(doc, page, scale, rotation, false)
+        self.render_request(doc, page, scale, rotation, Purpose::Thumbnail)
+    }
+
+    /// Renders a page for printing (upright, not cached).
+    pub fn render_for_print(&self, doc: DocId, page: u32, scale: f32) -> Result<RenderedPage> {
+        self.render_request(doc, page, scale, Rotation::None, Purpose::Print)
     }
 
     fn render_request(
@@ -131,7 +146,7 @@ impl Engine {
         page: u32,
         scale: f32,
         rotation: Rotation,
-        only_if_visible: bool,
+        purpose: Purpose,
     ) -> Result<RenderedPage> {
         self.call(|reply| {
             Request::Render(RenderRequest {
@@ -139,7 +154,7 @@ impl Engine {
                 page,
                 scale,
                 rotation,
-                only_if_visible,
+                purpose,
                 reply,
             })
         })
@@ -268,7 +283,11 @@ impl Worker {
     }
 
     fn render(&mut self, r: &RenderRequest) -> Result<RenderedPage> {
-        if let Some(&(first, last)) = self.visible.get(&r.doc).filter(|_| r.only_if_visible) {
+        if let Some(&(first, last)) = self
+            .visible
+            .get(&r.doc)
+            .filter(|_| r.purpose == Purpose::View)
+        {
             let near = r.page + VISIBLE_MARGIN >= first && r.page <= last + VISIBLE_MARGIN;
             if !near {
                 return Err(Error::new(
@@ -276,6 +295,9 @@ impl Worker {
                     "page scrolled out of view",
                 ));
             }
+        }
+        if r.purpose == Purpose::Print {
+            return self.doc(r.doc)?.render_page(r.page, r.scale, r.rotation);
         }
         let key = Key::new(r.doc, r.page, r.scale, r.rotation);
         if let Some(page) = self.cache.get(&key) {

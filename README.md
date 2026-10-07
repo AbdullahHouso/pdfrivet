@@ -12,7 +12,9 @@
 
 - Open several PDFs in **tabs**, from the app, by drag and drop, or with "Open with" in your file manager
 - **Continuous scrolling** that stays fast on documents with thousands of pages
-- **Zoom** (fit width, fit page, Ctrl + wheel, pinch) and **rotate** the view
+- **Zoom** (fit page, fit width, actual size, Ctrl + wheel, pinch) and **rotate** the view
+- **Single page or two pages** side by side (right-to-left spreads in Arabic), with or without continuous scrolling
+- **Print** only the document pages, each at its own paper size
 - **Thumbnails** and the document **outline** (table of contents)
 - **Fill in forms** (text fields, checkboxes, radio buttons, drop-downs) and **save**, including over the open file
 - Clickable **links** inside documents

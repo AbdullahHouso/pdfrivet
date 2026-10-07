@@ -22,18 +22,28 @@ let viewportHeight = $state(0);
 // Same shape as the viewer's layout, so the binary search can be reused.
 let layout = $derived.by((): Layout => {
   const tops: number[] = [];
-  const widths: number[] = [];
   const heights: number[] = [];
+  const rows: Layout["rows"] = [];
   let y = GAP;
-  for (const size of tab.info.pageSizes) {
+  tab.info.pageSizes.forEach((size, i) => {
     const r = rotatedSize(size, tab.rotation);
-    const h = Math.round((THUMB_WIDTH * r.height) / r.width);
+    const h = Math.round((THUMB_WIDTH * r.height) / r.width) + LABEL;
     tops.push(y);
-    widths.push(THUMB_WIDTH);
-    heights.push(h + LABEL);
-    y += h + LABEL + GAP;
-  }
-  return { tops, widths, heights, totalHeight: y, totalWidth: THUMB_WIDTH };
+    heights.push(h);
+    rows.push({ first: i, last: i, top: y, height: h });
+    y += h + GAP;
+  });
+  const count = tops.length;
+  return {
+    tops,
+    heights,
+    rows,
+    lefts: new Array(count).fill(0),
+    widths: new Array(count).fill(THUMB_WIDTH),
+    rowOf: Array.from({ length: count }, (_, i) => i),
+    totalHeight: y,
+    totalWidth: THUMB_WIDTH,
+  };
 });
 let range = $derived(visibleRange(layout, scrollTop, viewportHeight));
 

@@ -1,15 +1,19 @@
 <script lang="ts">
+// The page viewer for one tab: continuous scrolling or one page (or spread)
+// at a time, with one or two pages per row. Only pages near the viewport are
+// mounted; everything else is just empty space.
 import { tick, untrack } from "svelte";
-// The continuous, virtualized page viewer for one tab.
-// Only pages near the viewport are mounted; everything else is just space.
+import { i18n } from "./i18n.svelte";
 import {
   type Anchor,
   anchorAt,
   clampZoom,
   computeLayout,
   currentPage,
+  type Degrees,
   fitPageZoom,
   fitWidthZoom,
+  type Layout,
   PAGE_GAP,
   rotatedSize,
   scrollTopFor,
@@ -30,15 +34,41 @@ let viewportWidth = $state(0);
 let viewportHeight = $state(0);
 let scrollTop = $state(0);
 
-let layout = $derived(computeLayout(tab.info.pageSizes, tab.zoom, tab.rotation));
+let columns = $derived<1 | 2>(tab.pageLayout === "double" ? 2 : 1);
+let rtl = $derived(i18n.dir === "rtl");
+
+/** Layout of the whole document, or (page at a time) of just the current row. */
+function makeView(zoom: number, rotation: Degrees): Layout {
+  const full = computeLayout(tab.info.pageSizes, zoom, rotation, { columns, rtl });
+  if (tab.continuous) return full;
+  // Page at a time: shift everything so the current row starts at the top.
+  const row = full.rows[full.rowOf[tab.page] ?? 0];
+  const offset = row.top - PAGE_GAP;
+  return {
+    ...full,
+    tops: full.tops.map((t) => t - offset),
+    rows: [{ ...row, top: PAGE_GAP }],
+    totalHeight: row.height + 2 * PAGE_GAP,
+  };
+}
+
+let layout = $derived(makeView(tab.zoom, tab.rotation));
+let fullLayout = $derived(computeLayout(tab.info.pageSizes, tab.zoom, tab.rotation, { columns, rtl }));
 let range = $derived(visibleRange(layout, scrollTop, viewportHeight));
-// Mount one extra page on each side so scrolling never shows empty frames.
+// Mount one extra row on each side so scrolling never shows empty frames.
 let mounted = $derived.by(() => {
   const [first, last] = range;
+  if (last < first) return [];
+  const { rows, rowOf } = fullLayout;
+  const extra = tab.continuous ? 1 : 0;
+  const from = rows[Math.max(0, rowOf[first] - extra)].first;
+  const to = rows[Math.min(rows.length - 1, rowOf[last] + extra)].last;
   const pages: number[] = [];
-  for (let i = Math.max(0, first - 1); i <= Math.min(tab.info.pageCount - 1, last + 1); i++) pages.push(i);
+  for (let i = from; i <= to; i++) pages.push(i);
   return pages;
 });
+let contentWidth = $derived(Math.max(layout.totalWidth, viewportWidth));
+let offsetX = $derived((contentWidth - layout.totalWidth) / 2);
 
 // Where to keep the view steady when the zoom changes (cursor or centre).
 let pendingAnchor: Anchor | null = null;
@@ -47,11 +77,26 @@ let lastZoom = untrack(() => tab.zoom);
 let lastRotation = untrack(() => tab.rotation);
 let restored = false;
 
-/** Scrolls so that `page` (0-based) starts at the top. */
-export function goToPage(page: number) {
+/** Shows `page` (0-based): scrolls to its row, or (page at a time) switches to it. */
+export function goToPage(page: number, atBottom = false) {
   const p = Math.max(0, Math.min(tab.info.pageCount - 1, page));
-  scroller.scrollTop = layout.tops[p] - PAGE_GAP;
-  tab.page = p;
+  const { rows, rowOf } = fullLayout;
+  const row = rows[rowOf[p]];
+  tab.page = row.first;
+  if (tab.continuous) {
+    scroller.scrollTop = row.top - PAGE_GAP;
+  } else {
+    tick().then(() => {
+      scroller.scrollTop = atBottom ? scroller.scrollHeight : 0;
+    });
+  }
+}
+
+/** Moves one row (page or spread) forward (+1) or back (-1). */
+export function step(direction: 1 | -1, atBottom = false) {
+  const { rows, rowOf } = fullLayout;
+  const target = rows[rowOf[tab.page] + direction];
+  if (target) goToPage(target.first, atBottom);
 }
 
 /** Zooms around a point of the viewport (default: its centre). */
@@ -61,15 +106,25 @@ export function zoomTo(zoom: number, offsetY = viewportHeight / 2) {
   tab.zoom = clampZoom(zoom);
 }
 
-// Fit modes follow the window size and the current page.
+// Fit modes follow the window size, the page layout and (for fit page) the current row.
 $effect(() => {
   if (viewportWidth === 0) return;
   const sizes = tab.info.pageSizes;
-  if (tab.zoomMode === "fit-width") tab.zoom = fitWidthZoom(sizes, tab.rotation, viewportWidth);
+  if (tab.zoomMode === "fit-width") tab.zoom = fitWidthZoom(sizes, tab.rotation, viewportWidth, columns);
   // Fit the page you're on when the mode or window changes, not on every scroll.
   const page = untrack(() => tab.page);
   if (tab.zoomMode === "fit-page")
-    tab.zoom = fitPageZoom(sizes[page] ?? sizes[0], tab.rotation, viewportWidth, viewportHeight);
+    tab.zoom = fitPageZoom(sizes, page, tab.rotation, viewportWidth, viewportHeight, columns);
+});
+
+// When the page layout or scrolling mode changes, keep showing the same page.
+let lastMode = untrack(() => `${tab.pageLayout}/${tab.continuous}`);
+$effect(() => {
+  const mode = `${tab.pageLayout}/${tab.continuous}`;
+  if (mode === lastMode) return;
+  lastMode = mode;
+  const page = untrack(() => tab.page);
+  tick().then(() => goToPage(page));
 });
 
 // After a zoom or rotation, put the anchor point back where it was.
@@ -82,7 +137,7 @@ $effect.pre(() => {
   const zoom = tab.zoom;
   const rotation = tab.rotation;
   if (!scroller || (zoom === lastZoom && rotation === lastRotation)) return;
-  const before = computeLayout(tab.info.pageSizes, lastZoom, lastRotation);
+  const before = untrack(() => makeView(lastZoom, lastRotation));
   const anchor = pendingAnchor ?? queuedAnchor ?? anchorAt(before, scroller.scrollTop, 0);
   pendingAnchor = null;
   queuedAnchor = anchor;
@@ -110,7 +165,7 @@ $effect(() => {
 $effect(() => {
   if (restored || viewportHeight === 0) return;
   restored = true;
-  if (tab.scrollTop > 0) {
+  if (tab.continuous && tab.scrollTop > 0) {
     scroller.scrollTop = tab.scrollTop;
     scroller.scrollLeft = tab.scrollLeft;
   } else if (tab.page > 0) {
@@ -122,20 +177,59 @@ function onScroll() {
   scrollTop = scroller.scrollTop;
   tab.scrollTop = scroller.scrollTop;
   tab.scrollLeft = scroller.scrollLeft;
-  tab.page = currentPage(layout, scrollTop, viewportHeight);
+  if (tab.continuous) tab.page = currentPage(layout, scrollTop, viewportHeight);
+}
+
+// Page at a time: scrolling past the end of a page turns to the next one.
+let lastTurn = 0;
+function turnPage(direction: 1 | -1): boolean {
+  const atTop = scroller.scrollTop <= 0;
+  const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+  if ((direction > 0 && !atBottom) || (direction < 0 && !atTop)) return false;
+  const now = Date.now();
+  // One turn per wheel gesture, not one per wheel event.
+  if (now - lastTurn < 350) return true;
+  lastTurn = now;
+  step(direction, direction < 0);
+  return true;
 }
 
 function onWheel(e: WheelEvent) {
   // Ctrl + wheel (and touchpad pinch, which browsers report the same way) zooms.
-  if (!e.ctrlKey) return;
+  if (e.ctrlKey) {
+    e.preventDefault();
+    const rect = scroller.getBoundingClientRect();
+    zoomTo(tab.zoom * Math.exp(-e.deltaY * 0.0025), e.clientY - rect.top);
+    return;
+  }
+  if (!tab.continuous && e.deltaY !== 0 && turnPage(e.deltaY > 0 ? 1 : -1)) e.preventDefault();
+}
+
+function onKeyDown(e: KeyboardEvent) {
+  if (tab.continuous || e.ctrlKey || e.metaKey || e.altKey) return;
+  // Left/right turn pages like a book (mirrored for right-to-left languages).
+  const forward = rtl ? "ArrowLeft" : "ArrowRight";
+  const back = rtl ? "ArrowRight" : "ArrowLeft";
+  if (e.key === forward) step(1);
+  else if (e.key === back) step(-1);
+  else if (e.key === "PageDown" || e.key === " " || e.key === "ArrowDown") {
+    if (!turnPage(1)) return;
+  } else if (e.key === "PageUp" || e.key === "ArrowUp") {
+    if (!turnPage(-1)) return;
+  } else return;
   e.preventDefault();
-  const rect = scroller.getBoundingClientRect();
-  zoomTo(tab.zoom * Math.exp(-e.deltaY * 0.0025), e.clientY - rect.top);
+}
+
+function onFieldChange() {
+  tab.dirty = true;
+  tab.revision++;
 }
 </script>
 
-<!-- dir="ltr": page geometry doesn't depend on the UI language, and this
-     avoids browsers' different RTL scroll coordinates. -->
+<!-- dir="ltr": page geometry is computed in code (including right-to-left
+     spreads), and this avoids browsers' different RTL scroll coordinates.
+     The scroll area handles page-turning keys itself, like a native document view. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="scroller"
   dir="ltr"
@@ -146,29 +240,22 @@ function onWheel(e: WheelEvent) {
   bind:clientHeight={viewportHeight}
   onscroll={onScroll}
   onwheel={onWheel}
+  onkeydown={onKeyDown}
 >
-  <div class="content" style:height="{layout.totalHeight}px" style:width="{Math.max(layout.totalWidth, viewportWidth)}px">
+  <div class="content" style:height="{layout.totalHeight}px" style:width="{contentWidth}px">
     {#each mounted as index (index)}
-      {@const width = layout.widths[index]}
-      <div
-        class="slot"
-        style:top="{layout.tops[index]}px"
-        style:left="{(Math.max(layout.totalWidth, viewportWidth) - width) / 2}px"
-      >
+      <div class="slot" style:top="{layout.tops[index]}px" style:left="{offsetX + layout.lefts[index]}px">
         <PageView
           docId={tab.docId}
           {index}
-          {width}
+          width={layout.widths[index]}
           height={layout.heights[index]}
           widthPt={rotatedSize(tab.info.pageSizes[index], tab.rotation).width}
           rotation={tab.rotation}
           {onerror}
           ongotopage={goToPage}
           revision={tab.revision}
-          onfieldchange={() => {
-            tab.dirty = true;
-            tab.revision++;
-          }}
+          onfieldchange={onFieldChange}
         />
       </div>
     {/each}

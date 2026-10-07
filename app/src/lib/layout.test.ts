@@ -58,7 +58,7 @@ describe("fit zoom", () => {
   });
 
   it("fits a whole page into the viewport", () => {
-    const zoom = fitPageZoom(A4, 0, 2000, 842 * PX_PER_PT + 2 * PAGE_GAP);
+    const zoom = fitPageZoom([A4], 0, 0, 2000, 842 * PX_PER_PT + 2 * PAGE_GAP);
     expect(zoom).toBeCloseTo(1);
   });
 });
@@ -101,5 +101,34 @@ describe("rotateRect", () => {
     let r = corner;
     for (let i = 0; i < 4; i++) r = rotateRect(r, 90);
     for (const key of ["left", "top", "right", "bottom"] as const) expect(r[key]).toBeCloseTo(corner[key]);
+  });
+});
+
+describe("two pages side by side", () => {
+  const l = computeLayout([A4, A4, A4], 1, 0, { columns: 2 });
+  const w = 595 * PX_PER_PT;
+
+  it("puts pairs of pages in rows", () => {
+    expect(l.rows.map((r) => [r.first, r.last])).toEqual([
+      [0, 1],
+      [2, 2],
+    ]);
+    expect(l.tops[0]).toBe(l.tops[1]);
+    expect(l.lefts[1]).toBeCloseTo(l.lefts[0] + w + PAGE_GAP);
+    expect(l.totalWidth).toBeCloseTo(2 * w + 3 * PAGE_GAP);
+  });
+
+  it("puts the first page on the right for right-to-left reading", () => {
+    const rtl = computeLayout([A4, A4], 1, 0, { columns: 2, rtl: true });
+    expect(rtl.lefts[0]).toBeGreaterThan(rtl.lefts[1]);
+  });
+
+  it("reports whole rows as visible and the row's first page as current", () => {
+    expect(visibleRange(l, 0, 100)).toEqual([0, 1]);
+    expect(currentPage(l, l.rows[1].top, 400)).toBe(2);
+  });
+
+  it("fits a spread to the width", () => {
+    expect(fitWidthZoom([A4, A4], 0, 2 * w + 3 * PAGE_GAP, 2)).toBeCloseTo(1);
   });
 });

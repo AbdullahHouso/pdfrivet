@@ -202,6 +202,15 @@ fn page_protocol(engine: &Engine, uri: &http::Uri) -> http::Response<Vec<u8>> {
         .unwrap_or(1.0);
     let rotation = Rotation::from_degrees(query("rot").and_then(|s| s.parse().ok()).unwrap_or(0));
 
+    // Printing: /print/<doc>/<page>?dpi=<n> returns a JPEG of the upright page.
+    if let ["print", doc, page] = parts.as_slice() {
+        let dpi = query("dpi")
+            .and_then(|s| s.parse::<f32>().ok())
+            .unwrap_or(200.0)
+            .clamp(72.0, 600.0);
+        return print_page(engine, doc, page, dpi);
+    }
+
     let result = match parts.as_slice() {
         ["page", doc, page] => match (doc.parse(), page.parse()) {
             (Ok(doc), Ok(page)) if query("thumb").is_some() => {
@@ -238,6 +247,36 @@ fn page_protocol(engine: &Engine, uri: &http::Uri) -> http::Response<Vec<u8>> {
         Err(e) if e.code == ErrorCode::Cancelled => builder
             .status(http::StatusCode::NO_CONTENT)
             .body(Vec::new()),
+        Err(e) => builder
+            .status(http::StatusCode::BAD_REQUEST)
+            .header("Content-Type", "application/json")
+            .body(serde_json::to_vec(&e).unwrap_or_default()),
+    }
+    .unwrap_or_else(|_| http::Response::new(Vec::new()))
+}
+
+/// Renders a page for printing and encodes it as JPEG (much smaller than raw
+/// pixels, so even long documents fit in memory while the print dialog is open).
+fn print_page(engine: &Engine, doc: &str, page: &str, dpi: f32) -> http::Response<Vec<u8>> {
+    let rendered = match (doc.parse(), page.parse()) {
+        (Ok(doc), Ok(page)) => engine.render_for_print(doc, page, dpi / 72.0),
+        _ => Err(Error::new(ErrorCode::Internal, "bad print URL")),
+    };
+    let jpeg = rendered.and_then(|p| {
+        // JPEG has no transparency; pages are rendered on white anyway.
+        let (pixels, _) = p.rgba.as_chunks::<4>();
+        let rgb: Vec<u8> = pixels.iter().flat_map(|px| [px[0], px[1], px[2]]).collect();
+        let mut out = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 92)
+            .encode(&rgb, p.width, p.height, image::ExtendedColorType::Rgb8)
+            .map_err(|e| Error::new(ErrorCode::Internal, e.to_string()))?;
+        Ok(out)
+    });
+    let builder = http::Response::builder()
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Cache-Control", "no-store");
+    match jpeg {
+        Ok(bytes) => builder.header("Content-Type", "image/jpeg").body(bytes),
         Err(e) => builder
             .status(http::StatusCode::BAD_REQUEST)
             .header("Content-Type", "application/json")

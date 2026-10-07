@@ -93,3 +93,14 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   it over the target, so a crash never leaves a half-written PDF.
 - Known PDFium limitation: in fields mixing Arabic and Latin text, PDFium may order numbers
   differently from the typed order (Chrome shares this).
+
+## Page display and printing
+
+- `layout.ts` arranges pages in **rows** of one or two pages (`columns`), mirrored for
+  right-to-left languages (`rtl`). With continuous scrolling off, the viewer shows only the
+  current row and turns pages at the top/bottom edge (wheel, keys) or with ←/→.
+- **Printing** (`print.ts`): the system print dialog prints whatever the webview shows, so
+  Rivet builds a hidden `#print-root` with one JPEG per page (`rivet://…/print/<doc>/<page>`,
+  rendered at 200 DPI, 150 DPI above 200 pages; not cached), adds a named `@page` rule per
+  paper size, hides the app with a print stylesheet, and calls `window.print()`.
+  Linux's GTK print dialog ignores per-page sizes and uses its own paper; pages are scaled to fit.

@@ -3,12 +3,16 @@
 
 import { load, type Store } from "@tauri-apps/plugin-store";
 import { findRecent, type RecentFile, removeRecent, touchRecent, updatePosition } from "./recent";
+import type { PageLayout } from "./tabs.svelte";
 
 export type Theme = "system" | "light" | "dark";
 
 let store: Store | null = null;
 let theme = $state<Theme>("system");
 let recent = $state<RecentFile[]>([]);
+// The view new tabs start with (the last one you picked).
+let pageLayout = $state<PageLayout>("single");
+let continuous = $state(true);
 
 function applyTheme(value: Theme) {
   if (value === "system") delete document.documentElement.dataset.theme;
@@ -30,6 +34,8 @@ export const settings = {
       store = await load("settings.json", { autoSave: 500, defaults: {} });
       theme = (await store.get<Theme>("theme")) ?? "system";
       recent = (await store.get<RecentFile[]>("recent")) ?? [];
+      pageLayout = (await store.get<PageLayout>("pageLayout")) ?? "single";
+      continuous = (await store.get<boolean>("continuous")) ?? true;
     } catch (e) {
       console.warn("[settings] using defaults", e);
     }
@@ -43,6 +49,21 @@ export const settings = {
     theme = value;
     applyTheme(value);
     save("theme", value);
+  },
+
+  get pageLayout() {
+    return pageLayout;
+  },
+  set pageLayout(value: PageLayout) {
+    pageLayout = value;
+    save("pageLayout", value);
+  },
+  get continuous() {
+    return continuous;
+  },
+  set continuous(value: boolean) {
+    continuous = value;
+    save("continuous", value);
   },
 
   get recent() {

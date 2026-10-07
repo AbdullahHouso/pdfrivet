@@ -22,6 +22,14 @@ zoom-level = { $percent }%
 fit-width = Fit width
 fit-page = Fit page
 rotate-view = Rotate view
+actual-size = Actual size
+page-display = Page display
+single-page = Single page
+two-pages = Two pages
+continuous-scrolling = Continuous scrolling
+print = Print…
+# Shown while pages are rendered for printing, e.g. "Preparing 3 of 15 pages for printing…"
+preparing-print = Preparing { $done } of { $total } pages for printing…
 menu = Menu
 theme = Theme
 theme-system = System

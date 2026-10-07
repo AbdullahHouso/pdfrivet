@@ -10,6 +10,7 @@ import { i18n } from "./lib/i18n.svelte";
 import { type Degrees, stepZoom } from "./lib/layout";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import { openDocument, type RivetError, saveDocument, takePendingFiles, toRivetError } from "./lib/pdf";
+import { type PrintProgress, printDocument } from "./lib/print";
 import type { ZoomMode } from "./lib/recent";
 import Sidebar from "./lib/Sidebar.svelte";
 import StartScreen from "./lib/StartScreen.svelte";
@@ -28,6 +29,9 @@ let passwordFor = $state<{ path: string; wrong: boolean } | null>(null);
 
 /** An open question dialog, answered through `ask`. */
 let question = $state<{ title: string; message: string; choices: Choice[]; answer: (id: string) => void } | null>(null);
+
+/** Pages being prepared for printing, with a way to cancel. */
+let printing = $state<(PrintProgress & { controller: AbortController }) | null>(null);
 
 let viewer: Viewer | undefined = $state();
 let toolbar: Toolbar | undefined = $state();
@@ -54,6 +58,8 @@ async function openPath(path: string, password?: string) {
     const { docId, info } = await openDocument(path, password);
     passwordFor = null;
     const tab = tabs.add(docId, path, info);
+    tab.pageLayout = settings.pageLayout;
+    tab.continuous = settings.continuous;
     // Reopen where you left off.
     const saved = settings.findRecent(path);
     if (saved) {
@@ -76,6 +82,27 @@ async function openPath(path: string, password?: string) {
     } else {
       error = err;
     }
+  }
+}
+
+async function printActive() {
+  const tab = active;
+  if (!tab || printing) return;
+  const controller = new AbortController();
+  printing = { done: 0, total: tab.info.pageCount, controller };
+  try {
+    await printDocument(
+      tab.docId,
+      tab.info.pageSizes,
+      (p) => {
+        if (printing) printing = { ...printing, ...p };
+      },
+      controller.signal,
+    );
+  } catch (e) {
+    if (!(e instanceof DOMException && e.name === "AbortError")) error = toRivetError(e);
+  } finally {
+    printing = null;
   }
 }
 
@@ -191,6 +218,8 @@ function onKey(e: KeyboardEvent) {
   const tab = active;
 
   const shortcuts: [boolean, () => void][] = [
+    // Our own printing (the default would print the app window).
+    [mod && key === "p", () => tab && printActive()],
     [mod && key === "o", pickFiles],
     [e.key === "F11", toggleFullscreen],
     [!!tab && mod && key === "w", () => tab && closeTab(tab)],
@@ -269,6 +298,17 @@ onMount(() => {
   onabout={() => (showAbout = true)}
   onsave={() => active && saveTab(active)}
   onsaveas={() => active && saveTab(active, true)}
+  onstep={(d) => viewer?.step(d)}
+  onprint={printActive}
+  onactualsize={() => viewer?.zoomTo(1)}
+  onpagelayout={(layout) => {
+    if (active) active.pageLayout = layout;
+    settings.pageLayout = layout;
+  }}
+  oncontinuous={(on) => {
+    if (active) active.continuous = on;
+    settings.continuous = on;
+  }}
 />
 
 {#if error}
@@ -306,6 +346,14 @@ onMount(() => {
   />
 {/if}
 
+{#if printing}
+  <div class="print-progress" role="status" aria-live="polite">
+    <span>{i18n.t("preparing-print", { done: printing.done, total: printing.total })}</span>
+    <progress max={printing.total} value={printing.done}></progress>
+    <button onclick={() => printing?.controller.abort()}>{i18n.t("cancel")}</button>
+  </div>
+{/if}
+
 {#if question}
   <ConfirmDialog
     title={question.title}
@@ -335,6 +383,29 @@ onMount(() => {
     padding-inline: 16px;
     background: var(--error-bg);
     color: var(--error-fg);
+  }
+  .print-progress {
+    position: fixed;
+    inset-block-end: 24px;
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-block: 10px;
+    padding-inline: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+    z-index: 10;
+  }
+  :global([dir="rtl"]) .print-progress {
+    transform: translateX(50%);
+  }
+  .print-progress progress {
+    width: 160px;
+    accent-color: var(--accent);
   }
   .drop-overlay {
     position: absolute;

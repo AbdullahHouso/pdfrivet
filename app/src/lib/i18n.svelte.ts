@@ -49,6 +49,10 @@ export const i18n = {
   get locale() {
     return current;
   },
+  /** Text direction of the current language. */
+  get dir(): "ltr" | "rtl" {
+    return languages.find((l) => l.code === current)?.dir ?? "ltr";
+  },
   set locale(code: string) {
     current = code;
     applyToDocument(code);

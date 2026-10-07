@@ -139,3 +139,36 @@ button.icon svg {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Printing (see lib/print.ts): only the prepared PDF pages are printed. */
+#print-root {
+  display: none;
+}
+
+@media print {
+  html,
+  body {
+    display: block;
+    height: auto;
+    margin: 0;
+    background: white;
+  }
+  body > :not(#print-root) {
+    display: none !important;
+  }
+  #print-root {
+    display: block;
+  }
+  .print-page {
+    display: block;
+    /* Never larger than the printable area, even if the printer's paper differs. */
+    max-width: 100vw;
+    max-height: 100vh;
+    object-fit: contain;
+    break-inside: avoid;
+    break-after: page;
+  }
+  .print-page:last-child {
+    break-after: auto;
+  }
+}
