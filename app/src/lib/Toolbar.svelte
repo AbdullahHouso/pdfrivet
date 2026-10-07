@@ -79,98 +79,121 @@ const themes: Theme[] = ["system", "light", "dark"];
 </script>
 
 <header class="toolbar">
-  <button class="icon" onclick={props.ontogglesidebar} disabled={!tab} aria-pressed={props.sidebarOpen}
-    aria-label={i18n.t("toggle-sidebar")} title={i18n.t("toggle-sidebar")}>
-    <Icon name="sidebar" />
-  </button>
-  <button class="primary" onclick={props.onopen}>{i18n.t("open-file")}</button>
-  {#if tab}
-    <button class="icon" onclick={props.onsave} disabled={!tab.dirty} aria-label={i18n.t("save")} title={i18n.t("save")}>
-      <Icon name="save" />
+  <!-- Start (left in English, right in Arabic): files -->
+  <div class="zone start">
+    <button class="icon" onclick={props.ontogglesidebar} disabled={!tab} aria-pressed={props.sidebarOpen}
+      aria-label={i18n.t("toggle-sidebar")} title={i18n.t("toggle-sidebar")}>
+      <Icon name="sidebar" />
     </button>
-  {/if}
-
-  {#if tab}
-    <div class="group">
-      <button class="icon" onclick={() => props.onstep(-1)} disabled={tab.page === 0}
-        aria-label={i18n.t("previous-page")} title={i18n.t("previous-page")}>
-        <Icon name="chevron-up" />
-      </button>
-      <form class="page-box" onsubmit={submitPage}>
-        <input bind:this={pageInput} bind:value={pageText} inputmode="numeric" aria-label={i18n.t("page-number")}
-          onfocus={() => pageInput?.select()} onblur={() => tab && (pageText = String(tab.page + 1))} />
-        <span class="total">{i18n.t("of-total", { total: tab.info.pageCount })}</span>
-      </form>
-      <button class="icon" onclick={() => props.onstep(1)} disabled={lastRow}
-        aria-label={i18n.t("next-page")} title={i18n.t("next-page")}>
-        <Icon name="chevron-down" />
-      </button>
-    </div>
-
-    <div class="group">
-      <button class="icon" onclick={() => props.onzoomstep(-1)} aria-label={i18n.t("zoom-out")} title={i18n.t("zoom-out")}>
-        <Icon name="minus" />
-      </button>
-      <select class="zoom" value={zoomValue} onchange={onZoomSelect} aria-label={i18n.t("zoom")}>
-        <option value="fit-width">{i18n.t("fit-width")}</option>
-        <option value="fit-page">{i18n.t("fit-page")}</option>
-        <hr />
-        {#each zoomPercents as percent (percent)}
-          <option value={String(percent)}>{i18n.t("zoom-level", { percent })}</option>
-        {/each}
-      </select>
-      <button class="icon" onclick={() => props.onzoomstep(1)} aria-label={i18n.t("zoom-in")} title={i18n.t("zoom-in")}>
-        <Icon name="plus" />
-      </button>
-    </div>
-
-    <div class="group">
-      <button class="icon" onclick={() => props.onzoommode("fit-page")} aria-pressed={tab.zoomMode === "fit-page"}
-        aria-label={i18n.t("fit-page")} title={i18n.t("fit-page")}>
-        <Icon name="fit-page" />
-      </button>
-      <button class="icon" onclick={() => props.onzoommode("fit-width")} aria-pressed={tab.zoomMode === "fit-width"}
-        aria-label={i18n.t("fit-width")} title={i18n.t("fit-width")}>
-        <Icon name="fit-width" />
-      </button>
-      <button class="icon" onclick={props.onactualsize}
-        aria-pressed={tab.zoomMode === "custom" && Math.abs(tab.zoom - 1) < 0.001}
-        aria-label={i18n.t("actual-size")} title={i18n.t("actual-size")}>
-        <Icon name="actual-size" />
-      </button>
-    </div>
-
-    <button class="icon" onclick={props.onrotate} aria-label={i18n.t("rotate-view")} title={i18n.t("rotate-view")}>
-      <Icon name="rotate" />
+    <button class="primary open" onclick={props.onopen} title={i18n.t("open-file")}>
+      <Icon name="folder" />
+      <span class="label">{i18n.t("open-file")}</span>
     </button>
+    {#if tab}
+      <button class="icon" onclick={props.onsave} disabled={!tab.dirty} aria-label={i18n.t("save")} title={i18n.t("save")}>
+        <Icon name="save" />
+      </button>
+      <button class="icon" onclick={props.onprint} aria-label={i18n.t("print")} title={i18n.t("print")}>
+        <Icon name="print" />
+      </button>
+    {/if}
+  </div>
 
-    <button class="icon" popovertarget="view-menu" aria-label={i18n.t("page-display")} title={i18n.t("page-display")}>
-      <Icon name={tab.pageLayout === "double" ? "two-pages" : "one-page"} />
-    </button>
-    <div id="view-menu" class="menu view-menu" popover>
-      <div class="menu-section" role="radiogroup" aria-label={i18n.t("page-display")}>
-        <span class="menu-label">{i18n.t("page-display")}</span>
-        {#each [["single", "one-page", "single-page"], ["double", "two-pages", "two-pages"]] as const as [value, icon, label] (value)}
-          <button class="menu-item option" role="radio" aria-checked={tab.pageLayout === value}
-            onclick={() => props.onpagelayout(value)}>
-            <Icon name={icon} />
-            {i18n.t(label)}
-          </button>
-        {/each}
+  <!-- Center: moving around the document -->
+  <div class="zone center">
+    {#if tab}
+      <div class="group">
+        <button class="icon" onclick={() => props.onstep(-1)} disabled={tab.page === 0}
+          aria-label={i18n.t("previous-page")} title={i18n.t("previous-page")}>
+          <Icon name="chevron-up" />
+        </button>
+        <form class="page-box" onsubmit={submitPage}>
+          <input bind:this={pageInput} bind:value={pageText} inputmode="numeric" aria-label={i18n.t("page-number")}
+            onfocus={() => pageInput?.select()} onblur={() => tab && (pageText = String(tab.page + 1))} />
+          <span class="total">{i18n.t("of-total", { total: tab.info.pageCount })}</span>
+        </form>
+        <button class="icon" onclick={() => props.onstep(1)} disabled={lastRow}
+          aria-label={i18n.t("next-page")} title={i18n.t("next-page")}>
+          <Icon name="chevron-down" />
+        </button>
       </div>
-      <label class="menu-item option check">
-        <input type="checkbox" checked={tab.continuous} onchange={(e) => props.oncontinuous(e.currentTarget.checked)} />
-        {i18n.t("continuous-scrolling")}
-      </label>
-    </div>
 
-    <button class="icon" onclick={props.onprint} aria-label={i18n.t("print")} title={i18n.t("print")}>
-      <Icon name="print" />
-    </button>
-  {/if}
+      <span class="sep" aria-hidden="true"></span>
 
-  <span class="spacer"></span>
+      <div class="group segmented-tools" role="radiogroup" aria-label={i18n.t("mouse-mode")}>
+        <button class="icon" role="radio" aria-checked={settings.tool === "select"} onclick={() => (settings.tool = "select")}
+          aria-label={i18n.t("tool-select")} title={i18n.t("tool-select")}>
+          <Icon name="pointer" />
+        </button>
+        <button class="icon" role="radio" aria-checked={settings.tool === "hand"} onclick={() => (settings.tool = "hand")}
+          aria-label={i18n.t("tool-hand")} title={i18n.t("tool-hand")}>
+          <Icon name="hand" />
+        </button>
+      </div>
 
+      <span class="sep" aria-hidden="true"></span>
+
+      <div class="group">
+        <button class="icon" onclick={() => props.onzoomstep(-1)} aria-label={i18n.t("zoom-out")} title={i18n.t("zoom-out")}>
+          <Icon name="minus" />
+        </button>
+        <select class="zoom" value={zoomValue} onchange={onZoomSelect} aria-label={i18n.t("zoom")}>
+          <option value="fit-width">{i18n.t("fit-width")}</option>
+          <option value="fit-page">{i18n.t("fit-page")}</option>
+          <hr />
+          {#each zoomPercents as percent (percent)}
+            <option value={String(percent)}>{i18n.t("zoom-level", { percent })}</option>
+          {/each}
+        </select>
+        <button class="icon" onclick={() => props.onzoomstep(1)} aria-label={i18n.t("zoom-in")} title={i18n.t("zoom-in")}>
+          <Icon name="plus" />
+        </button>
+        <button class="icon" onclick={() => props.onzoommode("fit-page")} aria-pressed={tab.zoomMode === "fit-page"}
+          aria-label={i18n.t("fit-page")} title={i18n.t("fit-page")}>
+          <Icon name="fit-page" />
+        </button>
+        <button class="icon" onclick={() => props.onzoommode("fit-width")} aria-pressed={tab.zoomMode === "fit-width"}
+          aria-label={i18n.t("fit-width")} title={i18n.t("fit-width")}>
+          <Icon name="fit-width" />
+        </button>
+        <button class="icon" onclick={props.onactualsize}
+          aria-pressed={tab.zoomMode === "custom" && Math.abs(tab.zoom - 1) < 0.001}
+          aria-label={i18n.t("actual-size")} title={i18n.t("actual-size")}>
+          <Icon name="actual-size" />
+        </button>
+      </div>
+
+      <span class="sep" aria-hidden="true"></span>
+
+      <div class="group">
+        <button class="icon" popovertarget="view-menu" aria-label={i18n.t("page-display")} title={i18n.t("page-display")}>
+          <Icon name={tab.pageLayout === "double" ? "two-pages" : "one-page"} />
+        </button>
+        <div id="view-menu" class="menu view-menu" popover>
+          <div class="menu-section" role="radiogroup" aria-label={i18n.t("page-display")}>
+            <span class="menu-label">{i18n.t("page-display")}</span>
+            {#each [["single", "one-page", "single-page"], ["double", "two-pages", "two-pages"]] as const as [value, icon, label] (value)}
+              <button class="menu-item option" role="radio" aria-checked={tab.pageLayout === value}
+                onclick={() => props.onpagelayout(value)}>
+                <Icon name={icon} />
+                {i18n.t(label)}
+              </button>
+            {/each}
+          </div>
+          <label class="menu-item option check">
+            <input type="checkbox" checked={tab.continuous} onchange={(e) => props.oncontinuous(e.currentTarget.checked)} />
+            {i18n.t("continuous-scrolling")}
+          </label>
+        </div>
+        <button class="icon" onclick={props.onrotate} aria-label={i18n.t("rotate-view")} title={i18n.t("rotate-view")}>
+          <Icon name="rotate" />
+        </button>
+      </div>
+    {/if}
+  </div>
+
+  <!-- End (right in English, left in Arabic): app menu -->
+  <div class="zone end">
   <button class="icon" popovertarget="app-menu" aria-label={i18n.t("menu")} title={i18n.t("menu")}>
     <Icon name="menu" />
   </button>
@@ -202,11 +225,14 @@ const themes: Theme[] = ["system", "light", "dark"];
       {i18n.t("about")}
     </button>
   </div>
+  </div>
 </header>
 
 <style>
+  /* Three zones; the middle one stays centred whatever the sides contain. */
   .toolbar {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     gap: 8px;
     padding-block: 6px;
@@ -220,8 +246,50 @@ const themes: Theme[] = ["system", "light", "dark"];
     /* Room for the focus ring, so it never overlaps the next button. */
     gap: 6px;
   }
-  .spacer {
-    flex: 1;
+  .zone {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .zone.end {
+    justify-content: flex-end;
+  }
+  .sep {
+    width: 1px;
+    height: 22px;
+    margin-inline: 4px;
+    background: var(--border);
+  }
+  .open {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  /* On narrow windows the Open button shows only its icon. */
+  @media (max-width: 1350px) {
+    .open .label {
+      display: none;
+    }
+    .open {
+      padding-inline: 8px;
+    }
+  }
+  .segmented-tools {
+    gap: 0;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .segmented-tools button {
+    border: none;
+    width: 28px;
+    height: 28px;
+  }
+  .segmented-tools button[aria-checked="true"] {
+    background: var(--accent);
+    color: var(--accent-text);
   }
   .page-box {
     display: flex;

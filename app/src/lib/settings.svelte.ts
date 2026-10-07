@@ -6,6 +6,8 @@ import { findRecent, type RecentFile, removeRecent, touchRecent, updatePosition 
 import type { PageLayout } from "./tabs.svelte";
 
 export type Theme = "system" | "light" | "dark";
+/** Mouse mode: click links and fields, or drag the page around. */
+export type Tool = "select" | "hand";
 
 let store: Store | null = null;
 let theme = $state<Theme>("system");
@@ -13,6 +15,7 @@ let recent = $state<RecentFile[]>([]);
 // The view new tabs start with (the last one you picked).
 let pageLayout = $state<PageLayout>("single");
 let continuous = $state(true);
+let tool = $state<Tool>("select");
 
 function applyTheme(value: Theme) {
   if (value === "system") delete document.documentElement.dataset.theme;
@@ -36,6 +39,7 @@ export const settings = {
       recent = (await store.get<RecentFile[]>("recent")) ?? [];
       pageLayout = (await store.get<PageLayout>("pageLayout")) ?? "single";
       continuous = (await store.get<boolean>("continuous")) ?? true;
+      tool = (await store.get<Tool>("tool")) ?? "select";
     } catch (e) {
       console.warn("[settings] using defaults", e);
     }
@@ -64,6 +68,14 @@ export const settings = {
   set continuous(value: boolean) {
     continuous = value;
     save("continuous", value);
+  },
+
+  get tool() {
+    return tool;
+  },
+  set tool(value: Tool) {
+    tool = value;
+    save("tool", value);
   },
 
   get recent() {

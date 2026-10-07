@@ -21,6 +21,7 @@ import {
 } from "./layout";
 import PageView from "./PageView.svelte";
 import { type RivetError, setVisiblePages } from "./pdf";
+import { settings } from "./settings.svelte";
 import type { Tab } from "./tabs.svelte";
 
 interface Props {
@@ -223,26 +224,45 @@ function onKeyDown(e: KeyboardEvent) {
   e.preventDefault();
 }
 
-// Middle-button drag pans the view (like Figma) instead of the browser's auto-scroll.
-let pan: { x: number; y: number; left: number; top: number } | null = $state(null);
+// Dragging pans the view: always with the middle button (like Figma), and with
+// the left button in Hand mode. In Hand mode a drag only starts after the
+// pointer moves a few pixels, so a simple click still follows links and fields.
+const DRAG_THRESHOLD = 4;
+let pan: { x: number; y: number; left: number; top: number; id: number; active: boolean } | null = $state(null);
 
 function onPointerDown(e: PointerEvent) {
-  if (e.button !== 1) return;
-  e.preventDefault();
-  scroller.setPointerCapture(e.pointerId);
-  pan = { x: e.clientX, y: e.clientY, left: scroller.scrollLeft, top: scroller.scrollTop };
+  const middle = e.button === 1;
+  const handDrag = e.button === 0 && settings.tool === "hand";
+  if (!middle && !handDrag) return;
+  if (middle) e.preventDefault();
+  pan = {
+    x: e.clientX,
+    y: e.clientY,
+    left: scroller.scrollLeft,
+    top: scroller.scrollTop,
+    id: e.pointerId,
+    active: middle,
+  };
+  if (middle) scroller.setPointerCapture(e.pointerId);
 }
 
 function onPointerMove(e: PointerEvent) {
-  if (!pan) return;
-  scroller.scrollLeft = pan.left - (e.clientX - pan.x);
-  scroller.scrollTop = pan.top - (e.clientY - pan.y);
+  if (!pan || e.pointerId !== pan.id) return;
+  const dx = e.clientX - pan.x;
+  const dy = e.clientY - pan.y;
+  if (!pan.active) {
+    if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    pan.active = true;
+    scroller.setPointerCapture(e.pointerId);
+  }
+  scroller.scrollLeft = pan.left - dx;
+  scroller.scrollTop = pan.top - dy;
 }
 
 function onPointerUp(e: PointerEvent) {
-  if (!pan) return;
+  if (!pan || e.pointerId !== pan.id) return;
+  if (scroller.hasPointerCapture(e.pointerId)) scroller.releasePointerCapture(e.pointerId);
   pan = null;
-  scroller.releasePointerCapture(e.pointerId);
 }
 
 function onFieldChange() {
@@ -271,7 +291,8 @@ function onFieldChange() {
   onpointerup={onPointerUp}
   onpointercancel={onPointerUp}
   onmousedown={(e) => e.button === 1 && e.preventDefault()}
-  class:panning={pan !== null}
+  class:panning={pan?.active}
+  class:hand={settings.tool === "hand"}
 >
   <div class="content" style:height="{layout.totalHeight}px" style:width="{contentWidth}px">
     {#each mounted as index (index)}
@@ -301,6 +322,14 @@ function onFieldChange() {
     background: var(--canvas);
     outline: none;
     overscroll-behavior: contain;
+  }
+  .scroller.hand {
+    cursor: grab;
+  }
+  /* In Hand mode, page text and canvases shouldn't get selected or dragged. */
+  .scroller.hand :global(.page) {
+    user-select: none;
+    -webkit-user-drag: none;
   }
   .scroller.panning {
     cursor: grabbing;

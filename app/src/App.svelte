@@ -241,6 +241,9 @@ function onKey(e: KeyboardEvent) {
     [!!tab && mod && key === "0", () => setZoomMode("fit-width")],
     [!!tab && ((mod && key === "g") || e.key === "F6"), () => toolbar?.focusPageInput()],
     [!!tab && !typing && !mod && e.key === "Home", () => goTo(0)],
+    // Mouse mode, with Figma's keys: V = select, H = hand.
+    [!!tab && !typing && !mod && !e.altKey && key === "v", () => (settings.tool = "select")],
+    [!!tab && !typing && !mod && !e.altKey && key === "h", () => (settings.tool = "hand")],
     [!!tab && !typing && !mod && e.key === "End", () => tab && goTo(tab.info.pageCount - 1)],
   ];
   const match = shortcuts.find(([when]) => when);
