@@ -12,7 +12,7 @@ publish = false
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive", "env"] }
 png = "0.18.1"
-rivet-core = { version = "0.0.1", path = "../rivet-core" }
+rivet-core = { path = "../rivet-core" }
 
 [lints]
 workspace = true

@@ -12,10 +12,13 @@ pub enum ErrorCode {
     LibraryNotFound,
     FileNotFound,
     PasswordRequired,
+    WrongPassword,
     InvalidPdf,
     PageOutOfRange,
     DocumentNotOpen,
     EngineStopped,
+    /// A render was skipped because the page is no longer near the screen.
+    Cancelled,
     Io,
     Internal,
 }

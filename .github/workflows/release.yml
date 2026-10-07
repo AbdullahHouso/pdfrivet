@@ -1,0 +1,72 @@
+name: Release
+
+# Push a tag like v0.1.0 to build installers for every platform.
+# They are attached to a *draft* GitHub Release, which you review and publish.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            pdfium: win-x64
+            args: ""
+          - name: Linux
+            # The oldest supported Ubuntu, so the AppImage runs on more distributions.
+            os: ubuntu-22.04
+            pdfium: linux-x64
+            args: ""
+          - name: macOS
+            os: macos-latest
+            pdfium: mac-univ
+            args: "--target universal-apple-darwin"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Rust (version from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Add macOS targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install UI dependencies
+        working-directory: app
+        run: bun install --frozen-lockfile
+
+      - name: Download PDFium
+        run: cargo xtask fetch-pdfium --platform ${{ matrix.pdfium }}
+
+      - uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: app
+          tauriScript: bun tauri
+          args: ${{ matrix.args }}
+          tagName: ${{ github.ref_name }}
+          releaseName: Rivet ${{ github.ref_name }}
+          releaseBody: |
+            See the README for what's new and for install notes.
+            Installers are not code-signed yet: on Windows choose "More info → Run anyway";
+            on macOS right-click the app and choose "Open".
+          releaseDraft: true
+          prerelease: true

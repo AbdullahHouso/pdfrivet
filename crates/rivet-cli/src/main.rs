@@ -23,6 +23,12 @@ enum Command {
     /// Print basic information about a PDF.
     Info { file: PathBuf },
     /// Render one page (1-based) to a PNG image.
+    /// Write a test PDF with N numbered pages (for performance testing).
+    MakeTestPdf {
+        output: PathBuf,
+        #[arg(long, default_value_t = 500)]
+        pages: u32,
+    },
     Render {
         file: PathBuf,
         page: u32,
@@ -57,6 +63,15 @@ fn main() -> Result<()> {
                 );
             }
         }
+        Command::MakeTestPdf { output, pages } => {
+            let start = std::time::Instant::now();
+            pdf.write_test_document(&output, pages)?;
+            println!(
+                "Wrote {} ({pages} pages) in {:?}",
+                output.display(),
+                start.elapsed()
+            );
+        }
         Command::Render {
             file,
             page,
@@ -64,7 +79,9 @@ fn main() -> Result<()> {
             scale,
         } => {
             let index = page.checked_sub(1).context("pages are numbered from 1")?;
-            let rendered = pdf.open(&file, None)?.render_page(index, scale)?;
+            let rendered =
+                pdf.open(&file, None)?
+                    .render_page(index, scale, rivet_core::Rotation::None)?;
             let mut encoder = png::Encoder::new(
                 BufWriter::new(File::create(&output)?),
                 rendered.width,

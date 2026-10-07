@@ -34,6 +34,29 @@ little-endian `u32`) followed by raw RGBA pixels, which the UI paints straight o
 `<canvas>`. Skipping PNG encoding keeps rendering fast.
 
 `scale = zoom × 96/72 × devicePixelRatio`, so pages stay sharp on high-DPI screens.
+Query parameters: `scale`, `rot` (0/90/180/270, view only) and `thumb=1` for thumbnails.
+
+### Keeping scrolling fast
+
+- **Virtualized viewer** (`app/src/lib/Viewer.svelte`): page positions come from the page
+  sizes (`layout.ts`, pure and unit-tested). Only visible pages ±1 are mounted, so a
+  10,000-page file costs the same memory as a 10-page one.
+- **Visible range:** the viewer calls `set_visible_pages`; the engine answers renders for
+  pages far outside that range with `Cancelled` (HTTP 204) instead of rendering them.
+  Thumbnails (`thumb=1`) are exempt.
+- **Newest first:** the engine drains its queue and renders the most recent requests first.
+- **Render cache:** a 48 MB LRU of rendered pages in the engine (`cache.rs`).
+- **Progressive pages:** a quick low-resolution preview, then the sharp page; when zooming,
+  the old pixels are stretched until the new render arrives.
+
+## Tabs and files from the OS
+
+- Each tab (`tabs.svelte.ts`) keeps its page, zoom, rotation and scroll position. Only the
+  active tab's viewer is mounted, so background tabs use no page memory.
+- `tauri-plugin-single-instance`: launching Rivet again (e.g. double-clicking a PDF) sends the
+  file to the running window. Files are queued in Rust and the UI is told with an
+  `open-files` event (`take_pending_files`). macOS delivers files via `RunEvent::Opened`.
+- Settings and recent files are stored with `tauri-plugin-store` (`settings.svelte.ts`).
 
 ## Types shared with TypeScript
 

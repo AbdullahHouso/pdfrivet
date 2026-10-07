@@ -3,6 +3,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { DocInfo } from "./bindings/DocInfo";
 import type { ErrorCode } from "./bindings/ErrorCode";
+import type { OutlineItem } from "./bindings/OutlineItem";
+import type { Degrees } from "./layout";
 
 export interface OpenedDocument {
   docId: number;
@@ -19,17 +21,33 @@ export function isRivetError(e: unknown): e is RivetError {
   return typeof e === "object" && e !== null && "code" in e;
 }
 
-export function openDocument(path: string): Promise<OpenedDocument> {
-  return invoke("open_document", { path });
+export function toRivetError(e: unknown): RivetError {
+  return isRivetError(e) ? e : { code: "internal", detail: String(e) };
 }
 
-/** The PDF Rivet was launched with ("Open with"), if any. Returns it only once. */
-export function takeInitialFile(): Promise<string | null> {
-  return invoke("take_initial_file");
+export function openDocument(path: string, password?: string): Promise<OpenedDocument> {
+  return invoke("open_document", { path, password: password ?? null });
+}
+
+export function getOutline(docId: number): Promise<OutlineItem[]> {
+  return invoke("get_outline", { docId });
+}
+
+export function setVisiblePages(docId: number, first: number, last: number): Promise<void> {
+  return invoke("set_visible_pages", { docId, first, last });
 }
 
 export function closeDocument(docId: number): Promise<void> {
   return invoke("close_document", { docId });
+}
+
+/** PDFs the OS asked Rivet to open ("Open with", a second launch). Returns them only once. */
+export function takePendingFiles(): Promise<string[]> {
+  return invoke("take_pending_files");
+}
+
+export function filesExist(paths: string[]): Promise<boolean[]> {
+  return invoke("files_exist", { paths });
 }
 
 // Custom protocols are exposed as http://<name>.localhost on Windows/Android
@@ -42,15 +60,23 @@ export interface PagePixels {
   data: ImageData;
 }
 
-/** Renders a page to raw pixels. `scale` 1 = 72 DPI. */
-export async function renderPage(
-  docId: number,
-  page: number,
-  scale: number,
-  signal?: AbortSignal,
-): Promise<PagePixels> {
-  const url = `${PROTOCOL_BASE}/page/${docId}/${page}?scale=${scale.toFixed(3)}`;
-  const response = await fetch(url, { signal });
+export interface RenderOptions {
+  scale: number;
+  rotation: Degrees;
+  /** Thumbnails render even when the page is far from the main view. */
+  thumbnail?: boolean;
+  signal?: AbortSignal;
+}
+
+/**
+ * Renders a page to raw pixels (`scale` 1 = 72 DPI).
+ * Resolves to `null` when the engine skipped it because it scrolled out of view.
+ */
+export async function renderPage(docId: number, page: number, opts: RenderOptions): Promise<PagePixels | null> {
+  let url = `${PROTOCOL_BASE}/page/${docId}/${page}?scale=${opts.scale.toFixed(3)}&rot=${opts.rotation}`;
+  if (opts.thumbnail) url += "&thumb=1";
+  const response = await fetch(url, { signal: opts.signal });
+  if (response.status === 204) return null;
   if (!response.ok) {
     throw await response.json().catch(() => ({ code: "internal", detail: response.statusText }));
   }

@@ -1,0 +1,120 @@
+<script lang="ts">
+import Icon from "./Icon.svelte";
+import { i18n } from "./i18n.svelte";
+import { tabs } from "./tabs.svelte";
+
+interface Props {
+  onopen: () => void;
+}
+let { onopen }: Props = $props();
+</script>
+
+<div class="tabbar" role="tablist" aria-label={i18n.t("open-documents")}>
+  {#each tabs.list as tab (tab.id)}
+    {@const active = tab.id === tabs.active?.id}
+    <div
+      class="tab"
+      class:active
+      role="tab"
+      tabindex={active ? 0 : -1}
+      aria-selected={active}
+      title={tab.path}
+      onclick={() => tabs.activate(tab.id)}
+      onauxclick={(e) => e.button === 1 && tabs.close(tab.id)}
+      onkeydown={(e) => (e.key === "Enter" || e.key === " ") && tabs.activate(tab.id)}
+    >
+      <Icon name="file" />
+      <span class="name">{tab.title}</span>
+      <button
+        class="close"
+        onclick={(e) => {
+          e.stopPropagation();
+          tabs.close(tab.id);
+        }}
+        aria-label={i18n.t("close-tab", { name: tab.title })}
+        title={i18n.t("close-tab", { name: tab.title })}
+      >
+        <Icon name="close" />
+      </button>
+    </div>
+  {/each}
+  <button class="new" onclick={onopen} aria-label={i18n.t("open-file")} title={i18n.t("open-file")}>
+    <Icon name="plus" />
+  </button>
+</div>
+
+<style>
+  .tabbar {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    padding-block-start: 6px;
+    padding-inline: 6px;
+    background: var(--canvas);
+    border-block-end: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 220px;
+    flex: 0 1 220px;
+    padding-block: 6px;
+    padding-inline: 10px 4px;
+    border: 1px solid transparent;
+    border-block-end: none;
+    border-start-start-radius: 8px;
+    border-start-end-radius: 8px;
+    color: var(--muted);
+    cursor: default;
+    user-select: none;
+  }
+  .tab:hover {
+    background: var(--hover);
+  }
+  .tab.active {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+    margin-block-end: -1px;
+    padding-block-end: 7px;
+  }
+  .tab :global(.icon) {
+    flex: none;
+    width: 15px;
+    height: 15px;
+    color: var(--accent);
+  }
+  .name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .close,
+  .new {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: none;
+    border-radius: 4px;
+  }
+  .close :global(.icon) {
+    width: 13px;
+    height: 13px;
+    color: inherit;
+  }
+  .new {
+    margin-block-end: 5px;
+    margin-inline-start: 4px;
+  }
+</style>

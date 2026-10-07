@@ -4,14 +4,17 @@
 //! `rivet-cli` are thin layers on top of this crate.
 //!
 //! - [`Pdf`] loads the PDFium library and opens documents.
-//! - [`Document`] is one open PDF (page sizes, rendering, metadata).
+//! - [`Document`] is one open PDF (page sizes, rendering, outline, metadata).
 //! - [`Engine`] runs PDFium on a dedicated worker thread, so it can be
 //!   called safely from many threads (the app uses this).
 
+mod cache;
 mod document;
 mod engine;
 mod error;
+mod outline;
 
-pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, pdfium_platform};
+pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, Rotation, pdfium_platform};
 pub use engine::{DocId, Engine};
 pub use error::{Error, ErrorCode, Result};
+pub use outline::OutlineItem;

@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/rivet-core", "crates/rivet-cli", "xtask", "app/src-tauri"]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 license = "MPL-2.0"

@@ -106,6 +106,18 @@ jobs:
       - name: Translations
         run: bun run i18n:check
 
+  version:
+    name: Versions match
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: app/package.json and Cargo.toml have the same version
+        run: |
+          app=$(jq -r .version app/package.json)
+          cargo=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          echo "app=$app cargo=$cargo"
+          test "$app" = "$cargo"
+
   deny:
     name: Licenses & advisories
     runs-on: ubuntu-latest

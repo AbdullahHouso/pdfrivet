@@ -1,7 +1,7 @@
 {
   "name": "rivet-app",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "license": "MPL-2.0",
   "packageManager": "bun@1.4.2",
@@ -19,7 +19,8 @@
     "@fluent/bundle": "^0.19.1",
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
     "@tauri-apps/api": "^2.12.1",
-    "@tauri-apps/plugin-dialog": "^2.8.1"
+    "@tauri-apps/plugin-dialog": "^2.8.1",
+    "@tauri-apps/plugin-store": "^2.5.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

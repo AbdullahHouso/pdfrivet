@@ -6,7 +6,17 @@
 
 <p align="center"><strong>A free, fast PDF reader and editor for Windows, Linux and macOS — in English and Arabic.</strong></p>
 
-> 🚧 Early development (milestone M0). Not ready for daily use yet.
+> 🚧 Early development: **0.1 "Reader"** is being tested. Editing features come in later versions.
+
+## What it can do (0.1)
+
+- Open several PDFs in **tabs**, from the app, by drag and drop, or with "Open with" in your file manager
+- **Continuous scrolling** that stays fast on documents with thousands of pages
+- **Zoom** (fit width, fit page, Ctrl + wheel, pinch) and **rotate** the view
+- **Thumbnails** and the document **outline** (table of contents)
+- **Password-protected** PDFs
+- **Recent files** that reopen where you left off
+- **English and Arabic** interface with full right-to-left layout, light and dark themes
 
 Rivet aims to be one small app for everyday PDF work: reading, annotating, signing,
 filling forms, organizing pages and converting — while staying light on memory and
@@ -20,12 +30,21 @@ adding a new language needs no code changes (see [CONTRIBUTING.md](CONTRIBUTING.
 
 | Milestone | Version | Scope |
 |---|---|---|
-| M0 | – | Foundations: engine, app shell, EN/AR UI, CI |
-| M1 | 0.1 | Reader: continuous scroll, zoom, thumbnails, outline, installers |
+| M0 ✅ | – | Foundations: engine, app shell, EN/AR UI, CI |
+| M1 🧪 | 0.1 | Reader: tabs, continuous scroll, zoom, thumbnails, outline, installers |
 | M2 | 0.2 | Text selection, copy and search |
 | M3 | 0.3 | Page tools: merge, split, rotate, reorder, extract |
 | M4 | 0.4 | Annotations and hand-drawn signatures |
 | M5 | 0.5 | Form filling, export to images/text, images to PDF |
+
+## Installing
+
+Download the installer for your system from the
+[Releases](https://github.com/AbdullahHouso/rivet-pdf/releases) page.
+The installers are not code-signed yet:
+
+- **Windows:** if SmartScreen warns you, choose *More info → Run anyway*.
+- **macOS:** right-click Rivet and choose *Open* the first time.
 
 ## Building from source
 
@@ -47,6 +66,7 @@ Useful commands:
 cargo test --workspace                          # Rust tests
 cargo run -p rivet-cli -- info file.pdf         # inspect a PDF from the terminal
 cargo run -p rivet-cli -- render file.pdf 1 page.png
+cargo run -p rivet-cli -- make-test-pdf big.pdf --pages 2000   # a big file for testing
 cd app && bun run check && bun run test         # UI type check, lint, tests
 ```
 
