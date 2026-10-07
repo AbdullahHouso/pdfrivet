@@ -25,6 +25,9 @@
           "url": "mailto:*"
         }
       ]
-    }
+    },
+    "dialog:allow-save",
+    "dialog:allow-ask",
+    "core:window:allow-destroy"
   ]
 }

@@ -11,7 +11,8 @@ import type { ZoomMode } from "./recent";
 export class Tab {
   readonly id: number;
   readonly docId: number;
-  readonly path: string;
+  /** Changes after "Save as". */
+  path = $state("");
   readonly info: DocInfo;
   page = $state(0);
   zoom = $state(1);
@@ -21,6 +22,10 @@ export class Tab {
   scrollTop = 0;
   scrollLeft = 0;
   outline = $state<OutlineItem[] | null>(null);
+  /** True when there are changes (e.g. filled-in form fields) that aren't saved. */
+  dirty = $state(false);
+  /** Goes up after every change, so pages showing it re-render. */
+  revision = $state(0);
 
   constructor(id: number, docId: number, path: string, info: DocInfo) {
     this.id = id;
@@ -72,6 +77,7 @@ export const tabs = {
     const index = list.findIndex((t) => t.id === activeId);
     activeId = list[(index + direction + list.length) % list.length].id;
   },
+  /** Closes a tab right away (callers ask about unsaved changes first). */
   async close(id: number) {
     const index = list.findIndex((t) => t.id === id);
     if (index < 0) return;

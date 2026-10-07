@@ -27,3 +27,23 @@ describe("translate", () => {
     expect(translate(bundles, "ar", "missing-key")).toBe("missing-key");
   });
 });
+
+describe("real translations", async () => {
+  const { readFileSync } = await import("node:fs");
+  const load = (code: string) => readFileSync(new URL(`../../../locales/${code}/main.ftl`, import.meta.url), "utf8");
+  const real = buildBundles({ en: [load("en")], ar: [load("ar")] });
+  const strip = (s: string) => s.replace(/[⁨⁩]/g, "");
+
+  it("uses Arabic plural forms", () => {
+    const msg = (count: number) => strip(translate(real, "ar", "unsaved-message-many", { count }));
+    expect(msg(1)).toContain("مستند واحد");
+    expect(msg(2)).toContain("مستندان");
+    expect(msg(3)).toContain("مستندات");
+    expect(msg(11)).toContain("مستندًا");
+  });
+
+  it("uses English plural forms", () => {
+    expect(strip(translate(real, "en", "unsaved-message-many", { count: 1 }))).toContain("One document");
+    expect(strip(translate(real, "en", "unsaved-message-many", { count: 4 }))).toContain("4 documents");
+  });
+});

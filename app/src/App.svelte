@@ -2,20 +2,21 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { onMount } from "svelte";
 import AboutDialog from "./lib/AboutDialog.svelte";
+import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { type Degrees, stepZoom } from "./lib/layout";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
-import { openDocument, type RivetError, takePendingFiles, toRivetError } from "./lib/pdf";
+import { openDocument, type RivetError, saveDocument, takePendingFiles, toRivetError } from "./lib/pdf";
 import type { ZoomMode } from "./lib/recent";
 import Sidebar from "./lib/Sidebar.svelte";
 import StartScreen from "./lib/StartScreen.svelte";
 import { settings } from "./lib/settings.svelte";
 import TabBar from "./lib/TabBar.svelte";
 import Toolbar from "./lib/Toolbar.svelte";
-import { tabs } from "./lib/tabs.svelte";
+import { type Tab, tabs } from "./lib/tabs.svelte";
 import Viewer from "./lib/Viewer.svelte";
 
 let error = $state<RivetError | null>(null);
@@ -24,6 +25,9 @@ let showAbout = $state(false);
 let dragging = $state(false);
 /** A protected PDF waiting for its password. */
 let passwordFor = $state<{ path: string; wrong: boolean } | null>(null);
+
+/** An open question dialog, answered through `ask`. */
+let question = $state<{ title: string; message: string; choices: Choice[]; answer: (id: string) => void } | null>(null);
 
 let viewer: Viewer | undefined = $state();
 let toolbar: Toolbar | undefined = $state();
@@ -73,6 +77,68 @@ async function openPath(path: string, password?: string) {
       error = err;
     }
   }
+}
+
+/** Shows a question dialog and resolves with the chosen answer's id. */
+function ask(title: string, message: string, choices: Choice[]): Promise<string> {
+  return new Promise((resolve) => {
+    question = {
+      title,
+      message,
+      choices,
+      answer: (id) => {
+        question = null;
+        resolve(id);
+      },
+    };
+  });
+}
+
+/** Saves a tab (asking for a file name for "Save as"). Returns false if not saved. */
+async function saveTab(tab: Tab, saveAs = false): Promise<boolean> {
+  let path: string | null = tab.path;
+  if (saveAs) {
+    path = await save({
+      defaultPath: tab.path,
+      filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }],
+    });
+    if (!path) return false;
+    if (!path.toLowerCase().endsWith(".pdf")) path += ".pdf";
+  }
+  try {
+    await saveDocument(tab.docId, path);
+    tab.path = path;
+    tab.dirty = false;
+    settings.touchRecent({
+      path,
+      title: tab.title,
+      lastOpened: Date.now(),
+      page: tab.page,
+      zoom: tab.zoom,
+      zoomMode: tab.zoomMode,
+    });
+    return true;
+  } catch (e) {
+    error = toRivetError(e);
+    return false;
+  }
+}
+
+const saveChoices = (): Choice[] => [
+  { id: "save", label: i18n.t("save"), primary: true },
+  { id: "discard", label: i18n.t("dont-save") },
+  { id: "cancel", label: i18n.t("cancel") },
+];
+
+/** Closes a tab, first offering to save unsaved changes. */
+async function closeTab(tab: Tab) {
+  if (tab.dirty) {
+    tabs.activate(tab.id);
+    const answer = await ask(i18n.t("unsaved-title"), i18n.t("unsaved-message", { name: tab.title }), saveChoices());
+    if (answer === "cancel") return;
+    if (answer === "save" && !(await saveTab(tab))) return;
+  }
+  await tabs.close(tab.id);
 }
 
 async function openPending() {
@@ -127,7 +193,9 @@ function onKey(e: KeyboardEvent) {
   const shortcuts: [boolean, () => void][] = [
     [mod && key === "o", pickFiles],
     [e.key === "F11", toggleFullscreen],
-    [!!tab && mod && key === "w", () => tab && tabs.close(tab.id)],
+    [!!tab && mod && key === "w", () => tab && closeTab(tab)],
+    [!!tab && mod && e.shiftKey && key === "s", () => tab && saveTab(tab, true)],
+    [!!tab && mod && !e.shiftKey && key === "s", () => tab?.dirty && saveTab(tab)],
     [!!tab && mod && e.key === "Tab", () => tabs.cycle(e.shiftKey ? -1 : 1)],
     [!!tab && mod && (key === "=" || key === "+"), () => zoomStep(1)],
     [!!tab && mod && key === "-", () => zoomStep(-1)],
@@ -147,6 +215,22 @@ onMount(() => {
   // Load settings first, so reopened files find their saved position.
   settings.init().then(openPending);
   const unlisten = [
+    // Ask before closing the window with unsaved changes.
+    getCurrentWindow().onCloseRequested(async (event) => {
+      const unsaved = tabs.list.filter((t) => t.dirty);
+      if (unsaved.length === 0) return;
+      event.preventDefault();
+      const answer = await ask(
+        i18n.t("unsaved-title"),
+        i18n.t("unsaved-message-many", { count: unsaved.length }),
+        saveChoices(),
+      );
+      if (answer === "cancel") return;
+      if (answer === "save") {
+        for (const tab of unsaved) if (!(await saveTab(tab))) return;
+      }
+      await getCurrentWindow().destroy();
+    }),
     // Files from "Open with" or a second launch while Rivet is running.
     listen("open-files", () => openPending()),
     getCurrentWebview().onDragDropEvent(async (event) => {
@@ -168,7 +252,7 @@ onMount(() => {
 <svelte:window onkeydown={onKey} />
 
 {#if tabs.list.length > 0}
-  <TabBar onopen={pickFiles} />
+  <TabBar onopen={pickFiles} onclose={closeTab} />
 {/if}
 
 <Toolbar
@@ -183,6 +267,8 @@ onMount(() => {
   onzoommode={setZoomMode}
   onrotate={rotate}
   onabout={() => (showAbout = true)}
+  onsave={() => active && saveTab(active)}
+  onsaveas={() => active && saveTab(active, true)}
 />
 
 {#if error}
@@ -217,6 +303,15 @@ onMount(() => {
     wrong={passwordFor.wrong}
     onsubmit={(pw) => passwordFor && openPath(passwordFor.path, pw)}
     oncancel={() => (passwordFor = null)}
+  />
+{/if}
+
+{#if question}
+  <ConfirmDialog
+    title={question.title}
+    message={question.message}
+    choices={question.choices}
+    onchoose={question.answer}
   />
 {/if}
 

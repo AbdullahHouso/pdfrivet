@@ -5,6 +5,7 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { LinkTarget } from "./bindings/LinkTarget";
 import type { PageLink } from "./bindings/PageLink";
+import FormLayer from "./FormLayer.svelte";
 import { i18n } from "./i18n.svelte";
 import { type Degrees, rotateRect } from "./layout";
 import { getLinks, type RivetError, renderPage, toRivetError } from "./pdf";
@@ -22,8 +23,24 @@ interface Props {
   onerror?: (e: RivetError) => void;
   /** Called when a link to another page in this document is clicked. */
   ongotopage?: (page: number) => void;
+  /** Goes up when the document changes; the page then re-renders. */
+  revision?: number;
+  /** Called after the user changed a form field on this page. */
+  onfieldchange?: () => void;
 }
-let { docId, index, width, height, widthPt, rotation, thumbnail = false, onerror, ongotopage }: Props = $props();
+let {
+  docId,
+  index,
+  width,
+  height,
+  widthPt,
+  rotation,
+  thumbnail = false,
+  onerror,
+  ongotopage,
+  revision = 0,
+  onfieldchange,
+}: Props = $props();
 
 // Clickable links on this page (not for thumbnails).
 let links = $state<PageLink[]>([]);
@@ -54,6 +71,7 @@ let rendered = $state(false);
 // The scale that is currently painted, to avoid re-rendering for nothing.
 let paintedScale = 0;
 let paintedRotation: Degrees | null = null;
+let paintedRevision = -1;
 
 function paint(pixels: { width: number; height: number; data: ImageData }) {
   canvas.width = pixels.width;
@@ -65,7 +83,8 @@ function paint(pixels: { width: number; height: number; data: ImageData }) {
 $effect(() => {
   const scale = (width * window.devicePixelRatio) / widthPt;
   const rot = rotation;
-  if (Math.abs(scale - paintedScale) < 0.01 && rot === paintedRotation) return;
+  const rev = revision;
+  if (Math.abs(scale - paintedScale) < 0.01 && rot === paintedRotation && rev === paintedRevision) return;
 
   const controller = new AbortController();
   const signal = controller.signal;
@@ -81,6 +100,7 @@ $effect(() => {
       paint(pixels);
       paintedScale = scale;
       paintedRotation = rot;
+      paintedRevision = rev;
     } catch (e) {
       if (!signal.aborted) onerror?.(toRivetError(e));
     }
@@ -109,6 +129,9 @@ $effect(() => {
       onclick={() => follow(link.target)}
     ></button>
   {/each}
+  {#if !thumbnail && onfieldchange}
+    <FormLayer {docId} {index} {rotation} pageHeight={height} {revision} onchanged={onfieldchange} {onerror} />
+  {/if}
 </div>
 
 <style>

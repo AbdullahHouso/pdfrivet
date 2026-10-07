@@ -16,6 +16,7 @@ const paths = {
   sidebar: "M4 5h16v14H4zM9 5v14",
   file: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5",
   lock: "M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z",
+  save: "M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6",
 } as const;
 </script>
 

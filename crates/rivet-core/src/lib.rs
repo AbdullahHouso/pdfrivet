@@ -12,11 +12,14 @@ mod cache;
 mod document;
 mod engine;
 mod error;
+mod forms;
+mod geometry;
 mod links;
 mod outline;
 
 pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, Rotation, pdfium_platform};
 pub use engine::{DocId, Engine};
 pub use error::{Error, ErrorCode, Result};
+pub use forms::{FieldChange, FieldKind, FormField};
 pub use links::{LinkTarget, PageLink};
 pub use outline::OutlineItem;

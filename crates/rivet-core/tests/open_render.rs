@@ -4,7 +4,9 @@
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
-use rivet_core::{Engine, ErrorCode, LinkTarget, OutlineItem, Pdf, Rotation};
+use rivet_core::{
+    Engine, ErrorCode, FieldChange, FieldKind, FormField, LinkTarget, OutlineItem, Pdf, Rotation,
+};
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -204,4 +206,134 @@ fn reads_links() {
     assert!(first.left < first.right && first.top < first.bottom);
     assert!(first.top > 0.0 && first.bottom < 0.3, "{first:?}");
     assert!(doc.links(1).unwrap().is_empty());
+}
+
+fn field<'a>(fields: &'a [FormField], name: &str) -> &'a FormField {
+    fields
+        .iter()
+        .find(|f| f.name.as_deref() == Some(name))
+        .unwrap_or_else(|| panic!("no field {name}"))
+}
+
+fn temp_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("rivet-{name}-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+#[test]
+fn reads_form_fields() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("forms.pdf"), None).unwrap();
+    let fields = doc.form_fields(0).unwrap();
+
+    assert!(
+        matches!(field(&fields, "name").field, FieldKind::Text { ref value, .. } if value.is_empty())
+    );
+    assert_eq!(
+        field(&fields, "agree").field,
+        FieldKind::Checkbox { checked: false }
+    );
+    let radios: Vec<_> = fields
+        .iter()
+        .filter(|f| f.name.as_deref() == Some("colour"))
+        .collect();
+    assert_eq!(radios.len(), 2);
+    assert_eq!(radios[0].field, FieldKind::Radio { checked: true });
+    match &field(&fields, "country").field {
+        FieldKind::Choice { options, selected } => {
+            assert_eq!(options, &["Saudi Arabia", "Egypt", "Jordan"]);
+            assert_eq!(*selected, Some(1));
+        }
+        other => panic!("unexpected {other:?}"),
+    }
+    assert!(field(&fields, "locked").read_only);
+    // Fields sit in the upper part of the page, left of centre.
+    let name = field(&fields, "name");
+    assert!(name.left < name.right && name.top < name.bottom && name.bottom < 0.25);
+}
+
+#[test]
+fn fills_in_and_saves_a_form() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("forms.pdf"), None).unwrap();
+    let fields = doc.form_fields(0).unwrap();
+    let index = |name: &str| field(&fields, name).index;
+    let blue = fields
+        .iter()
+        .filter(|f| f.name.as_deref() == Some("colour"))
+        .nth(1)
+        .unwrap()
+        .index;
+
+    let text = "Rivet ريفت 123";
+    doc.change_field(0, index("name"), &FieldChange::Text { value: text.into() })
+        .unwrap();
+    doc.change_field(0, index("agree"), &FieldChange::Toggle)
+        .unwrap();
+    doc.change_field(0, blue, &FieldChange::Toggle).unwrap();
+    doc.change_field(0, index("country"), &FieldChange::Select { option: 2 })
+        .unwrap();
+    let locked = doc.change_field(0, index("locked"), &FieldChange::Text { value: "x".into() });
+    assert_eq!(locked.err().map(|e| e.code), Some(ErrorCode::ReadOnlyField));
+
+    // Save, reopen, and check every value survived.
+    let dir = temp_dir("forms");
+    let out = dir.join("filled.pdf");
+    doc.save(&out).unwrap();
+    // RIVET_KEEP_OUTPUT=<path> keeps a copy for looking at it.
+    if let Some(keep) = std::env::var_os("RIVET_KEEP_OUTPUT") {
+        std::fs::copy(&out, keep).unwrap();
+    }
+    let reopened = pdf().open(&out, None).unwrap();
+    let after = reopened.form_fields(0).unwrap();
+    assert!(
+        matches!(field(&after, "name").field, FieldKind::Text { ref value, .. } if value == text)
+    );
+    assert_eq!(
+        field(&after, "agree").field,
+        FieldKind::Checkbox { checked: true }
+    );
+    let colours: Vec<_> = after
+        .iter()
+        .filter(|f| f.name.as_deref() == Some("colour"))
+        .map(|f| f.field.clone())
+        .collect();
+    assert_eq!(
+        colours,
+        vec![
+            FieldKind::Radio { checked: false },
+            FieldKind::Radio { checked: true }
+        ]
+    );
+    assert!(matches!(
+        field(&after, "country").field,
+        FieldKind::Choice {
+            selected: Some(2),
+            ..
+        }
+    ));
+    // No temporary file is left behind.
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn saves_over_the_open_file() {
+    let _serial = serial();
+    let dir = temp_dir("overwrite");
+    let path = dir.join("form.pdf");
+    std::fs::copy(fixture("forms.pdf"), &path).unwrap();
+    let doc = pdf().open(&path, None).unwrap();
+    let agree = field(&doc.form_fields(0).unwrap(), "agree").index;
+    doc.change_field(0, agree, &FieldChange::Toggle).unwrap();
+    // The file is open in Rivet and is replaced in place (this fails on
+    // Windows if the file is still held open).
+    doc.save(&path).unwrap();
+    let reopened = pdf().open(&path, None).unwrap();
+    assert_eq!(
+        field(&reopened.form_fields(0).unwrap(), "agree").field,
+        FieldKind::Checkbox { checked: true }
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }

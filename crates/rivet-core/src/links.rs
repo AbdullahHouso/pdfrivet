@@ -4,6 +4,8 @@ use pdfium_render::prelude::*;
 use serde::Serialize;
 use ts_rs::TS;
 
+use crate::geometry::PageGeometry;
+
 /// Where a link goes.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -29,22 +31,19 @@ pub struct PageLink {
 }
 
 pub(crate) fn read(page: &PdfPage) -> Vec<PageLink> {
-    let width = page.width().value;
-    let height = page.height().value;
-    if width <= 0.0 || height <= 0.0 {
+    let Some(geometry) = PageGeometry::new(page) else {
         return Vec::new();
-    }
+    };
     page.links()
         .iter()
         .filter_map(|link| {
             let target = target_of(&link)?;
-            let rect = link.rect().ok()?;
+            let r = geometry.to_fraction(&link.rect().ok()?)?;
             Some(PageLink {
-                left: (rect.left().value / width).clamp(0.0, 1.0),
-                right: (rect.right().value / width).clamp(0.0, 1.0),
-                // PDF coordinates start at the bottom; the UI's start at the top.
-                top: (1.0 - rect.top().value / height).clamp(0.0, 1.0),
-                bottom: (1.0 - rect.bottom().value / height).clamp(0.0, 1.0),
+                left: r.left,
+                top: r.top,
+                right: r.right,
+                bottom: r.bottom,
                 target,
             })
         })

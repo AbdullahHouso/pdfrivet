@@ -7,7 +7,12 @@ use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{Error, ErrorCode, OutlineItem, PageLink, Result, links, outline};
+use crate::{
+    Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink, Result, forms, links, outline,
+};
+
+/// Files up to this size are loaded into memory when opened (see [`Pdf::open`]).
+pub const IN_MEMORY_LIMIT: u64 = 512 * 1024 * 1024;
 
 /// The loaded PDFium library. Create one per process with [`Pdf::load`].
 ///
@@ -40,8 +45,12 @@ impl Pdf {
         Ok(Self { pdfium })
     }
 
-    /// Opens a PDF file. PDFium reads it lazily, so big files open quickly
-    /// and only the parts actually needed are loaded into memory.
+    /// Opens a PDF file.
+    ///
+    /// Files up to [`IN_MEMORY_LIMIT`] are read into memory, so the file on disk
+    /// isn't kept open: it can be saved over (Windows refuses to replace open
+    /// files), renamed or moved while Rivet shows it. Bigger files are read
+    /// lazily, so only the parts actually needed are loaded.
     pub fn open(&self, path: &Path, password: Option<&str>) -> Result<Document> {
         if !path.is_file() {
             return Err(Error::new(
@@ -49,19 +58,27 @@ impl Pdf {
                 path.display().to_string(),
             ));
         }
-        let inner = self
-            .pdfium
-            .load_pdf_from_file(path, password)
-            .map_err(|e| {
-                let err = Error::from(e);
-                // PDFium reports the same error for "no password" and "wrong password".
-                if err.code == ErrorCode::PasswordRequired && password.is_some() {
-                    Error::new(ErrorCode::WrongPassword, err.detail)
-                } else {
-                    err
-                }
-            })?;
-        Ok(Document { inner })
+        let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(u64::MAX);
+        let loaded = if size <= IN_MEMORY_LIMIT {
+            let bytes =
+                std::fs::read(path).map_err(|e| Error::new(ErrorCode::Io, e.to_string()))?;
+            self.pdfium.load_pdf_from_byte_vec(bytes, password)
+        } else {
+            self.pdfium.load_pdf_from_file(path, password)
+        };
+        let inner = loaded.map_err(|e| {
+            let err = Error::from(e);
+            // PDFium reports the same error for "no password" and "wrong password".
+            if err.code == ErrorCode::PasswordRequired && password.is_some() {
+                Error::new(ErrorCode::WrongPassword, err.detail)
+            } else {
+                err
+            }
+        })?;
+        Ok(Document {
+            pdfium: self.pdfium,
+            inner,
+        })
     }
 
     /// Writes a simple PDF with `pages` numbered A4 pages. Used to create large
@@ -159,6 +176,7 @@ pub struct RenderedPage {
 
 /// One open PDF document.
 pub struct Document {
+    pdfium: &'static Pdfium,
     inner: PdfDocument<'static>,
 }
 
@@ -205,6 +223,52 @@ impl Document {
         self.check_index(index)?;
         let page = self.inner.pages().get(index as PdfPageIndex)?;
         Ok(links::read(&page))
+    }
+
+    /// The interactive form fields on a page (empty if it has none).
+    pub fn form_fields(&self, index: u32) -> Result<Vec<FormField>> {
+        self.check_index(index)?;
+        let page = self.inner.pages().get(index as PdfPageIndex)?;
+        Ok(forms::read(&page))
+    }
+
+    /// Changes a form field (see [`FieldChange`]).
+    pub fn change_field(&self, page: u32, field: u32, change: &FieldChange) -> Result<()> {
+        self.check_index(page)?;
+        let pdf_page = self.inner.pages().get(page as PdfPageIndex)?;
+        forms::apply(self.pdfium, &self.inner, &pdf_page, field, change)
+    }
+
+    /// Saves the document (including filled-in forms) to `path`.
+    ///
+    /// The new file is written next to the target first and then moved into
+    /// place, so a crash or full disk never leaves a half-written PDF behind.
+    pub fn save(&self, path: &Path) -> Result<()> {
+        let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
+        let bytes = self
+            .inner
+            .save_to_bytes()
+            .map_err(|e| failed(&format!("{e:?}")))?;
+        let dir = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let temp = dir.join(format!(".{name}.rivet-saving"));
+        let write = || -> std::io::Result<()> {
+            use std::io::Write;
+            let mut file = std::fs::File::create(&temp)?;
+            file.write_all(&bytes)?;
+            file.sync_all()?;
+            std::fs::rename(&temp, path)
+        };
+        write().map_err(|e| {
+            let _ = std::fs::remove_file(&temp);
+            failed(&e)
+        })
     }
 
     /// Renders a page. `scale` 1.0 means 1 pixel per PDF point (72 DPI);

@@ -1,12 +1,14 @@
 <script lang="ts">
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
-import { tabs } from "./tabs.svelte";
+import { type Tab, tabs } from "./tabs.svelte";
 
 interface Props {
   onopen: () => void;
+  /** Closes a tab (asking about unsaved changes first). */
+  onclose: (tab: Tab) => void;
 }
-let { onopen }: Props = $props();
+let { onopen, onclose }: Props = $props();
 </script>
 
 <div class="tabbar" role="tablist" aria-label={i18n.t("open-documents")}>
@@ -20,16 +22,19 @@ let { onopen }: Props = $props();
       aria-selected={active}
       title={tab.path}
       onclick={() => tabs.activate(tab.id)}
-      onauxclick={(e) => e.button === 1 && tabs.close(tab.id)}
+      onauxclick={(e) => e.button === 1 && onclose(tab)}
       onkeydown={(e) => (e.key === "Enter" || e.key === " ") && tabs.activate(tab.id)}
     >
       <Icon name="file" />
       <span class="name">{tab.title}</span>
+      {#if tab.dirty}
+        <span class="dirty" title={i18n.t("unsaved-changes")} aria-label={i18n.t("unsaved-changes")}>●</span>
+      {/if}
       <button
         class="close"
         onclick={(e) => {
           e.stopPropagation();
-          tabs.close(tab.id);
+          onclose(tab);
         }}
         aria-label={i18n.t("close-tab", { name: tab.title })}
         title={i18n.t("close-tab", { name: tab.title })}
@@ -95,6 +100,11 @@ let { onopen }: Props = $props();
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 13px;
+  }
+  .dirty {
+    flex: none;
+    color: var(--accent);
+    font-size: 10px;
   }
   .close,
   .new {

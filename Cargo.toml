@@ -11,7 +11,7 @@ repository = "https://github.com/AbdullahHouso/rivet-pdf"
 authors = ["Abdullah Houso"]
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
@@ -21,3 +21,9 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "abort"
+
+# pdfium-render with a small patch that exposes raw PDFium handles (needed for form filling).
+# Fork: https://github.com/AbdullahHouso/pdfium-render/tree/rivet/expose-raw-handles
+# Remove this once the change is available in an official pdfium-render release.
+[patch.crates-io]
+pdfium-render = { git = "https://github.com/AbdullahHouso/pdfium-render", rev = "47ad7487de011de2ae5b7955d03921c9c3ab1ec9" }

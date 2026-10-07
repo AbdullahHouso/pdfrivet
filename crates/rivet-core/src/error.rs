@@ -15,6 +15,10 @@ pub enum ErrorCode {
     WrongPassword,
     InvalidPdf,
     PageOutOfRange,
+    /// The form field can't be changed.
+    ReadOnlyField,
+    /// Saving failed (disk full, no permission, file locked…).
+    SaveFailed,
     DocumentNotOpen,
     EngineStopped,
     /// A render was skipped because the page is no longer near the screen.

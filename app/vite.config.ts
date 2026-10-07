@@ -23,4 +23,6 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
   },
+  // Component tests run Svelte's browser build (in a simulated DOM).
+  resolve: process.env.VITEST ? { conditions: ["browser"] } : undefined,
 });

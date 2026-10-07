@@ -43,3 +43,5 @@ allow-wildcard-paths = true
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+# pdfium-render with a small patch (see [patch.crates-io] in Cargo.toml).
+allow-git = ["https://github.com/AbdullahHouso/pdfium-render"]

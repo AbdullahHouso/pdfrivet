@@ -14,6 +14,8 @@
 - **Continuous scrolling** that stays fast on documents with thousands of pages
 - **Zoom** (fit width, fit page, Ctrl + wheel, pinch) and **rotate** the view
 - **Thumbnails** and the document **outline** (table of contents)
+- **Fill in forms** (text fields, checkboxes, radio buttons, drop-downs) and **save**, including over the open file
+- Clickable **links** inside documents
 - **Password-protected** PDFs
 - **Recent files** that reopen where you left off
 - **English and Arabic** interface with full right-to-left layout, light and dark themes
@@ -31,11 +33,11 @@ adding a new language needs no code changes (see [CONTRIBUTING.md](CONTRIBUTING.
 | Milestone | Version | Scope |
 |---|---|---|
 | M0 ✅ | – | Foundations: engine, app shell, EN/AR UI, CI |
-| M1 🧪 | 0.1 | Reader: tabs, continuous scroll, zoom, thumbnails, outline, installers |
+| M1 🧪 | 0.1 | Reader + forms: tabs, continuous scroll, zoom, thumbnails, outline, links, form filling, save |
 | M2 | 0.2 | Text selection, copy and search |
 | M3 | 0.3 | Page tools: merge, split, rotate, reorder, extract |
 | M4 | 0.4 | Annotations and hand-drawn signatures |
-| M5 | 0.5 | Form filling, export to images/text, images to PDF |
+| M5 | 0.5 | Export to images/text, images to PDF, flattening forms |
 
 ## Installing
 

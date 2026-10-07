@@ -3,6 +3,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { DocInfo } from "./bindings/DocInfo";
 import type { ErrorCode } from "./bindings/ErrorCode";
+import type { FieldChange } from "./bindings/FieldChange";
+import type { FormField } from "./bindings/FormField";
 import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageLink } from "./bindings/PageLink";
 import type { Degrees } from "./layout";
@@ -36,6 +38,19 @@ export function getOutline(docId: number): Promise<OutlineItem[]> {
 
 export function getLinks(docId: number, page: number): Promise<PageLink[]> {
   return invoke("get_links", { docId, page });
+}
+
+export function getFormFields(docId: number, page: number): Promise<FormField[]> {
+  return invoke("get_form_fields", { docId, page });
+}
+
+export function changeField(docId: number, page: number, field: number, change: FieldChange): Promise<void> {
+  return invoke("change_field", { docId, page, field, change });
+}
+
+/** Saves the document, including filled-in forms, to `path`. */
+export function saveDocument(docId: number, path: string): Promise<void> {
+  return invoke("save_document", { docId, path });
 }
 
 export function setVisiblePages(docId: number, first: number, last: number): Promise<void> {

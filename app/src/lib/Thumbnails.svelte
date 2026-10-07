@@ -69,6 +69,7 @@ $effect(() => {
           height={layout.heights[index] - LABEL}
           widthPt={size.width}
           rotation={tab.rotation}
+          revision={tab.revision}
           thumbnail
         />
         <span class="label">{(index + 1).toLocaleString(i18n.locale)}</span>

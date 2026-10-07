@@ -11,7 +11,10 @@ use std::{
     sync::Mutex,
 };
 
-use rivet_core::{DocId, DocInfo, Engine, Error, ErrorCode, OutlineItem, PageLink, Rotation};
+use rivet_core::{
+    DocId, DocInfo, Engine, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink,
+    Rotation,
+};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, http};
 
@@ -76,6 +79,38 @@ async fn get_links(
 ) -> Result<Vec<PageLink>, Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.links(doc_id, page)).await
+}
+
+#[tauri::command]
+async fn get_form_fields(
+    doc_id: DocId,
+    page: u32,
+    state: State<'_, AppState>,
+) -> Result<Vec<FormField>, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.form_fields(doc_id, page)).await
+}
+
+#[tauri::command]
+async fn change_field(
+    doc_id: DocId,
+    page: u32,
+    field: u32,
+    change: FieldChange,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.change_field(doc_id, page, field, change)).await
+}
+
+#[tauri::command]
+async fn save_document(
+    doc_id: DocId,
+    path: PathBuf,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.save(doc_id, &path)).await
 }
 
 #[tauri::command]
@@ -269,6 +304,9 @@ pub fn run() {
             open_document,
             get_outline,
             get_links,
+            get_form_fields,
+            change_field,
+            save_document,
             set_visible_pages,
             close_document,
             take_pending_files,

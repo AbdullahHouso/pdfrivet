@@ -27,6 +27,25 @@ theme-dark = داكن
 language = اللغة
 about = حول ريفت
 
+## Saving
+
+save = حفظ
+save-as = حفظ باسم…
+dont-save = عدم الحفظ
+unsaved-changes = تغييرات غير محفوظة
+unsaved-title = هل تريد حفظ التغييرات؟
+unsaved-message = في «{ $name }» تغييرات لم تُحفظ بعد.
+unsaved-message-many = { $count ->
+    [one] يوجد مستند واحد فيه تغييرات لم تُحفظ بعد.
+    [two] يوجد مستندان فيهما تغييرات لم تُحفظ بعد.
+    [few] توجد { $count } مستندات فيها تغييرات لم تُحفظ بعد.
+   *[other] يوجد { $count } مستندًا فيها تغييرات لم تُحفظ بعد.
+}
+
+## Forms
+
+form-field = حقل نموذج
+
 ## Tabs
 
 open-documents = المستندات المفتوحة
@@ -72,6 +91,8 @@ error-page-out-of-range = هذه الصفحة غير موجودة.
 error-document-not-open = المستند لم يعد مفتوحًا.
 error-engine-stopped = توقف محرك PDF بشكل غير متوقع. يُرجى إعادة تشغيل ريفت.
 error-cancelled = أُلغي الطلب.
+error-read-only-field = لا يمكن تغيير هذا الحقل.
+error-save-failed = تعذّر حفظ الملف. تأكد من صلاحية الكتابة في هذا المجلد، أو استخدم «حفظ باسم…».
 error-io = تعذّرت قراءة الملف.
 error-internal = حدث خطأ ما.
 dismiss = إغلاق

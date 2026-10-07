@@ -72,3 +72,24 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   (`margin-inline-start`, `padding-block`…), so RTL needs no special cases.
 - The OS language comes from Rust (`sys-locale`), because not every webview reports it.
 - Rust never produces user-facing text: errors are codes (`error-<code>` in Fluent).
+
+## Forms and saving
+
+- Field **reading** uses pdfium-render's safe API (`crates/rivet-core/src/forms.rs`).
+- Field **changes** go through PDFium's own form-filling engine (`FORM_*` functions, as in
+  Chrome's PDF viewer): a checkbox is "clicked", a text field is focused and its text
+  replaced, an option is selected. PDFium applies each field type's rules and regenerates
+  the field's appearance, so results look right in other readers too.
+- pdfium-render doesn't expose the raw handles these functions need, so Rivet uses a fork
+  with a tiny patch (`[patch.crates-io]` in `Cargo.toml`;
+  https://github.com/AbdullahHouso/pdfium-render, branch `rivet/expose-raw-handles`).
+  `forms.rs` is the only module allowed to use `unsafe`; each call explains why it's safe.
+- In the UI, `FormLayer.svelte` puts invisible controls over the fields PDFium draws. Text
+  fields open a real `<input>`, so typing Arabic and using input methods work normally.
+  After each change the tab's `revision` goes up and the page re-renders.
+- Files up to 512 MB are **loaded into memory** when opened, so the file isn't kept open:
+  saving over it works on Windows, and it can be moved while Rivet shows it.
+- **Saving** writes `.<name>.rivet-saving` next to the target, flushes it to disk and renames
+  it over the target, so a crash never leaves a half-written PDF.
+- Known PDFium limitation: in fields mixing Arabic and Latin text, PDFium may order numbers
+  differently from the typed order (Chrome shares this).

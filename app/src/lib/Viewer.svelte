@@ -164,6 +164,11 @@ function onWheel(e: WheelEvent) {
           rotation={tab.rotation}
           {onerror}
           ongotopage={goToPage}
+          revision={tab.revision}
+          onfieldchange={() => {
+            tab.dirty = true;
+            tab.revision++;
+          }}
         />
       </div>
     {/each}

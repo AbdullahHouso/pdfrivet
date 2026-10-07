@@ -30,6 +30,23 @@ theme-dark = Dark
 language = Language
 about = About Rivet
 
+## Saving
+
+save = Save
+save-as = Save as…
+dont-save = Don't save
+unsaved-changes = Unsaved changes
+unsaved-title = Save your changes?
+unsaved-message = “{ $name }” has changes that aren't saved yet.
+unsaved-message-many = { $count ->
+    [one] One document has changes that aren't saved yet.
+   *[other] { $count } documents have changes that aren't saved yet.
+}
+
+## Forms
+
+form-field = Form field
+
 ## Tabs
 
 open-documents = Open documents
@@ -75,6 +92,8 @@ error-page-out-of-range = That page does not exist.
 error-document-not-open = The document is no longer open.
 error-engine-stopped = The PDF engine stopped unexpectedly. Please restart Rivet.
 error-cancelled = The request was cancelled.
+error-read-only-field = This field can't be changed.
+error-save-failed = The file could not be saved. Check that you can write to that folder, or use “Save as…”.
 error-io = The file could not be read.
 error-internal = Something went wrong.
 dismiss = Dismiss

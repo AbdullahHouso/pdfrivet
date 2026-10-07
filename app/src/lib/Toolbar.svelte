@@ -17,6 +17,8 @@ interface Props {
   onzoommode: (mode: ZoomMode) => void;
   onrotate: () => void;
   onabout: () => void;
+  onsave: () => void;
+  onsaveas: () => void;
 }
 let props: Props = $props();
 let tab = $derived(props.tab);
@@ -72,6 +74,11 @@ const themes: Theme[] = ["system", "light", "dark"];
     <Icon name="sidebar" />
   </button>
   <button class="primary" onclick={props.onopen}>{i18n.t("open-file")}</button>
+  {#if tab}
+    <button class="icon" onclick={props.onsave} disabled={!tab.dirty} aria-label={i18n.t("save")} title={i18n.t("save")}>
+      <Icon name="save" />
+    </button>
+  {/if}
 
   {#if tab}
     <div class="group">
@@ -136,6 +143,11 @@ const themes: Theme[] = ["system", "light", "dark"];
         {/each}
       </select>
     </label>
+    {#if tab}
+      <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onsaveas}>
+        {i18n.t("save-as")}
+      </button>
+    {/if}
     <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onabout}>
       {i18n.t("about")}
     </button>

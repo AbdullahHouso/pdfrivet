@@ -17,8 +17,8 @@ use std::{
 };
 
 use crate::{
-    DocInfo, Document, Error, ErrorCode, OutlineItem, PageLink, Pdf, RenderedPage, Result,
-    Rotation,
+    DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink, Pdf,
+    RenderedPage, Result, Rotation,
     cache::{Key, RenderCache},
 };
 
@@ -47,6 +47,9 @@ enum Request {
     Open(PathBuf, Option<String>, Reply<(DocId, DocInfo)>),
     Outline(DocId, Reply<Vec<OutlineItem>>),
     Links(DocId, u32, Reply<Vec<PageLink>>),
+    FormFields(DocId, u32, Reply<Vec<FormField>>),
+    ChangeField(DocId, u32, u32, FieldChange, Reply<()>),
+    Save(DocId, PathBuf, Reply<()>),
     Render(RenderRequest),
     SetVisible(DocId, u32, u32),
     Close(DocId),
@@ -142,6 +145,27 @@ impl Engine {
         })
     }
 
+    /// The interactive form fields on a page.
+    pub fn form_fields(&self, doc: DocId, page: u32) -> Result<Vec<FormField>> {
+        self.call(|reply| Request::FormFields(doc, page, reply))
+    }
+
+    /// Changes a form field. Rendered pages of the document are refreshed.
+    pub fn change_field(
+        &self,
+        doc: DocId,
+        page: u32,
+        field: u32,
+        change: FieldChange,
+    ) -> Result<()> {
+        self.call(|reply| Request::ChangeField(doc, page, field, change, reply))
+    }
+
+    /// Saves the document (with its changes) to `path`.
+    pub fn save(&self, doc: DocId, path: &Path) -> Result<()> {
+        self.call(|reply| Request::Save(doc, path.to_path_buf(), reply))
+    }
+
     /// Tells the engine which pages (inclusive, 0-based) are on screen.
     pub fn set_visible_pages(&self, doc: DocId, first: u32, last: u32) {
         let _ = self.tx.send(Request::SetVisible(doc, first, last));
@@ -214,6 +238,22 @@ impl Worker {
             }
             Request::Links(id, page, reply) => {
                 let _ = reply.send(self.doc(id).and_then(|d| d.links(page)));
+            }
+            Request::FormFields(id, page, reply) => {
+                let _ = reply.send(self.doc(id).and_then(|d| d.form_fields(page)));
+            }
+            Request::ChangeField(id, page, field, change, reply) => {
+                let result = self
+                    .doc(id)
+                    .and_then(|d| d.change_field(page, field, &change));
+                if result.is_ok() {
+                    // Field appearances changed; drop stale renders of this document.
+                    self.cache.remove_doc(id);
+                }
+                let _ = reply.send(result);
+            }
+            Request::Save(id, path, reply) => {
+                let _ = reply.send(self.doc(id).and_then(|d| d.save(&path)));
             }
             Request::SetVisible(id, first, last) => {
                 self.visible.insert(id, (first.min(last), first.max(last)));
