@@ -2657,6 +2657,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "windows",
 ]
 
 [[package]]
@@ -3117,6 +3118,7 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
  "ts-rs",
+ "windows",
 ]
 
 [[package]]

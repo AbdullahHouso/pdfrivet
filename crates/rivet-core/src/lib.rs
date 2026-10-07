@@ -17,6 +17,7 @@ mod forms;
 mod geometry;
 mod links;
 mod outline;
+pub mod print;
 
 pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, Rotation, pdfium_platform};
 pub use engine::{DocId, Engine};

@@ -37,14 +37,46 @@ print-all-pages = كل الصفحات ({ $count })
 print-custom-pages = الصفحات:
 print-range-example = مثال: 1-5، 8، 11-13
 print-range-invalid = استخدم أرقام صفحات من 1 إلى { $count }، مثل 1-5، 8.
-print-page-count = { $count ->
-    [one] سيتم تجهيز صفحة واحدة.
-    [two] سيتم تجهيز صفحتين.
-    [few] سيتم تجهيز { $count } صفحات.
-   *[other] سيتم تجهيز { $count } صفحة.
+printer = الطابعة
+printers-loading = جارٍ البحث عن الطابعات…
+printers-none = لم يُعثر على طابعات. يمكنك استخدام نافذة الطباعة الخاصة بالنظام.
+printer-default = الافتراضية
+printer-properties = خصائص الطابعة…
+copies = النسخ
+collate = ترتيب النسخ
+grayscale = تدرّج رمادي
+print-subset = المجموعة
+subset-all = كل صفحات النطاق
+subset-odd = الصفحات الفردية فقط
+subset-even = الصفحات الزوجية فقط
+print-reverse = ترتيب معكوس
+page-sizing = حجم الصفحة
+sizing-fit = ملاءمة
+sizing-shrink = تصغير الكبيرة
+sizing-actual = الحجم الفعلي
+sizing-custom = مقياس مخصص
+paper = الورق
+paper-size = حجم الورق
+orientation = الاتجاه
+orientation-auto = تلقائي
+orientation-portrait = عمودي
+orientation-landscape = أفقي
+two-sided = على الوجهين
+duplex-off = إيقاف
+duplex-long = القلب على الحافة الطويلة
+duplex-short = القلب على الحافة القصيرة
+print-preview = معاينة
+print-preview-position = { $index } / { $total }
+print-scale = المقياس { $percent }٪
+print-sheets = { $count ->
+    [one] ورقة واحدة
+    [two] ورقتان
+    [few] { $count } أوراق
+   *[other] { $count } ورقة
 }
-print-many-pages = سيتم تجهيز { $count } صفحة. قد يستغرق ذلك بعض الوقت، ويمكنك الإلغاء في أي وقت.
-print-continue = متابعة…
+print-system-dialog = استخدام نافذة الطباعة الخاصة بالنظام…
+print-button = طباعة
+printing-sending = جارٍ الإرسال إلى الطابعة…
 preparing-print = جارٍ تجهيز { $done } من { $total } صفحة للطباعة…
 menu = القائمة
 theme = المظهر

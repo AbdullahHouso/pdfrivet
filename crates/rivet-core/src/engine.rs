@@ -20,6 +20,7 @@ use crate::{
     DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink, Pdf,
     RenderedPage, Result, Rotation,
     cache::{Key, RenderCache},
+    print::PrintSettings,
 };
 
 /// Identifies an open document inside an [`Engine`].
@@ -60,6 +61,7 @@ enum Request {
     FormFields(DocId, u32, Reply<Vec<FormField>>),
     ChangeField(DocId, u32, u32, FieldChange, Reply<()>),
     Save(DocId, PathBuf, Reply<()>),
+    Print(DocId, Box<PrintSettings>, Option<Vec<u8>>, Reply<()>),
     Render(RenderRequest),
     SetVisible(DocId, u32, u32),
     Close(DocId),
@@ -181,6 +183,16 @@ impl Engine {
         self.call(|reply| Request::Save(doc, path.to_path_buf(), reply))
     }
 
+    /// Prints a document. Blocks until the job has been handed to the printer.
+    pub fn print(
+        &self,
+        doc: DocId,
+        settings: PrintSettings,
+        printer_settings: Option<Vec<u8>>,
+    ) -> Result<()> {
+        self.call(|reply| Request::Print(doc, Box::new(settings), printer_settings, reply))
+    }
+
     /// Tells the engine which pages (inclusive, 0-based) are on screen.
     pub fn set_visible_pages(&self, doc: DocId, first: u32, last: u32) {
         let _ = self.tx.send(Request::SetVisible(doc, first, last));
@@ -269,6 +281,12 @@ impl Worker {
             }
             Request::Save(id, path, reply) => {
                 let _ = reply.send(self.doc(id).and_then(|d| d.save(&path)));
+            }
+            Request::Print(id, settings, printer_settings, reply) => {
+                let result = self
+                    .doc(id)
+                    .and_then(|d| d.print(&settings, printer_settings.as_deref()));
+                let _ = reply.send(result);
             }
             Request::SetVisible(id, first, last) => {
                 self.visible.insert(id, (first.min(last), first.max(last)));

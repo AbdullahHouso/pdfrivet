@@ -41,12 +41,45 @@ print-all-pages = All pages ({ $count })
 print-custom-pages = Pages:
 print-range-example = e.g. 1-5, 8, 11-13
 print-range-invalid = Use page numbers from 1 to { $count }, like 1-5, 8.
-print-page-count = { $count ->
-    [one] One page will be prepared.
-   *[other] { $count } pages will be prepared.
+printer = Printer
+printers-loading = Looking for printers…
+printers-none = No printers found. You can still use the system dialog.
+printer-default = default
+printer-properties = Printer properties…
+copies = Copies
+collate = Collate
+grayscale = Grayscale
+print-subset = Subset
+subset-all = All pages in range
+subset-odd = Odd pages only
+subset-even = Even pages only
+print-reverse = Reverse order
+page-sizing = Page sizing
+sizing-fit = Fit
+sizing-shrink = Shrink oversized
+sizing-actual = Actual size
+sizing-custom = Custom scale
+paper = Paper
+paper-size = Paper size
+orientation = Orientation
+orientation-auto = Automatic
+orientation-portrait = Portrait
+orientation-landscape = Landscape
+two-sided = Two-sided
+duplex-off = Off
+duplex-long = Flip on long edge
+duplex-short = Flip on short edge
+print-preview = Preview
+# e.g. "Page 3 of 12" in the print preview
+print-preview-position = { $index } / { $total }
+print-scale = Scale { $percent }%
+print-sheets = { $count ->
+    [one] 1 sheet of paper
+   *[other] { $count } sheets of paper
 }
-print-many-pages = { $count } pages will be prepared. This can take a while; you can cancel at any time.
-print-continue = Continue…
+print-system-dialog = Use the system print dialog…
+print-button = Print
+printing-sending = Sending to the printer…
 preparing-print = Preparing { $done } of { $total } pages for printing…
 menu = Menu
 theme = Theme

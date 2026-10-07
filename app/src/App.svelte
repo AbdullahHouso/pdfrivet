@@ -5,13 +5,15 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { onMount } from "svelte";
 import AboutDialog from "./lib/AboutDialog.svelte";
+import type { PrintSettings } from "./lib/bindings/PrintSettings";
 import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { type Degrees, stepZoom } from "./lib/layout";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
 import { openDocument, type RivetError, saveDocument, takePendingFiles, toRivetError } from "./lib/pdf";
-import { type PrintProgress, printDocument } from "./lib/print";
+import { type PrintProgress, printDocument as printWithSystemDialog } from "./lib/print";
+import { printDocument } from "./lib/printing";
 import type { ZoomMode } from "./lib/recent";
 import Sidebar from "./lib/Sidebar.svelte";
 import StartScreen from "./lib/StartScreen.svelte";
@@ -95,6 +97,23 @@ function printActive() {
   if (active && !printing) printChoice = true;
 }
 
+/** True while a native print job is being handed to the printer. */
+let sendingToPrinter = $state(false);
+
+async function printNative(settingsForJob: PrintSettings, printerSettings: number[] | null) {
+  const tab = active;
+  printChoice = false;
+  if (!tab) return;
+  sendingToPrinter = true;
+  try {
+    await printDocument(tab.docId, settingsForJob, printerSettings);
+  } catch (e) {
+    error = toRivetError(e);
+  } finally {
+    sendingToPrinter = false;
+  }
+}
+
 async function printPages(pages: number[]) {
   const tab = active;
   printChoice = false;
@@ -102,7 +121,7 @@ async function printPages(pages: number[]) {
   const controller = new AbortController();
   printing = { done: 0, total: pages.length, controller };
   try {
-    await printDocument(
+    await printWithSystemDialog(
       tab.docId,
       tab.info.pageSizes,
       pages,
@@ -367,11 +386,21 @@ onMount(() => {
 
 {#if printChoice && active}
   <PrintDialog
-    pageCount={active.info.pageCount}
+    docId={active.docId}
+    title={active.title}
+    pageSizes={active.info.pageSizes}
     current={active.page}
-    onprint={printPages}
+    onprint={printNative}
+    onsystemprint={printPages}
     oncancel={() => (printChoice = false)}
   />
+{/if}
+
+{#if sendingToPrinter}
+  <div class="print-progress" role="status" aria-live="polite">
+    <span>{i18n.t("printing-sending")}</span>
+    <progress></progress>
+  </div>
 {/if}
 
 {#if printing}

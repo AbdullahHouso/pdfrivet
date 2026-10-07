@@ -101,10 +101,14 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   language: `rivet-core/src/direction.rs` samples the text of the first pages and reports
   `DocInfo.rtl`; users can override it per file ("Pages right to left"). With continuous scrolling off, the viewer shows only the
   current row and turns pages at the top/bottom edge (wheel, keys) or with ←/→.
-- **Printing** (`print.ts`): Rivet first asks which pages to print (`PrintDialog.svelte`,
-  ranges parsed by `pageRange.ts`), because the system dialog can only print what is already
-  prepared. The system print dialog prints whatever the webview shows, so
-  Rivet builds a hidden `#print-root` with one JPEG per page (`rivet://…/print/<doc>/<page>`,
-  rendered at 200 DPI, 150 DPI above 200 pages; not cached), adds a named `@page` rule per
-  paper size, hides the app with a print stylesheet, and calls `window.print()`.
-  Linux's GTK print dialog ignores per-page sizes and uses its own paper; pages are scaled to fit.
+- **Printing** has its own dialog (`PrintDialog.svelte`) with printer, copies, pages, sizing,
+  paper, two-sided, grayscale and a live preview. Native printing lives in
+  `rivet-core/src/print/`:
+  - `mod.rs`: settings types and `place_page`, the page-on-paper maths used by both the
+    preview (`print_placement` command) and real printing, so the preview matches the paper.
+  - `windows.rs`: printers from the spooler (`EnumPrintersW`, `DeviceCapabilitiesW`), the
+    driver's own settings window (`DocumentPropertiesW`), and printing by letting PDFium draw
+    each page onto the printer DC (`FPDF_RenderPage`), like Chrome: vector output.
+  - `cups.rs` (Linux/macOS): printers from `lpstat`/`lpoptions`, jobs as a PDF of the chosen
+    pages sent to `lp` with CUPS options (copies, media, sides, colour mode, scaling).
+  - "Use the system print dialog…" falls back to the webview flow (`print.ts`).

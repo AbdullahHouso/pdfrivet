@@ -19,6 +19,8 @@ pub enum ErrorCode {
     ReadOnlyField,
     /// Saving failed (disk full, no permission, file locked…).
     SaveFailed,
+    /// The printer or print system reported a problem.
+    PrintFailed,
     DocumentNotOpen,
     EngineStopped,
     /// A render was skipped because the page is no longer near the screen.

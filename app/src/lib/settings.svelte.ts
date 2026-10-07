@@ -9,6 +9,15 @@ export type Theme = "system" | "light" | "dark";
 /** Mouse mode: click links and fields, or drag the page around. */
 export type Tool = "select" | "hand";
 
+/** Print choices remembered between prints. */
+export interface PrintPrefs {
+  printer?: string;
+  scaling?: "fit" | "actual" | "shrink" | "custom";
+  orientation?: "auto" | "portrait" | "landscape";
+  duplex?: "oneSided" | "longEdge" | "shortEdge";
+  grayscale?: boolean;
+}
+
 let store: Store | null = null;
 let theme = $state<Theme>("system");
 let recent = $state<RecentFile[]>([]);
@@ -16,6 +25,7 @@ let recent = $state<RecentFile[]>([]);
 let pageLayout = $state<PageLayout>("single");
 let continuous = $state(true);
 let tool = $state<Tool>("select");
+let printPrefs = $state<PrintPrefs>({});
 
 function applyTheme(value: Theme) {
   if (value === "system") delete document.documentElement.dataset.theme;
@@ -40,6 +50,7 @@ export const settings = {
       pageLayout = (await store.get<PageLayout>("pageLayout")) ?? "single";
       continuous = (await store.get<boolean>("continuous")) ?? true;
       tool = (await store.get<Tool>("tool")) ?? "select";
+      printPrefs = (await store.get<PrintPrefs>("print")) ?? {};
     } catch (e) {
       console.warn("[settings] using defaults", e);
     }
@@ -76,6 +87,14 @@ export const settings = {
   set tool(value: Tool) {
     tool = value;
     save("tool", value);
+  },
+
+  get printPrefs() {
+    return printPrefs;
+  },
+  set printPrefs(value: PrintPrefs) {
+    printPrefs = value;
+    save("print", value);
   },
 
   get recent() {

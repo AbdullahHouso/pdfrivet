@@ -114,6 +114,69 @@ async fn save_document(
 }
 
 #[tauri::command]
+async fn list_printers() -> Result<Vec<rivet_core::print::PrinterInfo>, Error> {
+    blocking(rivet_core::print::list_printers).await
+}
+
+/// Where a page lands on the paper, for the print preview (same maths as printing).
+#[tauri::command]
+fn print_placement(
+    page_width: f32,
+    page_height: f32,
+    paper_width_mm: f32,
+    paper_height_mm: f32,
+    scaling: rivet_core::print::Scaling,
+    orientation: rivet_core::print::Orientation,
+) -> rivet_core::print::Placement {
+    use rivet_core::print::{DEFAULT_MARGIN_PT, MM_TO_PT, place_page};
+    place_page(
+        page_width,
+        page_height,
+        paper_width_mm * MM_TO_PT,
+        paper_height_mm * MM_TO_PT,
+        DEFAULT_MARGIN_PT,
+        scaling,
+        orientation,
+    )
+}
+
+/// Shows the printer driver's own settings window (Windows). Returns `null` if
+/// cancelled or not available on this system.
+#[tauri::command]
+#[allow(unused_variables)]
+async fn printer_properties(
+    window: tauri::WebviewWindow,
+    printer: String,
+    current: Option<Vec<u8>>,
+) -> Result<Option<serde_json::Value>, Error> {
+    #[cfg(windows)]
+    {
+        let hwnd = window
+            .hwnd()
+            .map_err(|e| Error::new(ErrorCode::Internal, e.to_string()))?
+            .0 as isize;
+        return blocking(move || {
+            rivet_core::print::printer_properties(hwnd, &printer, current.as_deref())
+                .map(|p| p.map(|p| serde_json::to_value(p).unwrap_or_default()))
+        })
+        .await;
+    }
+    #[cfg(not(windows))]
+    Ok(None)
+}
+
+#[tauri::command]
+async fn print_document(
+    doc_id: DocId,
+    settings: rivet_core::print::PrintSettings,
+    printer_settings: Option<Vec<u8>>,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.print(doc_id, settings, printer_settings)).await
+}
+
+#[tauri::command]
 fn set_visible_pages(
     doc_id: DocId,
     first: u32,
@@ -346,6 +409,10 @@ pub fn run() {
             get_form_fields,
             change_field,
             save_document,
+            list_printers,
+            print_placement,
+            printer_properties,
+            print_document,
             set_visible_pages,
             close_document,
             take_pending_files,

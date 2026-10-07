@@ -274,6 +274,19 @@ impl Document {
         })
     }
 
+    /// Prints pages with the given settings. `printer_settings` are driver
+    /// settings from "Printer properties…" (Windows only; ignored elsewhere).
+    pub fn print(
+        &self,
+        settings: &crate::print::PrintSettings,
+        printer_settings: Option<&[u8]>,
+    ) -> Result<()> {
+        if let Some(&bad) = settings.pages.iter().find(|&&p| p >= self.page_count()) {
+            return Err(Error::new(ErrorCode::PageOutOfRange, format!("page {bad}")));
+        }
+        crate::print::print_document(self.pdfium, &self.inner, settings, printer_settings)
+    }
+
     /// Renders a page. `scale` 1.0 means 1 pixel per PDF point (72 DPI);
     /// the UI passes zoom × device pixel ratio.
     pub fn render_page(&self, index: u32, scale: f32, rotation: Rotation) -> Result<RenderedPage> {
