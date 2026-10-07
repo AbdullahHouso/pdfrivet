@@ -141,27 +141,33 @@ fn print_placement(
 }
 
 /// Shows the printer driver's own settings window (Windows). Returns `null` if
-/// cancelled or not available on this system.
+/// cancelled.
+#[cfg(windows)]
 #[tauri::command]
-#[allow(unused_variables)]
 async fn printer_properties(
     window: tauri::WebviewWindow,
     printer: String,
     current: Option<Vec<u8>>,
 ) -> Result<Option<serde_json::Value>, Error> {
-    #[cfg(windows)]
-    {
-        let hwnd = window
-            .hwnd()
-            .map_err(|e| Error::new(ErrorCode::Internal, e.to_string()))?
-            .0 as isize;
-        return blocking(move || {
-            rivet_core::print::printer_properties(hwnd, &printer, current.as_deref())
-                .map(|p| p.map(|p| serde_json::to_value(p).unwrap_or_default()))
-        })
-        .await;
-    }
-    #[cfg(not(windows))]
+    let hwnd = window
+        .hwnd()
+        .map_err(|e| Error::new(ErrorCode::Internal, e.to_string()))?
+        .0 as isize;
+    blocking(move || {
+        rivet_core::print::printer_properties(hwnd, &printer, current.as_deref())
+            .map(|p| p.map(|p| serde_json::to_value(p).unwrap_or_default()))
+    })
+    .await
+}
+
+/// Other systems have no driver settings window; the dialog hides the button.
+#[cfg(not(windows))]
+#[tauri::command]
+async fn printer_properties(
+    _window: tauri::WebviewWindow,
+    _printer: String,
+    _current: Option<Vec<u8>>,
+) -> Result<Option<serde_json::Value>, Error> {
     Ok(None)
 }
 
