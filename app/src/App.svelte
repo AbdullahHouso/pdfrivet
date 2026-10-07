@@ -1,5 +1,6 @@
 <script lang="ts">
 import { open } from "@tauri-apps/plugin-dialog";
+import logoUrl from "../../assets/brand/rivet-icon.svg";
 import { i18n, languages } from "./lib/i18n.svelte";
 import PageCanvas from "./lib/PageCanvas.svelte";
 import {
@@ -137,6 +138,7 @@ $effect(() => {
     {/key}
   {:else}
     <div class="start">
+      <img class="logo" src={logoUrl} alt="" width="112" height="112" />
       <h1>{i18n.t("app-name")}</h1>
       <p class="tagline">{i18n.t("app-tagline")}</p>
       <p>{i18n.t("start-title")}</p>
@@ -201,6 +203,11 @@ $effect(() => {
     margin-block-start: 15vh;
     text-align: center;
     color: var(--muted);
+  }
+  .start .logo {
+    display: block;
+    margin-inline: auto;
+    margin-block-end: 16px;
   }
   .start h1 {
     margin: 0;

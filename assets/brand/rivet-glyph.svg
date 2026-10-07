@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="560" viewBox="280 240 480 560">
+  <title>Rivet</title>
+  <defs>
+    <linearGradient id="fold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EA9460"/>
+      <stop offset="1" stop-color="#B9592C"/>
+    </linearGradient>
+  </defs>
+  <path fill="#F4EFE7" stroke="#E2DACD" stroke-width="2" d="M336 250 H640 L740 350 V400 A70 70 0 0 1 670 470 H510 A40 40 0 0 0 470 510 V744 A36 36 0 0 1 434 780 H336 A36 36 0 0 1 300 744 V286 A36 36 0 0 1 336 250 Z"/>
+  <path fill="url(#fold)" d="M640 250 L740 350 H664 A24 24 0 0 1 640 326 Z"/>
+  <circle cx="385" cy="358" r="54" fill="#B4552A"/>
+  <circle cx="385" cy="353" r="37" fill="#DC7B49"/>
+</svg>

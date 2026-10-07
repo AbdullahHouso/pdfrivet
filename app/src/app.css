@@ -2,12 +2,13 @@
    layout mirrors automatically in right-to-left languages. */
 
 :root {
-  --text: #1d1f23;
+  --text: #17181c;
   --muted: #5f6672;
   --surface: #ffffff;
-  --canvas: #e9ebef;
-  --border: #d5d9e0;
-  --accent: #2463eb;
+  --canvas: #ebe8e3;
+  --border: #dad5cd;
+  /* Brand: copper accent (see assets/brand/README.md). Contrast checked for WCAG AA. */
+  --accent: #b4552a;
   --accent-text: #ffffff;
   --hover: #eef1f5;
   --error-bg: #fde8e8;
@@ -20,11 +21,12 @@
   :root:not([data-theme="light"]) {
     --text: #e6e8ec;
     --muted: #9aa1ad;
-    --surface: #1f2228;
-    --canvas: #15171b;
-    --border: #343842;
-    --accent: #4f86f7;
-    --hover: #2a2e36;
+    --surface: #2a2c33;
+    --canvas: #17181c;
+    --border: #3a3d46;
+    --accent: #dc7b49;
+    --accent-text: #17181c;
+    --hover: #33363e;
     --error-bg: #4a1d1d;
     --error-fg: #ffd6d6;
     --shadow-page: 0 1px 3px rgb(0 0 0 / 0.5);

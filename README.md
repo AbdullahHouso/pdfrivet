@@ -1,6 +1,10 @@
-# Rivet
+<p align="center">
+  <img src="assets/brand/rivet-icon.svg" alt="Rivet logo" width="128" height="128">
+</p>
 
-**A free, fast PDF reader and editor for Windows, Linux and macOS — in English and Arabic.**
+<h1 align="center">Rivet</h1>
+
+<p align="center"><strong>A free, fast PDF reader and editor for Windows, Linux and macOS — in English and Arabic.</strong></p>
 
 > 🚧 Early development (milestone M0). Not ready for daily use yet.
 
