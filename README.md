@@ -4,7 +4,7 @@
 
 <h1 align="center">Rivet</h1>
 
-<p align="center"><strong>A free, fast PDF reader and editor for Windows, Linux and macOS — in English and Arabic.</strong></p>
+<p align="center"><strong>A free, fast PDF reader and editor for Windows, Linux and macOS.</strong></p>
 
 > 🚧 Early development: **0.1 "Reader"** is being tested. Editing features come in later versions.
 
@@ -13,22 +13,23 @@
 - Open several PDFs in **tabs**, from the app, by drag and drop, or with "Open with" in your file manager
 - **Continuous scrolling** that stays fast on documents with thousands of pages
 - **Zoom** (fit page, fit width, actual size, Ctrl + wheel, pinch) and **rotate** the view
-- **Single page or two pages** side by side (right-to-left spreads in Arabic), with or without continuous scrolling
+- **Single page or two pages** side by side (spreads follow the document's reading direction), with or without continuous scrolling
 - **Print** only the document pages, each at its own paper size
 - **Thumbnails** and the document **outline** (table of contents)
 - **Fill in forms** (text fields, checkboxes, radio buttons, drop-downs) and **save**, including over the open file
 - Clickable **links** inside documents
 - **Password-protected** PDFs
 - **Recent files** that reopen where you left off
-- **English and Arabic** interface with full right-to-left layout, light and dark themes
+- **Multilingual interface** with full right-to-left support, light and dark themes
 
 Rivet aims to be one small app for everyday PDF work: reading, annotating, signing,
 filling forms, organizing pages and converting — while staying light on memory and
 easy to use. It is built with Rust, [Tauri](https://tauri.app) and
 [PDFium](https://pdfium.googlesource.com/pdfium/) (the PDF engine inside Chrome).
 
-Arabic and right-to-left languages are first-class: the whole interface mirrors, and
-adding a new language needs no code changes (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+Right-to-left languages are first-class: the whole interface mirrors, and two-page spreads
+follow each document's reading direction. Adding a language needs no code changes, so more
+translations (left-to-right and right-to-left alike) are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Roadmap
 
