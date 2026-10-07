@@ -1,6 +1,6 @@
 ## Rivet – العربية
 
-app-name = ريفت
+app-name = Rivet
 app-tagline = قارئ ومحرر PDF مجاني وسريع
 
 ## Toolbar
@@ -28,7 +28,7 @@ single-page = صفحة واحدة
 two-pages = صفحتان
 continuous-scrolling = تمرير متواصل
 pages-rtl = الصفحات من اليمين إلى اليسار
-pages-rtl-hint = تبدأ الصفحتان المتقابلتان من اليمين كما في الكتب العربية. يضبط ريفت هذا الخيار حسب لغة المستند.
+pages-rtl-hint = تبدأ الصفحتان المتقابلتان من اليمين كما في الكتب العربية. يضبط Rivet هذا الخيار حسب لغة المستند.
 print = طباعة…
 print-title = طباعة
 print-pages = الصفحات المطلوب طباعتها
@@ -84,7 +84,7 @@ theme-system = النظام
 theme-light = فاتح
 theme-dark = داكن
 language = اللغة
-about = حول ريفت
+about = حول Rivet
 
 ## Saving
 
@@ -177,14 +177,14 @@ close = إغلاق
 
 ## Errors
 
-error-library-not-found = تعذّر تحميل محرك PDF ‏(PDFium). يُرجى إعادة تثبيت ريفت.
+error-library-not-found = تعذّر تحميل محرك PDF ‏(PDFium). يُرجى إعادة تثبيت Rivet.
 error-file-not-found = تعذّر العثور على الملف.
 error-password-required = هذا الملف محمي بكلمة مرور.
 error-wrong-password = كلمة المرور غير صحيحة. حاول مرة أخرى.
 error-invalid-pdf = هذا الملف تالف أو ليس ملف PDF.
 error-page-out-of-range = هذه الصفحة غير موجودة.
 error-document-not-open = المستند لم يعد مفتوحًا.
-error-engine-stopped = توقف محرك PDF بشكل غير متوقع. يُرجى إعادة تشغيل ريفت.
+error-engine-stopped = توقف محرك PDF بشكل غير متوقع. يُرجى إعادة تشغيل Rivet.
 error-cancelled = أُلغي الطلب.
 error-read-only-field = لا يمكن تغيير هذا الحقل.
 error-save-failed = تعذّر حفظ الملف. تأكد من صلاحية الكتابة في هذا المجلد، أو استخدم «حفظ باسم…».

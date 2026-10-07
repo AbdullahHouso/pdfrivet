@@ -1,6 +1,7 @@
 ## Rivet – English (source language)
 ## Every other language falls back to these strings.
 
+# The name stays "Rivet" (Latin letters) in every language.
 app-name = Rivet
 app-tagline = A free, fast PDF reader and editor
 
