@@ -41,14 +41,17 @@ let rtl = $derived(i18n.dir === "rtl");
 function makeView(zoom: number, rotation: Degrees): Layout {
   const full = computeLayout(tab.info.pageSizes, zoom, rotation, { columns, rtl });
   if (tab.continuous) return full;
-  // Page at a time: shift everything so the current row starts at the top.
+  // Page at a time: shift everything so the current row is at the top,
+  // or centred vertically when it's shorter than the window.
   const row = full.rows[full.rowOf[tab.page] ?? 0];
-  const offset = row.top - PAGE_GAP;
+  const height = row.height + 2 * PAGE_GAP;
+  const centring = Math.max(0, (viewportHeight - height) / 2);
+  const offset = row.top - PAGE_GAP - centring;
   return {
     ...full,
     tops: full.tops.map((t) => t - offset),
-    rows: [{ ...row, top: PAGE_GAP }],
-    totalHeight: row.height + 2 * PAGE_GAP,
+    rows: [{ ...row, top: PAGE_GAP + centring }],
+    totalHeight: height + 2 * centring,
   };
 }
 
@@ -220,6 +223,28 @@ function onKeyDown(e: KeyboardEvent) {
   e.preventDefault();
 }
 
+// Middle-button drag pans the view (like Figma) instead of the browser's auto-scroll.
+let pan: { x: number; y: number; left: number; top: number } | null = $state(null);
+
+function onPointerDown(e: PointerEvent) {
+  if (e.button !== 1) return;
+  e.preventDefault();
+  scroller.setPointerCapture(e.pointerId);
+  pan = { x: e.clientX, y: e.clientY, left: scroller.scrollLeft, top: scroller.scrollTop };
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (!pan) return;
+  scroller.scrollLeft = pan.left - (e.clientX - pan.x);
+  scroller.scrollTop = pan.top - (e.clientY - pan.y);
+}
+
+function onPointerUp(e: PointerEvent) {
+  if (!pan) return;
+  pan = null;
+  scroller.releasePointerCapture(e.pointerId);
+}
+
 function onFieldChange() {
   tab.dirty = true;
   tab.revision++;
@@ -241,6 +266,12 @@ function onFieldChange() {
   onscroll={onScroll}
   onwheel={onWheel}
   onkeydown={onKeyDown}
+  onpointerdown={onPointerDown}
+  onpointermove={onPointerMove}
+  onpointerup={onPointerUp}
+  onpointercancel={onPointerUp}
+  onmousedown={(e) => e.button === 1 && e.preventDefault()}
+  class:panning={pan !== null}
 >
   <div class="content" style:height="{layout.totalHeight}px" style:width="{contentWidth}px">
     {#each mounted as index (index)}
@@ -270,6 +301,10 @@ function onFieldChange() {
     background: var(--canvas);
     outline: none;
     overscroll-behavior: contain;
+  }
+  .scroller.panning {
+    cursor: grabbing;
+    user-select: none;
   }
   .content {
     position: relative;
