@@ -7,6 +7,7 @@ import {
   fitWidthZoom,
   PAGE_GAP,
   PX_PER_PT,
+  rotateRect,
   scrollTopFor,
   stepZoom,
   visibleRange,
@@ -83,5 +84,22 @@ describe("zoom steps and anchoring", () => {
     const again = anchorAt(after, scrollTop, 250);
     expect(again.page).toBe(7);
     expect(again.fraction).toBeCloseTo(anchor.fraction);
+  });
+});
+
+describe("rotateRect", () => {
+  // A small box in the top-left corner of the page.
+  const corner = { left: 0, top: 0, right: 0.2, bottom: 0.1 };
+
+  it("moves the top-left corner clockwise", () => {
+    expect(rotateRect(corner, 90)).toEqual({ left: 0.9, top: 0, right: 1, bottom: 0.2 });
+    expect(rotateRect(corner, 180)).toEqual({ left: 0.8, top: 0.9, right: 1, bottom: 1 });
+    expect(rotateRect(corner, 270)).toEqual({ left: 0, top: 0.8, right: 0.1, bottom: 1 });
+  });
+
+  it("returns to the start after four turns", () => {
+    let r = corner;
+    for (let i = 0; i < 4; i++) r = rotateRect(r, 90);
+    for (const key of ["left", "top", "right", "bottom"] as const) expect(r[key]).toBeCloseTo(corner[key]);
   });
 });

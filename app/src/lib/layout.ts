@@ -132,3 +132,25 @@ export function scrollTopFor(layout: Layout, anchor: Anchor): number {
   const h = layout.heights[anchor.page] ?? 0;
   return Math.max(0, top + anchor.fraction * h - anchor.offset);
 }
+
+/** A rectangle as fractions (0..1) of a page, measured from its top-left corner. */
+export interface FractionRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** Where a rectangle on an upright page ends up after rotating the view clockwise. */
+export function rotateRect(r: FractionRect, rotation: Degrees): FractionRect {
+  switch (rotation) {
+    case 90:
+      return { left: 1 - r.bottom, top: r.left, right: 1 - r.top, bottom: r.right };
+    case 180:
+      return { left: 1 - r.right, top: 1 - r.bottom, right: 1 - r.left, bottom: 1 - r.top };
+    case 270:
+      return { left: r.top, top: 1 - r.right, right: r.bottom, bottom: 1 - r.left };
+    default:
+      return r;
+  }
+}

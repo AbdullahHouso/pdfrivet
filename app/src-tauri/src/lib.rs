@@ -11,7 +11,7 @@ use std::{
     sync::Mutex,
 };
 
-use rivet_core::{DocId, DocInfo, Engine, Error, ErrorCode, OutlineItem, Rotation};
+use rivet_core::{DocId, DocInfo, Engine, Error, ErrorCode, OutlineItem, PageLink, Rotation};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, http};
 
@@ -66,6 +66,16 @@ async fn open_document(
 async fn get_outline(doc_id: DocId, state: State<'_, AppState>) -> Result<Vec<OutlineItem>, Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.outline(doc_id)).await
+}
+
+#[tauri::command]
+async fn get_links(
+    doc_id: DocId,
+    page: u32,
+    state: State<'_, AppState>,
+) -> Result<Vec<PageLink>, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.links(doc_id, page)).await
 }
 
 #[tauri::command]
@@ -220,6 +230,8 @@ pub fn run() {
             open_files(app, files);
         }))
         .plugin(tauri_plugin_dialog::init())
+        // Opens web links from PDFs in the default browser (http, https and mailto only).
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .append_invoke_initialization_script(system_locales_script())
@@ -256,6 +268,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_document,
             get_outline,
+            get_links,
             set_visible_pages,
             close_document,
             take_pending_files,

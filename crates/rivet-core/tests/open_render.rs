@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
-use rivet_core::{Engine, ErrorCode, OutlineItem, Pdf, Rotation};
+use rivet_core::{Engine, ErrorCode, LinkTarget, OutlineItem, Pdf, Rotation};
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -182,4 +182,26 @@ fn engine_skips_pages_far_from_view() {
     engine.close(doc);
     let err = engine.render(doc, 0, 0.5, Rotation::None).err().unwrap();
     assert_eq!(err.code, ErrorCode::DocumentNotOpen);
+}
+
+#[test]
+fn reads_links() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("links.pdf"), None).unwrap();
+    let links = doc.links(0).unwrap();
+    let targets: Vec<&LinkTarget> = links.iter().map(|l| &l.target).collect();
+    assert_eq!(
+        targets,
+        vec![
+            &LinkTarget::Page { page: 1 },
+            &LinkTarget::Uri {
+                uri: "https://example.com".into()
+            },
+        ]
+    );
+    // Rectangles are fractions of the page, top-left origin, near the top of page 1.
+    let first = &links[0];
+    assert!(first.left < first.right && first.top < first.bottom);
+    assert!(first.top > 0.0 && first.bottom < 0.3, "{first:?}");
+    assert!(doc.links(1).unwrap().is_empty());
 }

@@ -155,7 +155,8 @@ const themes: Theme[] = ["system", "light", "dark"];
   .group {
     display: flex;
     align-items: center;
-    gap: 2px;
+    /* Room for the focus ring, so it never overlaps the next button. */
+    gap: 6px;
   }
   .spacer {
     flex: 1;

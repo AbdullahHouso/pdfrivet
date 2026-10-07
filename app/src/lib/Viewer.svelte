@@ -163,6 +163,7 @@ function onWheel(e: WheelEvent) {
           widthPt={rotatedSize(tab.info.pageSizes[index], tab.rotation).width}
           rotation={tab.rotation}
           {onerror}
+          ongotopage={goToPage}
         />
       </div>
     {/each}

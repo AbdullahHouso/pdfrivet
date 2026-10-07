@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { DocInfo } from "./bindings/DocInfo";
 import type { ErrorCode } from "./bindings/ErrorCode";
 import type { OutlineItem } from "./bindings/OutlineItem";
+import type { PageLink } from "./bindings/PageLink";
 import type { Degrees } from "./layout";
 
 export interface OpenedDocument {
@@ -31,6 +32,10 @@ export function openDocument(path: string, password?: string): Promise<OpenedDoc
 
 export function getOutline(docId: number): Promise<OutlineItem[]> {
   return invoke("get_outline", { docId });
+}
+
+export function getLinks(docId: number, page: number): Promise<PageLink[]> {
+  return invoke("get_links", { docId, page });
 }
 
 export function setVisiblePages(docId: number, first: number, last: number): Promise<void> {

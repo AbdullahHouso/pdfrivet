@@ -2,8 +2,12 @@
 // One rendered PDF page. Renders at the screen's real pixel density so text
 // stays sharp, and re-renders shortly after the size changes (while zooming
 // the old pixels are stretched, so nothing flickers).
-import type { Degrees } from "./layout";
-import { type RivetError, renderPage, toRivetError } from "./pdf";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import type { LinkTarget } from "./bindings/LinkTarget";
+import type { PageLink } from "./bindings/PageLink";
+import { i18n } from "./i18n.svelte";
+import { type Degrees, rotateRect } from "./layout";
+import { getLinks, type RivetError, renderPage, toRivetError } from "./pdf";
 
 interface Props {
   docId: number;
@@ -16,8 +20,34 @@ interface Props {
   rotation: Degrees;
   thumbnail?: boolean;
   onerror?: (e: RivetError) => void;
+  /** Called when a link to another page in this document is clicked. */
+  ongotopage?: (page: number) => void;
 }
-let { docId, index, width, height, widthPt, rotation, thumbnail = false, onerror }: Props = $props();
+let { docId, index, width, height, widthPt, rotation, thumbnail = false, onerror, ongotopage }: Props = $props();
+
+// Clickable links on this page (not for thumbnails).
+let links = $state<PageLink[]>([]);
+$effect(() => {
+  if (thumbnail) return;
+  let cancelled = false;
+  getLinks(docId, index)
+    .then((found) => {
+      if (!cancelled) links = found;
+    })
+    .catch(() => {});
+  return () => {
+    cancelled = true;
+  };
+});
+
+function follow(target: LinkTarget) {
+  if (target.kind === "page") ongotopage?.(target.page);
+  else openUrl(target.uri).catch((e) => onerror?.(toRivetError(e)));
+}
+
+function linkLabel(target: LinkTarget): string {
+  return target.kind === "page" ? i18n.t("go-to-page-n", { page: target.page + 1 }) : target.uri;
+}
 
 let canvas: HTMLCanvasElement;
 let rendered = $state(false);
@@ -66,6 +96,19 @@ $effect(() => {
 
 <div class="page" class:loading={!rendered} style:width="{width}px" style:height="{height}px">
   <canvas bind:this={canvas}></canvas>
+  {#each links as link, i (i)}
+    {@const r = rotateRect(link, rotation)}
+    <button
+      class="link"
+      style:left="{r.left * 100}%"
+      style:top="{r.top * 100}%"
+      style:width="{(r.right - r.left) * 100}%"
+      style:height="{(r.bottom - r.top) * 100}%"
+      title={linkLabel(link.target)}
+      aria-label={linkLabel(link.target)}
+      onclick={() => follow(link.target)}
+    ></button>
+  {/each}
 </div>
 
 <style>
@@ -77,6 +120,18 @@ $effect(() => {
   }
   .page.loading {
     background: var(--page-placeholder);
+  }
+  .link {
+    position: absolute;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .link:hover,
+  .link:focus-visible {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
   }
   canvas {
     display: block;

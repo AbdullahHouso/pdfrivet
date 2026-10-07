@@ -17,7 +17,8 @@ use std::{
 };
 
 use crate::{
-    DocInfo, Document, Error, ErrorCode, OutlineItem, Pdf, RenderedPage, Result, Rotation,
+    DocInfo, Document, Error, ErrorCode, OutlineItem, PageLink, Pdf, RenderedPage, Result,
+    Rotation,
     cache::{Key, RenderCache},
 };
 
@@ -45,6 +46,7 @@ struct RenderRequest {
 enum Request {
     Open(PathBuf, Option<String>, Reply<(DocId, DocInfo)>),
     Outline(DocId, Reply<Vec<OutlineItem>>),
+    Links(DocId, u32, Reply<Vec<PageLink>>),
     Render(RenderRequest),
     SetVisible(DocId, u32, u32),
     Close(DocId),
@@ -90,6 +92,11 @@ impl Engine {
 
     pub fn outline(&self, doc: DocId) -> Result<Vec<OutlineItem>> {
         self.call(|reply| Request::Outline(doc, reply))
+    }
+
+    /// The clickable links on a page.
+    pub fn links(&self, doc: DocId, page: u32) -> Result<Vec<PageLink>> {
+        self.call(|reply| Request::Links(doc, page, reply))
     }
 
     /// Renders a page for the main view. Pages far from the visible range
@@ -204,6 +211,9 @@ impl Worker {
             }
             Request::Outline(id, reply) => {
                 let _ = reply.send(self.doc(id).map(Document::outline));
+            }
+            Request::Links(id, page, reply) => {
+                let _ = reply.send(self.doc(id).and_then(|d| d.links(page)));
             }
             Request::SetVisible(id, first, last) => {
                 self.visible.insert(id, (first.min(last), first.max(last)));

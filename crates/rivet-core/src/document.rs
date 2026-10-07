@@ -7,7 +7,7 @@ use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{Error, ErrorCode, OutlineItem, Result, outline};
+use crate::{Error, ErrorCode, OutlineItem, PageLink, Result, links, outline};
 
 /// The loaded PDFium library. Create one per process with [`Pdf::load`].
 ///
@@ -198,6 +198,13 @@ impl Document {
     /// The document's table of contents (bookmarks). Empty if it has none.
     pub fn outline(&self) -> Vec<OutlineItem> {
         outline::read(&self.inner)
+    }
+
+    /// The clickable links on a page.
+    pub fn links(&self, index: u32) -> Result<Vec<PageLink>> {
+        self.check_index(index)?;
+        let page = self.inner.pages().get(index as PdfPageIndex)?;
+        Ok(links::read(&page))
     }
 
     /// Renders a page. `scale` 1.0 means 1 pixel per PDF point (72 DPI);
