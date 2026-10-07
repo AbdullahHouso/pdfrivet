@@ -44,7 +44,7 @@ Download the installer for your system from the
 The installers are not code-signed yet:
 
 - **Windows:** if SmartScreen warns you, choose *More info → Run anyway*.
-- **macOS:** right-click Rivet and choose *Open* the first time.
+- **macOS:** the first time, open *System Settings → Privacy & Security* and click *Open Anyway* next to the Rivet message.
 
 ## Building from source
 

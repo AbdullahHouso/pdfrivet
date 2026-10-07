@@ -67,6 +67,6 @@ jobs:
           releaseBody: |
             See the README for what's new and for install notes.
             Installers are not code-signed yet: on Windows choose "More info → Run anyway";
-            on macOS right-click the app and choose "Open".
+            on macOS open System Settings → Privacy & Security and click "Open Anyway".
           releaseDraft: true
           prerelease: true
