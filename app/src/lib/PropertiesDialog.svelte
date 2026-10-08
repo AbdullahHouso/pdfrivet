@@ -303,7 +303,7 @@ const yesNo = (v: boolean) => i18n.t(v ? "yes" : "no");
   }
   .page-size select {
     padding-block: 2px;
-    padding-inline: 6px;
+    padding-inline: 6px 26px;
   }
   .link {
     border: none;

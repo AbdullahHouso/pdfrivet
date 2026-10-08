@@ -350,7 +350,7 @@ const tones: { value: PageTone; swatch: string }[] = [
     font-variant-numeric: tabular-nums;
   }
   .zoom {
-    padding-inline: 8px;
+    padding-inline: 10px 28px;
     min-width: 7.5em;
   }
   .menu {

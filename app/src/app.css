@@ -111,12 +111,43 @@ button,
 select {
   font: inherit;
   color: inherit;
-  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding-block: 6px;
   padding-inline: 12px;
   cursor: pointer;
+}
+
+button {
+  background: var(--surface);
+}
+
+/* Drop-downs are drawn by us, not the system: browsers paint their own grey
+   in dark mode, and every platform draws them differently. The arrow is two
+   small triangles in the text colour, at the end of the box (left in RTL). */
+select {
+  appearance: none;
+  padding-inline-end: 30px;
+  background-color: var(--field);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 55%,
+    calc(100% - 11px) 55%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+[dir="rtl"] select {
+  background-position:
+    11px 55%,
+    16px 55%;
+}
+
+select option {
+  background: var(--surface);
+  color: var(--text);
 }
 
 button:hover:not(:disabled) {
