@@ -26,6 +26,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Undo and redo with Ctrl+Z and Ctrl+Y.
 - Annotations are saved the standard way, so other PDF readers show them too. Settings → General has the name shown as their author.
 
+### Signatures
+- Sign documents: draw your signature with a mouse, pen or finger, or take it from a photo or scan of your signature on paper. The paper is removed automatically, with a slider to fine-tune it.
+- Signatures can be saved for next time (only on your computer), placed with a click, then moved and resized.
+- These are signatures you can see, not digital (certificate) signatures. Saving rewrites the file, so a document that already has a digital signature will no longer show it as valid.
+
 ## [0.1.0] – 2026-10-08
 
 The first version: a fast, everyday PDF reader.

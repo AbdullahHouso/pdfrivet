@@ -18,7 +18,7 @@ use std::{
 
 use crate::{
     Annotation, DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink,
-    PageText, Pdf, RenderedPage, Result, Rotation, SearchBatch, SearchQuery, TextRange,
+    PageText, Pdf, RenderedPage, Result, Rotation, SearchBatch, SearchQuery, StampImage, TextRange,
     cache::{Key, RenderCache},
     metadata::{DocProperties, Metadata},
     print::PrintSettings,
@@ -70,6 +70,7 @@ enum Request {
     AddAnnotation(DocId, u32, Box<Annotation>, Reply<String>),
     UpdateAnnotation(DocId, u32, Box<Annotation>, Reply<String>),
     DeleteAnnotation(DocId, u32, String, Reply<()>),
+    AddImageStamp(DocId, u32, Box<(Annotation, StampImage)>, Reply<String>),
     ChangeField(DocId, u32, u32, FieldChange, Reply<()>),
     Save(DocId, PathBuf, Reply<()>),
     Print(DocId, Box<PrintSettings>, Option<Vec<u8>>, Reply<()>),
@@ -234,6 +235,17 @@ impl Engine {
         self.call(|reply| Request::UpdateAnnotation(doc, page, Box::new(annotation), reply))
     }
 
+    /// Places a picture (a signature) as a stamp; returns its id.
+    pub fn add_image_stamp(
+        &self,
+        doc: DocId,
+        page: u32,
+        annotation: Annotation,
+        image: StampImage,
+    ) -> Result<String> {
+        self.call(|reply| Request::AddImageStamp(doc, page, Box::new((annotation, image)), reply))
+    }
+
     pub fn delete_annotation(&self, doc: DocId, page: u32, id: String) -> Result<()> {
         self.call(|reply| Request::DeleteAnnotation(doc, page, id, reply))
     }
@@ -390,6 +402,14 @@ impl Worker {
                 let result = self
                     .doc(id)
                     .and_then(|d| d.update_annotation(page, &annotation));
+                self.page_changed(id, page, result.is_ok());
+                let _ = reply.send(result);
+            }
+            Request::AddImageStamp(id, page, stamp, reply) => {
+                let (annotation, image) = *stamp;
+                let result = self
+                    .doc(id)
+                    .and_then(|d| d.add_image_stamp(page, &annotation, &image));
                 self.page_changed(id, page, result.is_ok());
                 let _ = reply.send(result);
             }

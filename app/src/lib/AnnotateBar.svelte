@@ -7,7 +7,9 @@ import type { Color } from "./bindings/Color";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
 import { type RivetError, toRivetError } from "./pdf";
+import SignatureDialog from "./SignatureDialog.svelte";
 import { settings } from "./settings.svelte";
+import { type Signature, signatures } from "./signatures.svelte";
 import type { Tab } from "./tabs.svelte";
 
 interface Props {
@@ -44,6 +46,46 @@ function choose(t: AnnotTool | null) {
 }
 
 let current = $derived(annotate.tool);
+
+// Signatures: a menu of saved ones, and a dialog to make a new one.
+let signatureMenu: HTMLDivElement | undefined = $state();
+let signatureButton: HTMLButtonElement | undefined = $state();
+
+/** Opens the saved signatures under their button (mirrored in right-to-left layouts). */
+function showSignatureMenu() {
+  if (!signatureMenu || !signatureButton) return;
+  signatureMenu.showPopover();
+  const button = signatureButton.getBoundingClientRect();
+  const width = signatureMenu.offsetWidth;
+  const rtl = document.documentElement.dir === "rtl";
+  const left = rtl ? button.right - width : button.left;
+  signatureMenu.style.left = `${Math.max(8, Math.min(left, innerWidth - width - 8))}px`;
+  signatureMenu.style.top = `${button.bottom + 6}px`;
+}
+let makingSignature = $state(false);
+
+function openSignatures() {
+  if (annotate.tool === "signature") {
+    choose(null);
+    return;
+  }
+  signatures.load().then(() => {
+    if (signatures.list.length === 0) makingSignature = true;
+    else showSignatureMenu();
+  });
+}
+
+function useSignature(sig: Signature) {
+  signatureMenu?.hidePopover();
+  settings.tool = "select";
+  tab.selectedAnnotation = null;
+  annotate.place(sig);
+}
+
+/** An SVG path for a drawn signature's preview. */
+function inkPath(sig: Extract<Signature, { kind: "ink" }>) {
+  return sig.strokes.map((s) => `M${s.map((p) => `${p.x} ${p.y}`).join("L")}`).join(" ");
+}
 let style = $derived(current && current !== "eraser" ? annotate.style(current) : null);
 let hasWidth = $derived(current !== null && ["pen", "rectangle", "ellipse", "line", "arrow"].includes(current));
 let hasFill = $derived(current === "rectangle" || current === "ellipse");
@@ -85,6 +127,40 @@ async function run(action: (t: Tab) => Promise<unknown>) {
         </button>
       {/each}
     {/each}
+  </div>
+
+  <div class="group">
+    <button class="icon" bind:this={signatureButton} aria-pressed={current === "signature"} onclick={openSignatures}
+      title={i18n.t("signature")} aria-label={i18n.t("signature")} aria-haspopup="menu">
+      <Icon name="signature" />
+    </button>
+    <div class="signature-menu" popover bind:this={signatureMenu} role="menu" aria-label={i18n.t("signature")}>
+      {#each signatures.list as sig (sig.id)}
+        <div class="saved">
+          <button class="use" role="menuitem" onclick={() => useSignature(sig)} aria-label={i18n.t("signature-use")}>
+            {#if sig.kind === "image"}
+              <img src={sig.png} alt="" />
+            {:else}
+              <svg viewBox="0 0 {sig.width} {sig.height}" aria-hidden="true">
+                <path d={inkPath(sig)} stroke="rgb({sig.color.r} {sig.color.g} {sig.color.b})"
+                  stroke-width={sig.lineWidth} />
+              </svg>
+            {/if}
+          </button>
+          <button class="icon remove" onclick={() => signatures.remove(sig.id)} title={i18n.t("signature-delete")}
+            aria-label={i18n.t("signature-delete")}>
+            <Icon name="trash" />
+          </button>
+        </div>
+      {/each}
+      <button class="new" role="menuitem" onclick={() => {
+        signatureMenu?.hidePopover();
+        makingSignature = true;
+      }}>
+        <Icon name="plus" />
+        {i18n.t("signature-new")}
+      </button>
+    </div>
   </div>
 
   {#if style && current}
@@ -140,6 +216,17 @@ async function run(action: (t: Tab) => Promise<unknown>) {
   </div>
 </div>
 
+{#if makingSignature}
+  <SignatureDialog
+    onuse={(sig, keep) => {
+      makingSignature = false;
+      if (keep) signatures.add(sig);
+      useSignature(sig);
+    }}
+    oncancel={() => (makingSignature = false)}
+  />
+{/if}
+
 <style>
   .annotate-bar {
     display: flex;
@@ -160,7 +247,8 @@ async function run(action: (t: Tab) => Promise<unknown>) {
   .group.end {
     margin-inline-start: auto;
   }
-  .icon[aria-checked="true"] {
+  .icon[aria-checked="true"],
+  .icon[aria-pressed="true"] {
     background: var(--accent);
     color: var(--accent-text);
     border-color: var(--accent);
@@ -209,6 +297,52 @@ async function run(action: (t: Tab) => Promise<unknown>) {
   }
   .check input {
     accent-color: var(--accent);
+  }
+  .signature-menu {
+    position: fixed;
+    margin: 0;
+    inset: auto;
+    width: 280px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  }
+  .saved {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-block-end: 6px;
+  }
+  /* Signature previews sit on white, like paper. */
+  .use {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    height: 64px;
+    padding: 6px;
+    background: #ffffff;
+  }
+  .use img,
+  .use svg {
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .use svg {
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .new {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
   }
   .hint {
     margin: 0;

@@ -3485,6 +3485,7 @@ dependencies = [
 name = "rivet-core"
 version = "0.1.0"
 dependencies = [
+ "image",
  "lopdf",
  "lru",
  "pdfium-render",

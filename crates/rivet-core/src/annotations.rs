@@ -12,6 +12,8 @@
 //!   knows them as lines. PDFium can't write a Line annotation's end points,
 //!   and ink looks the same in every reader.
 //! - Sticky notes: Text annotations.
+//! - Signatures: drawn ones are Ink; pictures are Stamp annotations holding
+//!   the image, marked with the private key so they can be moved and resized.
 //!
 //! PDFium draws the appearance of all of these itself (`CPDF_GenerateAP`) the
 //! first time the page is rendered, and stores it in the file. When an
@@ -193,16 +195,7 @@ pub(crate) fn add(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -> R
     let annot = annots
         .create(subtype as i32)
         .ok_or_else(|| internal("PDFium couldn't create the annotation"))?;
-    // Keep a given id (undoing a delete brings an annotation back as it was),
-    // unless it's an index id or already taken.
-    let id = if annotation.id.is_empty()
-        || annotation.id.starts_with('#')
-        || annots.find(&annotation.id).is_some()
-    {
-        new_id()
-    } else {
-        annotation.id.clone()
-    };
+    let id = choose_id(&annots, &annotation.id);
     let (now, _) = crate::metadata::now();
     annot.set_string("NM", &id);
     annot.set_string("CreationDate", &now);
@@ -211,6 +204,94 @@ pub(crate) fn add(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -> R
     write_style(&annot, annotation, &now);
     write_appearance(&annot, annotation, &map);
     Ok(id)
+}
+
+/// A picture placed on a page as a stamp (a signature): RGBA pixels, row by row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StampImage {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
+
+/// Places a picture (a signature) in `annotation.rect`, as a Stamp annotation;
+/// returns its id. The picture keeps its transparency.
+pub(crate) fn add_image_stamp(
+    pdfium: &Pdfium,
+    document: &PdfDocument,
+    page: &mut PdfPage,
+    annotation: &Annotation,
+    image: &StampImage,
+) -> Result<String> {
+    let (matrix, bounds) = {
+        let map = Mapping::new(page).ok_or_else(|| internal("page has no size"))?;
+        (
+            image_matrix(&map, &annotation.rect),
+            map.rect_points(&annotation.rect),
+        )
+    };
+    let picture = image::RgbaImage::from_raw(image.width, image.height, image.rgba.clone())
+        .ok_or_else(|| internal("picture size doesn't match its pixels"))?;
+    let picture = image::DynamicImage::ImageRgba8(picture);
+
+    // Annotations aren't part of the page's content: don't rewrite it.
+    page.set_content_regeneration_strategy(PdfPageContentRegenerationStrategy::Manual);
+    {
+        let mut stamp = page.annotations_mut().create_stamp_annotation()?;
+        // The appearance is sized to the annotation's rectangle when the picture is added.
+        stamp.set_bounds(PdfRect::new_from_values(
+            bounds.bottom,
+            bounds.left,
+            bounds.top,
+            bounds.right,
+        ))?;
+        let mut object = PdfPageImageObject::new(document, &picture)?;
+        // A new image is 1 × 1 point at the origin: stretch it over the rectangle.
+        object.apply_matrix(PdfMatrix::new(
+            matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f,
+        ))?;
+        stamp.objects_mut().add_image_object(object)?;
+    }
+
+    let annots = PageAnnots::new(pdfium, page);
+    let annot = annots
+        .get(annots.count() - 1)
+        .ok_or_else(|| internal("the new stamp went missing"))?;
+    let id = choose_id(&annots, &annotation.id);
+    let (now, _) = crate::metadata::now();
+    annot.set_string("NM", &id);
+    annot.set_string("CreationDate", &now);
+    annot.set_string(SHAPE_KEY, "signature");
+    annot.set_flags(FPDF_ANNOT_FLAG_PRINT);
+    annot.set_string("Contents", &annotation.contents);
+    annot.set_string("T", &annotation.author);
+    annot.set_string("M", &now);
+    Ok(id)
+}
+
+/// The matrix that stretches a 1 × 1 image over `rect` (page fractions),
+/// upright as the page is shown (pages may have their own rotation).
+fn image_matrix(map: &Mapping, rect: &PageRect) -> FS_MATRIX {
+    let (x0, y0) = map.points(PagePoint {
+        x: rect.left,
+        y: rect.bottom,
+    });
+    let (x1, y1) = map.points(PagePoint {
+        x: rect.right,
+        y: rect.bottom,
+    });
+    let (x2, y2) = map.points(PagePoint {
+        x: rect.left,
+        y: rect.top,
+    });
+    FS_MATRIX {
+        a: x1 - x0,
+        b: y1 - y0,
+        c: x2 - x0,
+        d: y2 - y0,
+        e: x0,
+        f: y0,
+    }
 }
 
 /// Changes an annotation (shape, colour, opacity, width, text); returns its id
@@ -240,6 +321,14 @@ pub(crate) fn update(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -
         }
     };
     let (now, _) = crate::metadata::now();
+    if annotation.kind == AnnotationKind::Stamp {
+        // A signature picture. Readers fit an appearance's box into the
+        // annotation's Rect, so a new Rect moves and scales the picture.
+        annot.set_rect(&map.rect_points(&annotation.rect));
+        annot.set_string("Contents", &annotation.contents);
+        annot.set_string("M", &now);
+        return Ok(id);
+    }
     // The appearance is drawn again from the new values (and PDFium refuses to
     // change the colour of an annotation that still has one).
     annot.clear_appearance();
@@ -273,6 +362,16 @@ fn rgb(r: u32, g: u32, b: u32) -> Color {
         r: r.min(255) as u8,
         g: g.min(255) as u8,
         b: b.min(255) as u8,
+    }
+}
+
+/// Keeps a requested id (undoing a delete brings an annotation back as it
+/// was), unless it's empty, an index id, or already taken on the page.
+fn choose_id(annots: &PageAnnots, requested: &str) -> String {
+    if requested.is_empty() || requested.starts_with('#') || annots.find(requested).is_some() {
+        new_id()
+    } else {
+        requested.to_owned()
     }
 }
 
@@ -386,7 +485,8 @@ fn annot_to_model(annot: &Annot, index: i32, map: &Mapping) -> Option<Annotation
         },
         FPDF_ANNOT_TEXT => AnnotationKind::Note,
         FPDF_ANNOT_STAMP => {
-            editable = false;
+            // Only PDFRivet's own signature pictures can be moved and resized.
+            editable = annot.string(SHAPE_KEY).as_deref() == Some("signature");
             AnnotationKind::Stamp
         }
         other => {

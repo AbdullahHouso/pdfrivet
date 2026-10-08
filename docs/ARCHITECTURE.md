@@ -183,6 +183,15 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   click through the text, using the page's annotation list kept in `tab.annotations`.
   Geometry (rotation, hit testing, moving, resizing, stroke simplification) is in
   `annotGeometry.ts`.
+- **Signatures** (`SignatureDialog.svelte`, `signatures.svelte.ts`, `signatureImage.ts`): drawn
+  ones are placed as Ink annotations. Pictures have their background removed in the webview
+  (a brightness threshold with a soft edge), are cropped and kept at most 1200 px, and are placed
+  as a Stamp holding the image (`add_image_stamp`; the RGBA pixels go to Rust as a raw binary
+  body, not JSON). A stamp is moved or resized by changing its Rect only: readers fit the
+  appearance's BBox into the Rect. (PDFium's `FPDFAnnot_SetRect` doesn't update the BBox, so
+  moving the image inside the appearance would clip it.) Saved signatures live in
+  `signatures.json` next to the settings; undoing the deletion of a picture signature works while
+  its pixels are known (placed in this session).
 - Annotation edits mark the document as having unsaved changes (`unsaved_changes`), so the engine
   never reopens it to free memory before they're saved, and only the changed page's renders are
   dropped from the cache.

@@ -16,9 +16,9 @@ use std::{
 
 use rivet_core::{
     Annotation, DocId, DocInfo, Engine, Error, ErrorCode, FieldChange, FormField, OutlineItem,
-    PageLink, Rotation, SearchBatch, SearchQuery, TextRange,
+    PageLink, Rotation, SearchBatch, SearchQuery, StampImage, TextRange,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State, http};
 
 /// App-wide state. The engine is `None` if PDFium failed to load at startup.
@@ -177,6 +177,47 @@ async fn update_annotation(
 ) -> Result<String, Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.update_annotation(doc_id, page, annotation)).await
+}
+
+/// What comes before the pixels in `add_image_stamp`'s body.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StampRequest {
+    doc_id: DocId,
+    page: u32,
+    annotation: Annotation,
+    width: u32,
+    height: u32,
+}
+
+/// Places a picture (a signature) as a stamp; returns its id. The body is
+/// binary, so the pixels don't go through JSON: the length of a JSON header
+/// (`u32`, little-endian), the header ([`StampRequest`]), then RGBA pixels.
+#[tauri::command]
+async fn add_image_stamp(
+    request: tauri::ipc::Request<'_>,
+    state: State<'_, AppState>,
+) -> Result<String, Error> {
+    let bad = |detail: &str| Error::new(ErrorCode::Internal, detail);
+    let tauri::ipc::InvokeBody::Raw(body) = request.body() else {
+        return Err(bad("expected a binary body"));
+    };
+    let header_len = body
+        .get(..4)
+        .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize)
+        .ok_or_else(|| bad("missing header length"))?;
+    let header = body
+        .get(4..4 + header_len)
+        .ok_or_else(|| bad("missing header"))?;
+    let stamp: StampRequest = serde_json::from_slice(header).map_err(|e| bad(&e.to_string()))?;
+    let image = StampImage {
+        width: stamp.width,
+        height: stamp.height,
+        rgba: body[4 + header_len..].to_vec(),
+    };
+    let engine = state.engine()?.clone();
+    blocking(move || engine.add_image_stamp(stamp.doc_id, stamp.page, stamp.annotation, image))
+        .await
 }
 
 #[tauri::command]
@@ -624,6 +665,7 @@ pub fn run() {
             add_annotation,
             update_annotation,
             delete_annotation,
+            add_image_stamp,
             save_document,
             list_printers,
             document_properties,

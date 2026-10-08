@@ -7,7 +7,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use rivet_core::{
     Annotation, AnnotationKind, CHAR_GENERATED, CHAR_NO_BOX, Color, Engine, ErrorCode, FieldChange,
     FieldKind, FormField, LinkTarget, MarkupStyle, OutlineItem, PagePoint, PageRect, PageText, Pdf,
-    Rotation, SearchQuery, TextRange,
+    Rotation, SearchQuery, StampImage, TextRange,
 };
 
 fn repo_root() -> PathBuf {
@@ -906,4 +906,75 @@ fn engine_refreshes_annotated_pages() {
     // Not served from the cache: the new square is drawn.
     let drawn = engine.render(id, 2, 0.5, Rotation::None).unwrap();
     assert!(non_white_pixels(&drawn.rgba) > non_white_pixels(&blank.rgba) + 1000);
+}
+
+/// The colour of the pixel at a fraction of a rendered page.
+fn pixel_at(page: &rivet_core::RenderedPage, x: f32, y: f32) -> [u8; 3] {
+    let px = (x * page.width as f32) as usize;
+    let py = (y * page.height as f32) as usize;
+    let i = (py * page.width as usize + px) * 4;
+    [page.rgba[i], page.rgba[i + 1], page.rgba[i + 2]]
+}
+
+#[test]
+fn places_signature_pictures_with_transparency() {
+    let _serial = serial();
+    let dir = temp_dir("signature");
+    let path = dir.join("signed.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    // 20 × 10 pixels: the left half dark blue and opaque, the right half transparent.
+    let mut rgba = Vec::new();
+    for _ in 0..10 {
+        for x in 0..20 {
+            rgba.extend_from_slice(if x < 10 {
+                &[20, 30, 120, 255]
+            } else {
+                &[255, 0, 0, 0]
+            });
+        }
+    }
+    let image = StampImage {
+        width: 20,
+        height: 10,
+        rgba,
+    };
+    let mut stamp = annotation(AnnotationKind::Stamp, rect(0.2, 0.6, 0.6, 0.7));
+    stamp.id = doc.add_image_stamp(2, &stamp, &image).unwrap();
+
+    let page = doc.render_page(2, 1.0, Rotation::None).unwrap();
+    let dark = pixel_at(&page, 0.3, 0.65);
+    assert!(
+        dark[2] > 80 && dark[0] < 80,
+        "opaque half is drawn: {dark:?}"
+    );
+    assert_eq!(
+        pixel_at(&page, 0.5, 0.65),
+        [255, 255, 255],
+        "transparent half shows the page"
+    );
+
+    let read = &doc.annotations(2).unwrap()[0];
+    assert_eq!(read.kind, AnnotationKind::Stamp);
+    assert!(read.editable, "our signatures can be moved");
+    assert!((read.rect.left - 0.2).abs() < 0.002 && (read.rect.bottom - 0.7).abs() < 0.002);
+
+    // Move it down.
+    stamp.rect = rect(0.2, 0.8, 0.6, 0.9);
+    doc.update_annotation(2, &stamp).unwrap();
+    let page = doc.render_page(2, 1.0, Rotation::None).unwrap();
+    assert_eq!(
+        pixel_at(&page, 0.3, 0.65),
+        [255, 255, 255],
+        "gone from the old place"
+    );
+    assert!(pixel_at(&page, 0.3, 0.85)[2] > 80, "drawn at the new place");
+
+    doc.save(&path).unwrap();
+    let reopened = pdf().open(&path, None).unwrap();
+    let page = reopened.render_page(2, 1.0, Rotation::None).unwrap();
+    assert!(
+        pixel_at(&page, 0.35, 0.85)[2] > 80,
+        "saved with its picture"
+    );
+    assert_eq!(pixel_at(&page, 0.55, 0.85), [255, 255, 255]);
 }

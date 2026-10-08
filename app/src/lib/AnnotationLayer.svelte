@@ -11,6 +11,7 @@ import {
   isMarkupTool,
   lighter,
   PALETTE,
+  placeSignature,
   remove,
   toHex,
   update,
@@ -125,6 +126,10 @@ function onLayerDown(e: PointerEvent) {
     placeNote(p);
     return;
   }
+  if (tool === "signature") {
+    putSignature(p);
+    return;
+  }
   layer.setPointerCapture(e.pointerId);
   if (tool === "eraser") {
     erased = new Set();
@@ -137,6 +142,7 @@ function onLayerDown(e: PointerEvent) {
 }
 
 function onLayerMove(e: PointerEvent) {
+  if (tool === "signature") ghostAt = pointer(e);
   if (!layer.hasPointerCapture(e.pointerId)) return;
   const p = pointer(e);
   if (tool === "eraser") erase(p);
@@ -219,6 +225,39 @@ async function placeNote(p: { x: number; y: number }) {
     editing = note.id;
     // After a note is placed, go back to selecting (like most PDF editors).
     annotate.tool = null;
+  } catch (err) {
+    fail(err);
+  }
+}
+
+// --- Signatures ------------------------------------------------------------
+
+/** Where the signature being placed follows the pointer (px), or null off the page. */
+let ghostAt = $state<{ x: number; y: number } | null>(null);
+
+/** The size a signature is placed at: about 150 pt wide, at most 60 pt tall, never wider than half the page. */
+function signatureBox(at: { x: number; y: number }) {
+  const sig = annotate.signature;
+  if (!sig) return null;
+  const aspect = sig.height / sig.width;
+  let w = Math.min(150 * scale, width * 0.5);
+  if (w * aspect > 60 * scale) w = (60 * scale) / aspect;
+  const h = w * aspect;
+  return { left: at.x - w / 2, top: at.y - h / 2, width: w, height: h };
+}
+
+let ghost = $derived(tool === "signature" && ghostAt ? signatureBox(ghostAt) : null);
+
+async function putSignature(p: { x: number; y: number }) {
+  const sig = annotate.signature;
+  const r = signatureBox(p);
+  if (!sig || !r) return;
+  try {
+    const placed = await placeSignature(tab, index, sig, pxToRect(r, box), r, (x, y) => fromPx(x, y, box), scale);
+    annotate.tool = null;
+    ghostAt = null;
+    // Selected, so it can be moved or resized right away.
+    tab.selectedAnnotation = { page: index, id: placed.id };
   } catch (err) {
     fail(err);
   }
@@ -403,6 +442,7 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
   onpointercancel={onPointerUp}
+  onpointerleave={() => (ghostAt = null)}
 >
   <svg {width} {height} aria-hidden="true">
     <!-- Invisible shapes to click: drawings, shapes and notes. Text markup is
@@ -455,6 +495,22 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
           <ellipse class="preview" cx={x + dw / 2} cy={y + dh / 2} rx={dw / 2} ry={dh / 2} stroke={color}
             stroke-width={w} {fill} opacity={draftStyle.opacity} />
         {/if}
+      {/if}
+    {/if}
+
+    <!-- The signature being placed, following the pointer. -->
+    {#if ghost && annotate.signature}
+      {@const sig = annotate.signature}
+      {#if sig.kind === "image"}
+        <image class="ghost" href={sig.png} x={ghost.left} y={ghost.top} width={ghost.width} height={ghost.height}
+          preserveAspectRatio="none" />
+      {:else}
+        {@const f = ghost.width / sig.width}
+        {#each sig.strokes as stroke, i (i)}
+          <polyline class="preview ghost"
+            points={stroke.map((p) => `${ghost.left + p.x * f},${ghost.top + p.y * f}`).join(" ")}
+            stroke={toHex(sig.color)} stroke-width={sig.lineWidth * f} />
+        {/each}
       {/if}
     {/if}
 
@@ -560,6 +616,10 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
   }
   .annot-layer.eraser {
     cursor: cell;
+  }
+  .ghost {
+    opacity: 0.7;
+    pointer-events: none;
   }
   svg {
     position: absolute;

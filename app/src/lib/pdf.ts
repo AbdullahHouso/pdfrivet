@@ -88,6 +88,28 @@ export function updateAnnotation(docId: number, page: number, annotation: Annota
   return invoke("update_annotation", { docId, page, annotation });
 }
 
+/** A picture's pixels (e.g. from a canvas): RGBA, row by row. */
+export interface Picture {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
+
+/**
+ * Places a picture (a signature) in `annotation.rect` as a stamp; resolves to
+ * its id. The pixels are sent as binary, not JSON (see `add_image_stamp`).
+ */
+export function addImageStamp(docId: number, page: number, annotation: Annotation, picture: Picture): Promise<string> {
+  const header = new TextEncoder().encode(
+    JSON.stringify({ docId, page, annotation, width: picture.width, height: picture.height }),
+  );
+  const body = new Uint8Array(4 + header.length + picture.data.length);
+  new DataView(body.buffer).setUint32(0, header.length, true);
+  body.set(header, 4);
+  body.set(picture.data, 4 + header.length);
+  return invoke("add_image_stamp", body);
+}
+
 export function deleteAnnotation(docId: number, page: number, id: string): Promise<void> {
   return invoke("delete_annotation", { docId, page, id });
 }

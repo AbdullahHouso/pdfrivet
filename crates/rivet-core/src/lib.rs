@@ -23,7 +23,9 @@ pub mod print;
 mod search;
 mod text;
 
-pub use annotations::{Annotation, AnnotationKind, Color, MarkupStyle, PagePoint, PageRect};
+pub use annotations::{
+    Annotation, AnnotationKind, Color, MarkupStyle, PagePoint, PageRect, StampImage,
+};
 pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, Rotation, pdfium_platform};
 pub use engine::{DocId, Engine};
 pub use error::{Error, ErrorCode, Result};

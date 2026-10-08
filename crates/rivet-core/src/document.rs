@@ -312,6 +312,26 @@ impl Document {
         Ok(id)
     }
 
+    /// Places a picture (a signature) as a stamp in `annotation.rect`; returns its id.
+    pub fn add_image_stamp(
+        &self,
+        index: u32,
+        annotation: &crate::Annotation,
+        image: &crate::StampImage,
+    ) -> Result<String> {
+        self.check_can_annotate()?;
+        let mut page = self.load_page(index)?;
+        let id = crate::annotations::add_image_stamp(
+            self.pdfium,
+            &self.inner,
+            &mut page,
+            annotation,
+            image,
+        )?;
+        self.unsaved_changes.set(true);
+        Ok(id)
+    }
+
     pub fn delete_annotation(&self, index: u32, id: &str) -> Result<()> {
         self.check_can_annotate()?;
         let page = self.load_page(index)?;

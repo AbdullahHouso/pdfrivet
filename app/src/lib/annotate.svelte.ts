@@ -5,8 +5,9 @@
 import type { Annotation } from "./bindings/Annotation";
 import type { Color } from "./bindings/Color";
 import { loadPageText } from "./pageText";
-import { addAnnotation, deleteAnnotation, updateAnnotation, userName } from "./pdf";
+import { addAnnotation, addImageStamp, deleteAnnotation, type Picture, updateAnnotation, userName } from "./pdf";
 import { settings, type ToolStyle } from "./settings.svelte";
+import { type Signature, signaturePixels } from "./signatures.svelte";
 import type { Tab } from "./tabs.svelte";
 import { isEmpty, ordered, rangeOnPage, selectionRects } from "./textSelect";
 
@@ -20,7 +21,8 @@ export type AnnotTool =
   | "line"
   | "arrow"
   | "note"
-  | "eraser";
+  | "eraser"
+  | "signature";
 
 /** Tools that mark selected text. */
 export const MARKUP_TOOLS = ["highlight", "underline", "strikeout"] as const;
@@ -63,6 +65,7 @@ const DEFAULTS: Record<AnnotTool, ToolStyle> = {
   arrow: { color: hex("#e53935"), width: 2, opacity: 1, fill: false },
   note: { color: hex("#ffd400"), width: 1, opacity: 1, fill: false },
   eraser: { color: hex("#1b1c20"), width: 1, opacity: 1, fill: false },
+  signature: { color: hex("#1b1c20"), width: 1, opacity: 1, fill: false },
 };
 
 /** A fill that keeps the outline visible: the colour mixed with white. */
@@ -73,6 +76,7 @@ export function lighter(c: Color, amount = 0.6): Color {
 
 let open = $state(false);
 let tool = $state<AnnotTool | null>(null);
+let signature = $state<Signature | null>(null);
 let osUser: Promise<string> | null = null;
 
 /** The OS user name, asked for once. */
@@ -88,7 +92,10 @@ export const annotate = {
   },
   set open(value: boolean) {
     open = value;
-    if (!value) tool = null;
+    if (!value) {
+      tool = null;
+      signature = null;
+    }
   },
   /** The active tool; `null` selects and moves annotations (and selects text). */
   get tool() {
@@ -97,6 +104,17 @@ export const annotate = {
   set tool(value: AnnotTool | null) {
     tool = value;
     if (value) open = true;
+    if (value !== "signature") signature = null;
+  },
+  /** The signature being placed (with the Signature tool). */
+  get signature() {
+    return signature;
+  },
+  /** Starts placing a signature: it follows the pointer until a click puts it down. */
+  place(sig: Signature) {
+    tool = "signature";
+    open = true;
+    signature = sig;
   },
   style(t: AnnotTool): ToolStyle {
     return settings.toolStyles[t] ?? DEFAULTS[t];
@@ -139,10 +157,66 @@ export async function update(tab: Tab, page: number, before: Annotation, after: 
   return result;
 }
 
+/** Places a picture (a signature) as a stamp; returns it with its id. */
+export async function addStamp(tab: Tab, page: number, a: Annotation, picture: Picture): Promise<Annotation> {
+  const draft = { ...a, author: a.author || (await annotate.author()) };
+  const id = await addImageStamp(tab.docId, page, draft, picture);
+  const added = { ...draft, id };
+  // Kept so undoing a delete can put the picture back.
+  tab.stampPictures.set(id, picture);
+  tab.history.record({ page, before: null, after: added });
+  changed(tab, page);
+  return added;
+}
+
+/**
+ * Puts a signature on a page, in `rect` (page fractions). `pxRect` is the
+ * same rectangle in screen px and `toFraction` converts screen px on the
+ * page, so drawn strokes land exactly where the preview showed them.
+ */
+export async function placeSignature(
+  tab: Tab,
+  page: number,
+  sig: Signature,
+  rect: Annotation["rect"],
+  pxRect: { left: number; top: number; width: number; height: number },
+  toFraction: (x: number, y: number) => { x: number; y: number },
+  pxPerPoint: number,
+): Promise<Annotation> {
+  const base: Annotation = {
+    id: "",
+    kind: { kind: "stamp" },
+    rect,
+    color: { r: 0, g: 0, b: 0 },
+    opacity: 1,
+    width: 1,
+    contents: "",
+    author: "",
+    modified: null,
+    editable: true,
+  };
+  if (sig.kind === "image") {
+    const pixels = await signaturePixels(sig);
+    return addStamp(tab, page, base, { width: pixels.width, height: pixels.height, data: pixels.data });
+  }
+  const factor = pxRect.width / sig.width;
+  const strokes = sig.strokes.map((s) =>
+    s.map((p) => toFraction(pxRect.left + p.x * factor, pxRect.top + p.y * (pxRect.height / sig.height))),
+  );
+  return add(tab, page, {
+    ...base,
+    kind: { kind: "ink", strokes },
+    color: sig.color,
+    width: (sig.lineWidth * factor) / pxPerPoint,
+  });
+}
+
 export async function remove(tab: Tab, page: number, a: Annotation) {
   await deleteAnnotation(tab.docId, page, a.id);
-  // Other apps' kinds can't be added back, so deleting them can't be undone.
-  if (a.editable) tab.history.record({ page, before: a, after: null });
+  // Other apps' kinds can't be added back, and a signature picture only while
+  // its pixels are known, so deleting those can't be undone.
+  const restorable = a.editable && (a.kind.kind !== "stamp" || tab.stampPictures.has(a.id));
+  if (restorable) tab.history.record({ page, before: a, after: null });
   if (tab.selectedAnnotation?.id === a.id) tab.selectedAnnotation = null;
   changed(tab, page);
 }
@@ -152,7 +226,9 @@ async function apply(tab: Tab, page: number, from: Annotation | null, to: Annota
   if (from && to) {
     await updateAnnotation(tab.docId, page, to);
   } else if (to) {
-    const id = await addAnnotation(tab.docId, page, to);
+    const picture = to.kind.kind === "stamp" ? tab.stampPictures.get(to.id) : undefined;
+    const id = picture ? await addImageStamp(tab.docId, page, to, picture) : await addAnnotation(tab.docId, page, to);
+    if (picture) tab.stampPictures.set(id, picture);
     tab.history.rename(to.id, id);
   } else if (from) {
     await deleteAnnotation(tab.docId, page, from.id);

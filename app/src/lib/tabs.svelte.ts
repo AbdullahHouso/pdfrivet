@@ -9,7 +9,7 @@ import type { OutlineItem } from "./bindings/OutlineItem";
 import { History } from "./history.svelte";
 import type { Degrees } from "./layout";
 import { forgetPageText } from "./pageText";
-import { closeDocument } from "./pdf";
+import { closeDocument, type Picture } from "./pdf";
 import type { FileView, ZoomMode } from "./recent";
 import { DocSearch } from "./search.svelte";
 import type { PageTone } from "./settings.svelte";
@@ -75,6 +75,8 @@ export class Tab {
   readonly pageRevisions = new SvelteMap<number, number>();
   /** Annotations of the pages on screen (loaded by AnnotationLayer, used to click them). */
   readonly annotations = new SvelteMap<number, Annotation[]>();
+  /** Pictures of signatures placed in this session, by annotation id (for undo). */
+  readonly stampPictures = new Map<string, Picture>();
   /** The annotation selected for moving, restyling or deleting. */
   selectedAnnotation = $state<{ page: number; id: string } | null>(null);
 
