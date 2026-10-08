@@ -103,6 +103,11 @@ export function setTaskbarTabs(tabs: TaskbarTab[], active: number | null, enable
   return invoke("set_taskbar_tabs", { tabs, active, enabled });
 }
 
+/** Windows: captures the window as the active tab's taskbar preview. */
+export function captureTaskbarTab(): Promise<void> {
+  return invoke("capture_taskbar_tab");
+}
+
 // Custom protocols are exposed as http://<name>.localhost on Windows/Android
 // and as <name>://localhost elsewhere.
 const PROTOCOL_BASE = /Windows|Android/.test(navigator.userAgent) ? "http://rivet.localhost" : "rivet://localhost";

@@ -275,6 +275,17 @@ fn set_taskbar_tabs(
 #[tauri::command]
 fn set_taskbar_tabs(_tabs: Vec<serde_json::Value>, _active: Option<u32>, _enabled: bool) {}
 
+/// Windows: captures the window as the active tab's taskbar preview.
+#[cfg(windows)]
+#[tauri::command]
+fn capture_taskbar_tab(window: tauri::WebviewWindow) {
+    let _ = window.run_on_main_thread(taskbar_tabs::capture_active);
+}
+
+#[cfg(not(windows))]
+#[tauri::command]
+fn capture_taskbar_tab() {}
+
 /// Hands files to the UI: queued for `take_pending_files`, plus an event for a running UI.
 ///
 /// With several windows open ("Separate windows" setting), only one is told, so
@@ -499,6 +510,7 @@ pub fn run() {
             close_document,
             take_pending_files,
             set_taskbar_tabs,
+            capture_taskbar_tab,
             files_exist
         ])
         .build(tauri::generate_context!())

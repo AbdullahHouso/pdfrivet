@@ -17,6 +17,7 @@ import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
 import PropertiesDialog from "./lib/PropertiesDialog.svelte";
 import {
+  captureTaskbarTab,
   closeDocument,
   documentInfo,
   openDocument,
@@ -355,11 +356,11 @@ $effect(() => {
 });
 
 /** Keyboard shortcuts. Each returns true when it handled the key. */
-// Windows: each tab gets its own preview in the taskbar (only the main window
-// has tabs; windows opened per document are taskbar entries of their own).
+// Windows: each tab gets its own preview in the taskbar (in Tabs mode; with
+// separate windows each window is a taskbar entry of its own).
 const onWindows = /Windows/.test(navigator.userAgent);
 $effect(() => {
-  if (!onWindows || getCurrentWindow().label !== "main") return;
+  if (!onWindows) return;
   const enabled = settings.taskbarTabs && settings.documentWindows === "tabs";
   const list = tabs.list.map((t) => {
     const size = rotatedSize(t.info.pageSizes[t.page] ?? t.info.pageSizes[0], t.rotation);
@@ -376,7 +377,12 @@ $effect(() => {
   const activeId = tabs.active?.id ?? null;
   // Wait until scrolling settles, so the preview isn't refreshed for every page.
   const timer = setTimeout(() => setTaskbarTabs(list, activeId, enabled).catch(() => {}), 300);
-  return () => clearTimeout(timer);
+  // Then capture the window for this tab's preview, once its pages have rendered.
+  const capture = enabled ? setTimeout(() => captureTaskbarTab().catch(() => {}), 1200) : undefined;
+  return () => {
+    clearTimeout(timer);
+    clearTimeout(capture);
+  };
 });
 
 function onKey(e: KeyboardEvent) {
