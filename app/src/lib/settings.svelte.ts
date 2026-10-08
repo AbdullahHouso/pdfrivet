@@ -13,6 +13,8 @@ export type Theme = "system" | "light" | "dark" | "black";
 export type PageTone = "original" | "warm" | "green" | "dimmed" | "dark";
 /** Open documents as tabs in one window (default), or each in its own window. */
 export type DocumentWindows = "tabs" | "windows";
+/** The zoom new documents open at: fit the width, fit the page, or a percentage. */
+export type DefaultZoom = "fit-width" | "fit-page" | `${number}`;
 /** Mouse mode: click links and fields, or drag the page around. */
 export type Tool = "select" | "hand";
 
@@ -28,7 +30,9 @@ export interface PrintPrefs {
 let store: Store | null = null;
 let theme = $state<Theme>("system");
 let recent = $state<RecentFile[]>([]);
-// The view new tabs start with (the last one you picked).
+// How new documents open (Settings → Reading). Files opened before reopen at
+// their own page and zoom.
+let defaultZoom = $state<DefaultZoom>("fit-width");
 let pageLayout = $state<PageLayout>("single");
 let continuous = $state(true);
 let tool = $state<Tool>("select");
@@ -73,6 +77,15 @@ function apply(key: string, value: unknown) {
     case "taskbarTabs":
       taskbarTabs = value as boolean;
       break;
+    case "defaultZoom":
+      defaultZoom = value as DefaultZoom;
+      break;
+    case "pageLayout":
+      pageLayout = value as PageLayout;
+      break;
+    case "continuous":
+      continuous = value as boolean;
+      break;
     case "tool":
       tool = value as Tool;
       break;
@@ -98,6 +111,7 @@ export const settings = {
       store = await load("settings.json", { autoSave: 500, defaults: {} });
       theme = (await store.get<Theme>("theme")) ?? "system";
       recent = (await store.get<RecentFile[]>("recent")) ?? [];
+      defaultZoom = (await store.get<DefaultZoom>("defaultZoom")) ?? "fit-width";
       pageLayout = (await store.get<PageLayout>("pageLayout")) ?? "single";
       continuous = (await store.get<boolean>("continuous")) ?? true;
       tool = (await store.get<Tool>("tool")) ?? "select";
@@ -150,6 +164,13 @@ export const settings = {
     save("pageTone", value);
   },
 
+  get defaultZoom() {
+    return defaultZoom;
+  },
+  set defaultZoom(value: DefaultZoom) {
+    defaultZoom = value;
+    save("defaultZoom", value);
+  },
   get pageLayout() {
     return pageLayout;
   },

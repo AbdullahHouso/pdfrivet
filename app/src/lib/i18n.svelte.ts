@@ -45,6 +45,14 @@ function applyToDocument(code: string) {
 }
 applyToDocument(current);
 
+// Follow a language picked in another window.
+window.addEventListener("storage", (e) => {
+  if (e.key === STORAGE_KEY && e.newValue && languages.some((l) => l.code === e.newValue)) {
+    current = e.newValue;
+    applyToDocument(current);
+  }
+});
+
 export const i18n = {
   get locale() {
     return current;

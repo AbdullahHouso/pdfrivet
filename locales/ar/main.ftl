@@ -79,7 +79,7 @@ print-button = طباعة
 printing-sending = جارٍ الإرسال إلى الطابعة…
 preparing-print = جارٍ تجهيز { $done } من { $total } صفحة للطباعة…
 menu = القائمة
-theme = المظهر
+theme = السمة
 theme-system = النظام
 theme-light = فاتح
 theme-dark = داكن
@@ -96,6 +96,15 @@ documents-tabs = علامات تبويب
 documents-windows = نوافذ منفصلة
 taskbar-tabs = إظهار كل علامة تبويب في شريط المهام
 about = حول PDFRivet
+settings-menu = الإعدادات…
+settings = الإعدادات
+settings-general = عام
+settings-appearance = المظهر
+settings-reading = القراءة
+updates = التحديثات
+check-now = ابحث الآن
+page-tone-hint = لونٌ يظهر على الصفحات أثناء القراءة، دون أن تتغير ملفاتك.
+reading-defaults-hint = طريقة فتح المستندات. أما الملف الذي قرأته من قبل فيُفتح على الصفحة والتكبير حيث توقفت.
 
 ## Saving
 

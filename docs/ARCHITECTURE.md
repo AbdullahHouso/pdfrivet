@@ -63,7 +63,9 @@ Query parameters: `scale`, `rot` (0/90/180/270, view only) and `thumb=1` for thu
 - `tauri-plugin-single-instance`: launching PDFRivet again (e.g. double-clicking a PDF) sends the
   file to the running window. Files are queued in Rust and the UI is told with an
   `open-files` event (`take_pending_files`). macOS delivers files via `RunEvent::Opened`.
-- Settings and recent files are stored with `tauri-plugin-store` (`settings.svelte.ts`).
+- Settings and recent files are stored with `tauri-plugin-store` (`settings.svelte.ts`) and
+  edited in `SettingsDialog.svelte`. Every change is saved at once; other windows follow through
+  the store's change events (the language, kept in `localStorage`, through `storage` events).
   Every window reads the same store and follows changes made in the others (`onChange`).
 - **Separate windows** (setting "Open documents in"): each PDF opens in a window of its own
   (`docWindows.ts`, label `doc-*`, told its file through `?open=<path>` in the URL). Files

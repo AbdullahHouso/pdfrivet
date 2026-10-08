@@ -100,6 +100,15 @@ documents-tabs = Tabs
 documents-windows = Separate windows
 taskbar-tabs = Show each tab in the taskbar
 about = About PDFRivet
+settings-menu = Settings…
+settings = Settings
+settings-general = General
+settings-appearance = Appearance
+settings-reading = Reading
+updates = Updates
+check-now = Check now
+page-tone-hint = Laid over the pages while you read. Your files aren't changed.
+reading-defaults-hint = How documents open. A file you've read before reopens at the page and zoom where you left off.
 
 ## Saving
 

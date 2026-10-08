@@ -1,11 +1,11 @@
 <script lang="ts">
 import Icon from "./Icon.svelte";
-import { i18n, languages } from "./i18n.svelte";
+import { i18n } from "./i18n.svelte";
 import { ZOOM_STEPS } from "./layout";
 import { westernDigits } from "./pageRange";
 import RecentMenu from "./RecentMenu.svelte";
 import type { ZoomMode } from "./recent";
-import { type DocumentWindows, type PageTone, settings, type Theme } from "./settings.svelte";
+import { type PageTone, settings } from "./settings.svelte";
 import type { PageLayout, Tab } from "./tabs.svelte";
 import { formatShortcut } from "./tooltip";
 
@@ -22,6 +22,7 @@ interface Props {
   onzoommode: (mode: ZoomMode) => void;
   onrotate: () => void;
   onabout: () => void;
+  onsettings: () => void;
   onopenrecent: (path: string) => void;
   onclosedocument: () => void;
   oncheckupdates: () => void;
@@ -82,9 +83,6 @@ function onZoomSelect(e: Event) {
   else props.onzoom(Number(value) / 100);
 }
 
-const themes: Theme[] = ["system", "light", "dark", "black"];
-const documentModes: DocumentWindows[] = ["tabs", "windows"];
-
 let appMenu: HTMLDivElement;
 let recentMenu: RecentMenu | undefined = $state();
 
@@ -94,8 +92,6 @@ function run(command: () => void) {
   appMenu.hidePopover();
   command();
 }
-// Per-tab taskbar previews are a Windows feature.
-const onWindows = /Windows/.test(navigator.userAgent);
 // Swatches for the page colours (what a white page looks like in each).
 const tones: { value: PageTone; swatch: string }[] = [
   { value: "original", swatch: "#ffffff" },
@@ -275,50 +271,14 @@ const tones: { value: PageTone; swatch: string }[] = [
       {/if}
       <RecentMenu bind:this={recentMenu} onopen={(path) => run(() => props.onopenrecent(path))} />
     </div>
-    <div class="menu-section">
-      <span class="menu-label">{i18n.t("theme")}</span>
-      <div class="segmented" role="radiogroup" aria-label={i18n.t("theme")}>
-        {#each themes as theme (theme)}
-          <button role="radio" aria-checked={settings.theme === theme} onclick={() => (settings.theme = theme)}>
-            {i18n.t(`theme-${theme}`)}
-          </button>
-        {/each}
-      </div>
-    </div>
-    <label class="menu-section">
-      <span class="menu-label">{i18n.t("language")}</span>
-      <select bind:value={i18n.locale}>
-        {#each languages as lang (lang.code)}
-          <option value={lang.code} lang={lang.code}>{lang.name}</option>
-        {/each}
-      </select>
-    </label>
-    <div class="menu-section">
-      <span class="menu-label" id="documents-label">{i18n.t("open-documents-in")}</span>
-      <div class="segmented" role="radiogroup" aria-labelledby="documents-label">
-        {#each documentModes as mode (mode)}
-          <button role="radio" aria-checked={settings.documentWindows === mode}
-            onclick={() => (settings.documentWindows = mode)}>
-            {i18n.t(`documents-${mode}`)}
-          </button>
-        {/each}
-      </div>
-      {#if onWindows && settings.documentWindows === "tabs"}
-        <label class="inline-check">
-          <input type="checkbox" bind:checked={settings.taskbarTabs} />
-          {i18n.t("taskbar-tabs")}
-        </label>
-      {/if}
-    </div>
-    <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.oncheckupdates}>
-      {i18n.t("check-updates")}
+    <button class="menu-item command" onclick={() => run(props.onsettings)}>
+      <span>{i18n.t("settings-menu")}</span><kbd dir="ltr">{formatShortcut("Ctrl+,")}</kbd>
     </button>
-    <label class="menu-item option check">
-      <input type="checkbox" bind:checked={settings.autoUpdate} />
-      {i18n.t("auto-update")}
-    </label>
-    <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onabout}>
-      {i18n.t("about")}
+    <button class="menu-item command" onclick={() => run(props.oncheckupdates)}>
+      <span>{i18n.t("check-updates")}</span>
+    </button>
+    <button class="menu-item command" onclick={() => run(props.onabout)}>
+      <span>{i18n.t("about")}</span>
     </button>
   </div>
   </div>
@@ -437,24 +397,6 @@ const tones: { value: PageTone; swatch: string }[] = [
     font-size: 12px;
     color: var(--muted);
   }
-  .segmented {
-    display: flex;
-    gap: 2px;
-    padding: 2px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-  }
-  .segmented button {
-    flex: 1;
-    border: none;
-    padding-block: 4px;
-    padding-inline: 6px;
-    font-size: 13px;
-  }
-  .segmented button[aria-checked="true"] {
-    background: var(--accent);
-    color: var(--accent-text);
-  }
   .menu-item {
     width: 100%;
     text-align: start;
@@ -516,17 +458,6 @@ const tones: { value: PageTone; swatch: string }[] = [
   .submenu-arrow :global(.icon) {
     width: 14px;
     height: 14px;
-  }
-  .inline-check {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-block-start: 4px;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .inline-check input {
-    accent-color: var(--accent);
   }
   .tones-section {
     border-block-start: 1px solid var(--border);

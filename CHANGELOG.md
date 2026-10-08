@@ -35,6 +35,7 @@ The first version: a fast, everyday PDF reader.
 - Updates install from inside the app (checked once a day; you can turn this off).
 - A multilingual interface that fully mirrors for right-to-left languages.
 - Light, dark and pure black themes (or follow the system).
+- A Settings window (Ctrl+,) for language, themes, page colour, updates, and how documents open: zoom, single or two pages, continuous scrolling, tabs or separate windows.
 - Open documents as tabs (default) or each in its own window.
 - Windows: every tab gets its own preview in the taskbar.
 - Keyboard shortcuts work with any keyboard layout, including Arabic.

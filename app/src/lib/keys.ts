@@ -14,5 +14,6 @@ export function shortcutKey(e: Pick<KeyboardEvent, "key" | "code">): string {
   if (e.code.startsWith("Digit")) return e.code.slice(5);
   if (e.code === "Equal") return "=";
   if (e.code === "Minus") return "-";
+  if (e.code === "Comma") return ",";
   return key;
 }

@@ -32,6 +32,7 @@ import {
 import { type PrintProgress, printDocument as printWithSystemDialog } from "./lib/print";
 import { printDocument } from "./lib/printing";
 import type { ZoomMode } from "./lib/recent";
+import SettingsDialog from "./lib/SettingsDialog.svelte";
 import Sidebar from "./lib/Sidebar.svelte";
 import StartScreen from "./lib/StartScreen.svelte";
 import { type DocumentWindows, settings } from "./lib/settings.svelte";
@@ -45,6 +46,7 @@ import Viewer from "./lib/Viewer.svelte";
 let error = $state<RivetError | null>(null);
 let sidebarOpen = $state(true);
 let showAbout = $state(false);
+let showSettings = $state(false);
 let dragging = $state(false);
 /** A protected PDF waiting for its password. */
 let passwordFor = $state<{ path: string; wrong: boolean } | null>(null);
@@ -103,6 +105,14 @@ async function openPath(path: string, password?: string) {
       tab.zoomMode = saved.zoomMode;
       tab.zoom = saved.zoom;
       if (saved.pagesRtl !== undefined) tab.pagesRtl = saved.pagesRtl;
+    } else {
+      const zoom = settings.defaultZoom;
+      if (zoom === "fit-width" || zoom === "fit-page") {
+        tab.zoomMode = zoom;
+      } else {
+        tab.zoomMode = "custom";
+        tab.zoom = Number(zoom) / 100;
+      }
     }
     settings.touchRecent({
       path,
@@ -418,6 +428,7 @@ function onKey(e: KeyboardEvent) {
     // Our own printing (the default would print the app window).
     [mod && key === "p", () => tab && printActive()],
     [mod && key === "o", pickFiles],
+    [mod && key === ",", () => (showSettings = true)],
     [e.key === "F11", toggleFullscreen],
     [!!tab && mod && key === "w", () => tab && closeTab(tab)],
     [!!tab && mod && key === "d", () => (showProperties = true)],
@@ -517,6 +528,7 @@ onMount(() => {
   onzoommode={setZoomMode}
   onrotate={rotate}
   onabout={() => (showAbout = true)}
+  onsettings={() => (showSettings = true)}
   onopenrecent={openRecent}
   onclosedocument={() => active && closeTab(active)}
   oncheckupdates={() => updater.check(true)}
@@ -528,14 +540,12 @@ onMount(() => {
   onactualsize={() => viewer?.zoomTo(1)}
   onpagelayout={(layout) => {
     if (active) active.pageLayout = layout;
-    settings.pageLayout = layout;
   }}
   onpagesrtl={(on) => {
     if (active) active.pagesRtl = on;
   }}
   oncontinuous={(on) => {
     if (active) active.continuous = on;
-    settings.continuous = on;
   }}
 />
 
@@ -624,6 +634,10 @@ onMount(() => {
     choices={question.choices}
     onchoose={question.answer}
   />
+{/if}
+
+{#if showSettings}
+  <SettingsDialog onclose={() => (showSettings = false)} oncheckupdates={() => updater.check(true)} />
 {/if}
 
 {#if showAbout}

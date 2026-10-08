@@ -55,10 +55,6 @@ function element(): HTMLDivElement {
   return tooltip;
 }
 
-function isOpen(): boolean {
-  return !!tooltip && !tooltip.hidden;
-}
-
 function show(el: Element) {
   const content = tooltipContent(
     el.getAttribute("data-tip") ?? "",

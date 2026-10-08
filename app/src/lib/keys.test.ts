@@ -14,6 +14,8 @@ describe("shortcutKey", () => {
     expect(shortcutKey({ key: "س", code: "KeyS" })).toBe("s");
     expect(shortcutKey({ key: "ص", code: "KeyW" })).toBe("w");
     expect(shortcutKey({ key: "٠", code: "Digit0" })).toBe("0");
+    // Settings (Ctrl+,): the comma key types "و" on the Arabic layout.
+    expect(shortcutKey({ key: "و", code: "Comma" })).toBe(",");
   });
 
   it("leaves named keys alone", () => {
