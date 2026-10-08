@@ -154,6 +154,30 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
 - Results are drawn by `TextLayer.svelte` (same rectangles as selections). The current result is
   scrolled into view by the Viewer; the sidebar's Search pane lists all results (virtualized).
 
+## Annotations
+
+- `rivet-core/src/annotations.rs` reads, adds, changes and deletes annotations through PDFium's
+  `FPDFAnnot_*` functions (raw calls; pdfium-render wraps only a few). The UI exchanges
+  `Annotation` values in page fractions, like everything else.
+- Kinds and how they're stored: text markup = Highlight/Underline/StrikeOut/Squiggly with one
+  quad per line; freehand = Ink; rectangle/ellipse = Square/Circle; **lines and arrows = Ink**
+  (the line plus two strokes for the head) marked with a private `PDFRivetShape` key, because
+  PDFium can't write a Line annotation's end points; sticky notes = Text. Annotations from other
+  apps that PDFRivet can't edit come back as `Other` (shown, deletable).
+- An annotation's id is its `/NM` name (ours get a fresh one; an unnamed annotation is `#index`
+  until it is first changed).
+- **Appearances:** PDFium draws missing appearance streams itself the first time a page renders
+  and stores them in the file, so other readers show the same thing. Changing an annotation
+  removes its appearance first (PDFium also refuses to recolour one that has an appearance).
+  Exceptions: notes get our own icon in their colour (PDFium always draws notes yellow).
+- **Reading colours:** once drawn, PDFium no longer reports `C`/`IC`, so colours are read from
+  the appearance's path objects (what you actually see).
+- Removing a square's fill writes an empty string for `IC` (PDFium has no call to delete a key);
+  readers treat it as "no fill".
+- Annotation edits mark the document as having unsaved changes (`unsaved_changes`), so the engine
+  never reopens it to free memory before they're saved, and only the changed page's renders are
+  dropped from the cache.
+
 ## Page display and printing
 
 - `layout.ts` arranges pages in **rows** of one or two pages (`columns`), mirrored for

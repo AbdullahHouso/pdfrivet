@@ -8,6 +8,7 @@
 //! - [`Engine`] runs PDFium on a dedicated worker thread, so it can be
 //!   called safely from many threads (the app uses this).
 
+mod annotations;
 mod cache;
 mod direction;
 mod document;
@@ -22,6 +23,7 @@ pub mod print;
 mod search;
 mod text;
 
+pub use annotations::{Annotation, AnnotationKind, Color, MarkupStyle, PagePoint, PageRect};
 pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, Rotation, pdfium_platform};
 pub use engine::{DocId, Engine};
 pub use error::{Error, ErrorCode, Result};

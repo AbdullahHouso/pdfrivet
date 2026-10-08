@@ -15,8 +15,8 @@ use std::{
 };
 
 use rivet_core::{
-    DocId, DocInfo, Engine, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink,
-    Rotation, SearchBatch, SearchQuery, TextRange,
+    Annotation, DocId, DocInfo, Engine, Error, ErrorCode, FieldChange, FormField, OutlineItem,
+    PageLink, Rotation, SearchBatch, SearchQuery, TextRange,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, http};
@@ -134,6 +134,51 @@ async fn search_document(
 ) -> Result<SearchBatch, Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.search(doc_id, query, first)).await
+}
+
+#[tauri::command]
+async fn get_annotations(
+    doc_id: DocId,
+    page: u32,
+    state: State<'_, AppState>,
+) -> Result<Vec<Annotation>, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.annotations(doc_id, page)).await
+}
+
+/// Adds an annotation; returns its id.
+#[tauri::command]
+async fn add_annotation(
+    doc_id: DocId,
+    page: u32,
+    annotation: Annotation,
+    state: State<'_, AppState>,
+) -> Result<String, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.add_annotation(doc_id, page, annotation)).await
+}
+
+/// Changes an annotation (found by its id); returns its id.
+#[tauri::command]
+async fn update_annotation(
+    doc_id: DocId,
+    page: u32,
+    annotation: Annotation,
+    state: State<'_, AppState>,
+) -> Result<String, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.update_annotation(doc_id, page, annotation)).await
+}
+
+#[tauri::command]
+async fn delete_annotation(
+    doc_id: DocId,
+    page: u32,
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.delete_annotation(doc_id, page, id)).await
 }
 
 #[tauri::command]
@@ -565,6 +610,10 @@ pub fn run() {
             change_field,
             get_text,
             search_document,
+            get_annotations,
+            add_annotation,
+            update_annotation,
+            delete_annotation,
             save_document,
             list_printers,
             document_properties,

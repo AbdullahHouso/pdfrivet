@@ -23,6 +23,12 @@ pub enum ErrorCode {
     PrintFailed,
     /// The document's author doesn't allow copying its text.
     CopyNotAllowed,
+    /// The document's author doesn't allow adding or changing annotations.
+    AnnotateNotAllowed,
+    /// The annotation was removed (or never existed).
+    AnnotationNotFound,
+    /// The annotation can't be changed (another app's kind, or locked).
+    ReadOnlyAnnotation,
     DocumentNotOpen,
     EngineStopped,
     /// A render was skipped because the page is no longer near the screen.

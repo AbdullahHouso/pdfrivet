@@ -5,8 +5,9 @@ use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use rivet_core::{
-    CHAR_GENERATED, CHAR_NO_BOX, Engine, ErrorCode, FieldChange, FieldKind, FormField, LinkTarget,
-    OutlineItem, PageText, Pdf, Rotation, SearchQuery, TextRange,
+    Annotation, AnnotationKind, CHAR_GENERATED, CHAR_NO_BOX, Color, Engine, ErrorCode, FieldChange,
+    FieldKind, FormField, LinkTarget, MarkupStyle, OutlineItem, PagePoint, PageRect, PageText, Pdf,
+    Rotation, SearchQuery, TextRange,
 };
 
 fn repo_root() -> PathBuf {
@@ -660,4 +661,243 @@ fn engine_searches_in_batches() {
     );
     let pages: Vec<u32> = hits.iter().map(|h| h.page).collect();
     assert_eq!(pages, (0..120).collect::<Vec<_>>());
+}
+
+const RED: Color = Color {
+    r: 220,
+    g: 40,
+    b: 40,
+};
+const BLUE: Color = Color {
+    r: 30,
+    g: 90,
+    b: 220,
+};
+
+fn annotation(kind: AnnotationKind, rect: PageRect) -> Annotation {
+    Annotation {
+        id: String::new(),
+        kind,
+        rect,
+        color: RED,
+        opacity: 1.0,
+        width: 2.0,
+        contents: String::new(),
+        author: "Tester".into(),
+        modified: None,
+        editable: true,
+    }
+}
+
+fn rect(left: f32, top: f32, right: f32, bottom: f32) -> PageRect {
+    PageRect {
+        left,
+        top,
+        right,
+        bottom,
+    }
+}
+
+fn point(x: f32, y: f32) -> PagePoint {
+    PagePoint { x, y }
+}
+
+/// One of each kind PDFRivet can add, on page 2 of basic.pdf.
+fn sample_annotations(doc: &rivet_core::Document) -> Vec<Annotation> {
+    // Highlight "rivet-needle" using the characters' own boxes.
+    let text = doc.page_text(1).unwrap();
+    let all = page_string(&text);
+    let start = all.find("rivet-needle").unwrap();
+    let chars = &text.chars[start..start + 12];
+    let line = rect(
+        chars[0].left,
+        chars[0].top,
+        chars[11].right,
+        chars[0].bottom,
+    );
+    let mut note = annotation(AnnotationKind::Note, rect(0.8, 0.1, 0.83, 0.13));
+    note.contents = "ملاحظة: check this".into();
+    let mut square = annotation(
+        AnnotationKind::Square { fill: Some(BLUE) },
+        rect(0.1, 0.5, 0.3, 0.6),
+    );
+    square.opacity = 0.5;
+    vec![
+        annotation(
+            AnnotationKind::Markup {
+                style: MarkupStyle::Highlight,
+                quads: vec![line],
+            },
+            line,
+        ),
+        annotation(
+            AnnotationKind::Ink {
+                strokes: vec![vec![point(0.1, 0.3), point(0.2, 0.35), point(0.3, 0.3)]],
+            },
+            rect(0.0, 0.0, 0.0, 0.0),
+        ),
+        square,
+        annotation(
+            AnnotationKind::Circle { fill: None },
+            rect(0.4, 0.5, 0.6, 0.6),
+        ),
+        annotation(
+            AnnotationKind::Line {
+                from: point(0.1, 0.7),
+                to: point(0.5, 0.75),
+                arrow: true,
+            },
+            rect(0.0, 0.0, 0.0, 0.0),
+        ),
+        note,
+    ]
+}
+
+#[test]
+fn adds_annotations_that_survive_saving() {
+    let _serial = serial();
+    let dir = temp_dir("annotations");
+    let path = dir.join("annotated.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let before = doc.render_page(1, 0.5, Rotation::None).unwrap();
+    let wanted = sample_annotations(&doc);
+    let mut ids = Vec::new();
+    for a in &wanted {
+        ids.push(doc.add_annotation(1, a).unwrap());
+    }
+    let read = doc.annotations(1).unwrap();
+    assert_eq!(read.len(), wanted.len());
+    // PDFium draws them (it builds each appearance itself).
+    let after = doc.render_page(1, 0.5, Rotation::None).unwrap();
+    assert!(non_white_pixels(&after.rgba) > non_white_pixels(&before.rgba) + 500);
+
+    doc.save(&path).unwrap();
+
+    // Other readers need an appearance stream for every annotation.
+    let saved = lopdf::Document::load(&path).unwrap();
+    let mut with_ap = 0;
+    for object in saved.objects.values() {
+        if let Ok(dict) = object.as_dict()
+            && dict
+                .get(b"Subtype")
+                .and_then(|s| s.as_name())
+                .is_ok_and(|n| matches!(n, b"Highlight" | b"Ink" | b"Square" | b"Circle" | b"Text"))
+        {
+            assert!(
+                dict.has(b"AP"),
+                "{:?} has no appearance",
+                dict.get(b"Subtype")
+            );
+            with_ap += 1;
+        }
+    }
+    assert_eq!(with_ap, wanted.len());
+
+    // Reading the saved file gives the same annotations back.
+    let reopened = pdf().open(&path, None).unwrap();
+    let read = reopened.annotations(1).unwrap();
+    assert_eq!(read.len(), wanted.len());
+    for (got, want) in read.iter().zip(&wanted) {
+        assert!(ids.contains(&got.id), "keeps its id: {}", got.id);
+        assert_eq!(got.color, want.color);
+        assert_eq!(got.author, "Tester");
+        assert!(got.modified.is_some());
+        assert!(got.editable);
+        match (&got.kind, &want.kind) {
+            (AnnotationKind::Markup { quads: a, .. }, AnnotationKind::Markup { quads: b, .. }) => {
+                assert_eq!(a.len(), 1);
+                assert!(
+                    (a[0].left - b[0].left).abs() < 0.002 && (a[0].top - b[0].top).abs() < 0.002
+                );
+            }
+            (AnnotationKind::Ink { strokes: a }, AnnotationKind::Ink { strokes: b }) => {
+                assert_eq!(a[0].len(), b[0].len());
+                assert!((a[0][1].x - 0.2).abs() < 0.002 && (a[0][1].y - 0.35).abs() < 0.002);
+            }
+            (AnnotationKind::Line { from, to, arrow }, AnnotationKind::Line { .. }) => {
+                assert!(*arrow);
+                assert!((from.x - 0.1).abs() < 0.002 && (to.y - 0.75).abs() < 0.002);
+            }
+            (AnnotationKind::Square { fill }, AnnotationKind::Square { .. }) => {
+                assert_eq!(*fill, Some(BLUE));
+                assert!((got.opacity - 0.5).abs() < 0.01);
+                assert!(
+                    (got.rect.left - 0.1).abs() < 0.002 && (got.rect.bottom - 0.6).abs() < 0.002
+                );
+            }
+            (AnnotationKind::Circle { fill }, AnnotationKind::Circle { .. }) => {
+                assert_eq!(*fill, None);
+            }
+            (AnnotationKind::Note, AnnotationKind::Note) => {
+                assert_eq!(got.contents, "ملاحظة: check this");
+            }
+            other => panic!("kind changed: {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn changes_and_deletes_annotations() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let mut square = annotation(
+        AnnotationKind::Square { fill: None },
+        rect(0.1, 0.1, 0.2, 0.2),
+    );
+    square.id = doc.add_annotation(0, &square).unwrap();
+    // Render once, so PDFium has built its appearance (changing it must still work).
+    doc.render_page(0, 0.3, Rotation::None).unwrap();
+
+    square.color = BLUE;
+    square.rect = rect(0.5, 0.5, 0.7, 0.6);
+    square.kind = AnnotationKind::Square { fill: Some(RED) };
+    assert_eq!(doc.update_annotation(0, &square).unwrap(), square.id);
+    let read = &doc.annotations(0).unwrap()[0];
+    assert_eq!(read.color, BLUE);
+    assert_eq!(read.kind, AnnotationKind::Square { fill: Some(RED) });
+    assert!((read.rect.left - 0.5).abs() < 0.002);
+
+    // Removing the fill again.
+    square.kind = AnnotationKind::Square { fill: None };
+    doc.update_annotation(0, &square).unwrap();
+    assert_eq!(
+        doc.annotations(0).unwrap()[0].kind,
+        AnnotationKind::Square { fill: None }
+    );
+
+    doc.delete_annotation(0, &square.id).unwrap();
+    assert!(doc.annotations(0).unwrap().is_empty());
+    let missing = doc.delete_annotation(0, &square.id).unwrap_err();
+    assert_eq!(missing.code, ErrorCode::AnnotationNotFound);
+}
+
+#[test]
+fn keeps_unsaved_annotations_when_releasing_memory() {
+    let _serial = serial();
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let note = annotation(AnnotationKind::Note, rect(0.1, 0.1, 0.13, 0.13));
+    doc.add_annotation(0, &note).unwrap();
+    for _ in 0..120 {
+        doc.render_page(2, 0.1, Rotation::None).unwrap();
+    }
+    assert!(!doc.should_release_memory());
+    doc.release_memory().unwrap();
+    assert_eq!(doc.annotations(0).unwrap().len(), 1);
+}
+
+#[test]
+fn engine_refreshes_annotated_pages() {
+    let _serial = serial();
+    let engine = Engine::start(&pdfium_dir()).unwrap();
+    let (id, info) = engine.open(&fixture("basic.pdf"), None).unwrap();
+    assert!(info.can_annotate);
+    let blank = engine.render(id, 2, 0.5, Rotation::None).unwrap();
+    let square = annotation(
+        AnnotationKind::Square { fill: Some(RED) },
+        rect(0.3, 0.3, 0.7, 0.7),
+    );
+    engine.add_annotation(id, 2, square).unwrap();
+    // Not served from the cache: the new square is drawn.
+    let drawn = engine.render(id, 2, 0.5, Rotation::None).unwrap();
+    assert!(non_white_pixels(&drawn.rgba) > non_white_pixels(&blank.rgba) + 1000);
 }

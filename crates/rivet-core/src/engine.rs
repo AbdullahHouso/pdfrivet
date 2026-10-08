@@ -17,8 +17,8 @@ use std::{
 };
 
 use crate::{
-    DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink, PageText,
-    Pdf, RenderedPage, Result, Rotation, SearchBatch, SearchQuery, TextRange,
+    Annotation, DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink,
+    PageText, Pdf, RenderedPage, Result, Rotation, SearchBatch, SearchQuery, TextRange,
     cache::{Key, RenderCache},
     metadata::{DocProperties, Metadata},
     print::PrintSettings,
@@ -66,6 +66,10 @@ enum Request {
     PageText(DocId, u32, Reply<PageText>),
     Text(DocId, TextRange, Reply<String>),
     Search(DocId, SearchQuery, u32, Reply<SearchBatch>),
+    Annotations(DocId, u32, Reply<Vec<Annotation>>),
+    AddAnnotation(DocId, u32, Box<Annotation>, Reply<String>),
+    UpdateAnnotation(DocId, u32, Box<Annotation>, Reply<String>),
+    DeleteAnnotation(DocId, u32, String, Reply<()>),
     ChangeField(DocId, u32, u32, FieldChange, Reply<()>),
     Save(DocId, PathBuf, Reply<()>),
     Print(DocId, Box<PrintSettings>, Option<Vec<u8>>, Reply<()>),
@@ -210,6 +214,30 @@ impl Engine {
         self.call(|reply| Request::Search(doc, query, first, reply))
     }
 
+    /// The annotations on a page.
+    pub fn annotations(&self, doc: DocId, page: u32) -> Result<Vec<Annotation>> {
+        self.call(|reply| Request::Annotations(doc, page, reply))
+    }
+
+    /// Adds an annotation; returns its id. The page's renders are refreshed.
+    pub fn add_annotation(&self, doc: DocId, page: u32, annotation: Annotation) -> Result<String> {
+        self.call(|reply| Request::AddAnnotation(doc, page, Box::new(annotation), reply))
+    }
+
+    /// Changes an annotation (found by its id); returns its id.
+    pub fn update_annotation(
+        &self,
+        doc: DocId,
+        page: u32,
+        annotation: Annotation,
+    ) -> Result<String> {
+        self.call(|reply| Request::UpdateAnnotation(doc, page, Box::new(annotation), reply))
+    }
+
+    pub fn delete_annotation(&self, doc: DocId, page: u32, id: String) -> Result<()> {
+        self.call(|reply| Request::DeleteAnnotation(doc, page, id, reply))
+    }
+
     /// Changes a form field. Rendered pages of the document are refreshed.
     pub fn change_field(
         &self,
@@ -348,6 +376,30 @@ impl Worker {
             Request::Search(id, query, first, reply) => {
                 let _ = reply.send(self.doc(id).map(|d| d.search(&query, first)));
             }
+            Request::Annotations(id, page, reply) => {
+                let _ = reply.send(self.doc(id).and_then(|d| d.annotations(page)));
+            }
+            Request::AddAnnotation(id, page, annotation, reply) => {
+                let result = self
+                    .doc(id)
+                    .and_then(|d| d.add_annotation(page, &annotation));
+                self.page_changed(id, page, result.is_ok());
+                let _ = reply.send(result);
+            }
+            Request::UpdateAnnotation(id, page, annotation, reply) => {
+                let result = self
+                    .doc(id)
+                    .and_then(|d| d.update_annotation(page, &annotation));
+                self.page_changed(id, page, result.is_ok());
+                let _ = reply.send(result);
+            }
+            Request::DeleteAnnotation(id, page, annotation, reply) => {
+                let result = self
+                    .doc(id)
+                    .and_then(|d| d.delete_annotation(page, &annotation));
+                self.page_changed(id, page, result.is_ok());
+                let _ = reply.send(result);
+            }
             Request::ChangeField(id, page, field, change, reply) => {
                 let result = self
                     .doc(id)
@@ -426,6 +478,13 @@ impl Worker {
         let page = self.doc(r.doc)?.render_page(r.page, r.scale, r.rotation)?;
         self.cache.insert(key, page.clone());
         Ok(page)
+    }
+
+    /// Drops stale renders of a page whose annotations changed.
+    fn page_changed(&mut self, doc: DocId, page: u32, changed: bool) {
+        if changed {
+            self.cache.remove_page(doc, page);
+        }
     }
 
     fn doc(&self, id: DocId) -> Result<&Document> {

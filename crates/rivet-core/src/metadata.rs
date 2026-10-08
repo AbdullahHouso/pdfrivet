@@ -89,7 +89,7 @@ pub fn pdf_date_to_iso(value: &str) -> Option<String> {
 }
 
 /// The current time as (PDF date, ISO 8601), in UTC.
-fn now() -> (String, String) {
+pub(crate) fn now() -> (String, String) {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)

@@ -110,7 +110,6 @@ impl Affine {
     }
 
     /// The transform that undoes this one (`None` if it squashes the page flat).
-    #[allow(dead_code)] // Used by annotations, which come next.
     pub fn invert(&self) -> Option<Affine> {
         let det = self.a * self.d - self.b * self.c;
         if det.abs() < f32::EPSILON {

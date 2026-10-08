@@ -90,7 +90,7 @@ impl Pdf {
             source,
             password: password.map(str::to_owned),
             pages_loaded: Cell::new(0),
-            unsaved_form_changes: Cell::new(false),
+            unsaved_changes: Cell::new(false),
         })
     }
 
@@ -180,6 +180,8 @@ pub struct DocInfo {
     pub rtl: bool,
     /// The document allows copying its text.
     pub can_copy: bool,
+    /// The document allows adding and changing annotations.
+    pub can_annotate: bool,
 }
 
 /// Clockwise view rotation. Only affects rendering; the file is never changed.
@@ -234,9 +236,9 @@ pub struct Document {
     password: Option<String>,
     /// Pages PDFium has loaded since the document was (re)opened.
     pages_loaded: Cell<u32>,
-    /// Filled-in form fields live only inside PDFium until they're saved, so
-    /// the document must not be reopened while there are any.
-    unsaved_form_changes: Cell<bool>,
+    /// Filled-in form fields and annotations live only inside PDFium until
+    /// they're saved, so the document must not be reopened while there are any.
+    unsaved_changes: Cell<bool>,
 }
 
 impl Document {
@@ -274,7 +276,59 @@ impl Document {
             page_sizes,
             rtl: crate::direction::detect(&self.inner),
             can_copy: self.can_copy(),
+            can_annotate: self.can_annotate(),
         })
+    }
+
+    fn can_annotate(&self) -> bool {
+        self.inner
+            .permissions()
+            .can_add_or_modify_text_annotations()
+            .unwrap_or(true)
+    }
+
+    /// The annotations on a page (highlights, drawings, notes…), in drawing order.
+    pub fn annotations(&self, index: u32) -> Result<Vec<crate::Annotation>> {
+        let page = self.load_page(index)?;
+        Ok(crate::annotations::read(self.pdfium, &page))
+    }
+
+    /// Adds an annotation; returns its id.
+    pub fn add_annotation(&self, index: u32, annotation: &crate::Annotation) -> Result<String> {
+        self.check_can_annotate()?;
+        let page = self.load_page(index)?;
+        let id = crate::annotations::add(self.pdfium, &page, annotation)?;
+        self.unsaved_changes.set(true);
+        Ok(id)
+    }
+
+    /// Changes an annotation (found by its id); returns its id, which is new
+    /// for an annotation that had none.
+    pub fn update_annotation(&self, index: u32, annotation: &crate::Annotation) -> Result<String> {
+        self.check_can_annotate()?;
+        let page = self.load_page(index)?;
+        let id = crate::annotations::update(self.pdfium, &page, annotation)?;
+        self.unsaved_changes.set(true);
+        Ok(id)
+    }
+
+    pub fn delete_annotation(&self, index: u32, id: &str) -> Result<()> {
+        self.check_can_annotate()?;
+        let page = self.load_page(index)?;
+        crate::annotations::delete(self.pdfium, &page, id)?;
+        self.unsaved_changes.set(true);
+        Ok(())
+    }
+
+    fn check_can_annotate(&self) -> Result<()> {
+        if self.can_annotate() {
+            Ok(())
+        } else {
+            Err(Error::new(
+                ErrorCode::AnnotateNotAllowed,
+                "document permissions",
+            ))
+        }
     }
 
     fn can_copy(&self) -> bool {
@@ -396,9 +450,7 @@ impl Document {
                 fill_forms: permissions
                     .can_fill_existing_interactive_form_fields()
                     .unwrap_or(true),
-                annotate: permissions
-                    .can_add_or_modify_text_annotations()
-                    .unwrap_or(true),
+                annotate: self.can_annotate(),
             },
             can_edit_metadata: !encrypted,
         }
@@ -426,7 +478,7 @@ impl Document {
     pub fn change_field(&self, page: u32, field: u32, change: &FieldChange) -> Result<()> {
         let pdf_page = self.load_page(page)?;
         forms::apply(self.pdfium, &self.inner, &pdf_page, field, change)?;
-        self.unsaved_form_changes.set(true);
+        self.unsaved_changes.set(true);
         Ok(())
     }
 
@@ -464,24 +516,24 @@ impl Document {
             let _ = std::fs::remove_file(&temp);
             failed(&e)
         })?;
-        // The saved bytes now hold the filled-in fields, so reopening is safe again.
+        // The saved bytes now hold every change, so reopening is safe again.
         if let Source::Memory(_) = self.source {
             self.source = Source::Memory(Arc::new(bytes));
-            self.unsaved_form_changes.set(false);
+            self.unsaved_changes.set(false);
         }
         Ok(())
     }
 
     /// Whether [`Document::release_memory`] would free a worthwhile amount.
     pub fn should_release_memory(&self) -> bool {
-        self.pages_loaded.get() >= RELEASE_AFTER_PAGES && !self.unsaved_form_changes.get()
+        self.pages_loaded.get() >= RELEASE_AFTER_PAGES && !self.unsaved_changes.get()
     }
 
     /// Opens the document again from the same bytes, freeing what PDFium has
-    /// kept from pages shown so far. Does nothing while filled-in form fields
-    /// aren't saved yet. If reopening fails, the current document stays open.
+    /// kept from pages shown so far. Does nothing while form fields or
+    /// annotations have unsaved changes. If reopening fails, the current document stays open.
     pub fn release_memory(&mut self) -> Result<()> {
-        if self.unsaved_form_changes.get() {
+        if self.unsaved_changes.get() {
             return Ok(());
         }
         let fresh = load(

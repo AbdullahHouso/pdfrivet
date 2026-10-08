@@ -16,4 +16,8 @@ rtl: boolean,
 /**
  * The document allows copying its text.
  */
-canCopy: boolean, };
+canCopy: boolean, 
+/**
+ * The document allows adding and changing annotations.
+ */
+canAnnotate: boolean, };

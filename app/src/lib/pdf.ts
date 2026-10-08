@@ -1,6 +1,7 @@
 // Calls into the Rust side (rivet-core through Tauri).
 
 import { invoke } from "@tauri-apps/api/core";
+import type { Annotation } from "./bindings/Annotation";
 import type { DocInfo } from "./bindings/DocInfo";
 import type { DocProperties } from "./bindings/DocProperties";
 import type { ErrorCode } from "./bindings/ErrorCode";
@@ -68,7 +69,25 @@ export function searchDocument(docId: number, query: SearchQuery, first: number)
   return invoke("search_document", { docId, query, first });
 }
 
-/** Saves the document, including filled-in forms, to `path`. */
+export function getAnnotations(docId: number, page: number): Promise<Annotation[]> {
+  return invoke("get_annotations", { docId, page });
+}
+
+/** Adds an annotation; resolves to its id. */
+export function addAnnotation(docId: number, page: number, annotation: Annotation): Promise<string> {
+  return invoke("add_annotation", { docId, page, annotation });
+}
+
+/** Changes an annotation (found by its id); resolves to its id. */
+export function updateAnnotation(docId: number, page: number, annotation: Annotation): Promise<string> {
+  return invoke("update_annotation", { docId, page, annotation });
+}
+
+export function deleteAnnotation(docId: number, page: number, id: string): Promise<void> {
+  return invoke("delete_annotation", { docId, page, id });
+}
+
+/** Saves the document, including filled-in forms and annotations, to `path`. */
 export function saveDocument(docId: number, path: string): Promise<void> {
   return invoke("save_document", { docId, path });
 }

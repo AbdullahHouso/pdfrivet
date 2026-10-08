@@ -63,10 +63,19 @@ impl RenderCache {
 
     /// Drops every cached page of a document (when it is closed).
     pub fn remove_doc(&mut self, doc: DocId) {
+        self.remove_where(|k| k.doc == doc);
+    }
+
+    /// Drops every cached render of one page (after it was annotated).
+    pub fn remove_page(&mut self, doc: DocId, page: u32) {
+        self.remove_where(|k| k.doc == doc && k.page == page);
+    }
+
+    fn remove_where(&mut self, matches: impl Fn(&Key) -> bool) {
         let keys: Vec<Key> = self
             .entries
             .iter()
-            .filter(|(k, _)| k.doc == doc)
+            .filter(|(k, _)| matches(k))
             .map(|(k, _)| *k)
             .collect();
         for key in keys {
@@ -116,6 +125,16 @@ mod tests {
         cache.insert(Key::new(1, 0, 1.0, Rotation::None), page(10));
         cache.insert(Key::new(2, 0, 1.0, Rotation::None), page(10));
         cache.remove_doc(1);
+        assert_eq!(cache.bytes(), 10);
+    }
+
+    #[test]
+    fn removes_one_page() {
+        let mut cache = RenderCache::new(1000);
+        cache.insert(Key::new(1, 0, 1.0, Rotation::None), page(10));
+        cache.insert(Key::new(1, 0, 2.0, Rotation::None), page(10));
+        cache.insert(Key::new(1, 1, 1.0, Rotation::None), page(10));
+        cache.remove_page(1, 0);
         assert_eq!(cache.bytes(), 10);
     }
 }
