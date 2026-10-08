@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 license = "MPL-2.0"
-repository = "https://github.com/AbdullahHouso/rivet-pdf"
+repository = "https://github.com/AbdullahHouso/pdfrivet"
 authors = ["Abdullah Houso"]
 
 [workspace.lints.rust]

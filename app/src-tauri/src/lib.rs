@@ -396,8 +396,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
+        // Restarts the app after an update.
+        .plugin(tauri_plugin_process::init())
         .append_invoke_initialization_script(system_locales_script())
         .setup(|app| {
+            // Checks for, downloads and installs signed updates (see `updater.svelte.ts`).
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             let (engine, startup_error) = match Engine::start(&pdfium_dir(app)) {
                 Ok(engine) => (Some(engine), None),
                 Err(e) => {

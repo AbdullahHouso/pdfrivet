@@ -20,6 +20,7 @@ interface Props {
   onzoommode: (mode: ZoomMode) => void;
   onrotate: () => void;
   onabout: () => void;
+  oncheckupdates: () => void;
   onsave: () => void;
   onsaveas: () => void;
   onprint: () => void;
@@ -230,6 +231,13 @@ const themes: Theme[] = ["system", "light", "dark"];
         {i18n.t("document-properties")}
       </button>
     {/if}
+    <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.oncheckupdates}>
+      {i18n.t("check-updates")}
+    </button>
+    <label class="menu-item option check">
+      <input type="checkbox" bind:checked={settings.autoUpdate} />
+      {i18n.t("auto-update")}
+    </label>
     <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onabout}>
       {i18n.t("about")}
     </button>

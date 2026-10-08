@@ -58,6 +58,10 @@ jobs:
         run: cargo xtask fetch-pdfium --platform ${{ matrix.pdfium }}
 
       - uses: tauri-apps/tauri-action@v1
+        env:
+          # Signs the update files; the app only installs updates with a valid signature.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: app
           tauriScript: bun tauri
@@ -69,4 +73,7 @@ jobs:
             Installers are not code-signed yet: on Windows choose "More info → Run anyway";
             on macOS open System Settings → Privacy & Security and click "Open Anyway".
           releaseDraft: true
-          prerelease: true
+          # The app looks for updates in the latest *published, non-prerelease* release
+          # (`latest.json`, written by this action).
+          prerelease: false
+          updaterJsonPreferNsis: true

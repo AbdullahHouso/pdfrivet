@@ -26,6 +26,9 @@ let pageLayout = $state<PageLayout>("single");
 let continuous = $state(true);
 let tool = $state<Tool>("select");
 let printPrefs = $state<PrintPrefs>({});
+let autoUpdate = $state(true);
+let lastUpdateCheck = 0;
+let skippedVersion = $state<string | null>(null);
 
 function applyTheme(value: Theme) {
   if (value === "system") delete document.documentElement.dataset.theme;
@@ -51,6 +54,9 @@ export const settings = {
       continuous = (await store.get<boolean>("continuous")) ?? true;
       tool = (await store.get<Tool>("tool")) ?? "select";
       printPrefs = (await store.get<PrintPrefs>("print")) ?? {};
+      autoUpdate = (await store.get<boolean>("autoUpdate")) ?? true;
+      lastUpdateCheck = (await store.get<number>("lastUpdateCheck")) ?? 0;
+      skippedVersion = (await store.get<string>("skippedVersion")) ?? null;
     } catch (e) {
       console.warn("[settings] using defaults", e);
     }
@@ -95,6 +101,31 @@ export const settings = {
   set printPrefs(value: PrintPrefs) {
     printPrefs = value;
     save("print", value);
+  },
+
+  /** Look for a new version once a day. */
+  get autoUpdate() {
+    return autoUpdate;
+  },
+  set autoUpdate(value: boolean) {
+    autoUpdate = value;
+    save("autoUpdate", value);
+  },
+  /** When updates were last looked for (ms since 1970). */
+  get lastUpdateCheck() {
+    return lastUpdateCheck;
+  },
+  set lastUpdateCheck(value: number) {
+    lastUpdateCheck = value;
+    save("lastUpdateCheck", value);
+  },
+  /** A version the user chose to skip; automatic checks don't offer it again. */
+  get skippedVersion() {
+    return skippedVersion;
+  },
+  set skippedVersion(value: string | null) {
+    skippedVersion = value;
+    save("skippedVersion", value);
   },
 
   get recent() {

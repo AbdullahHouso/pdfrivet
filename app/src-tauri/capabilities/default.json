@@ -29,6 +29,8 @@
     "dialog:allow-save",
     "dialog:allow-ask",
     "core:window:allow-destroy",
-    "opener:allow-reveal-item-in-dir"
+    "opener:allow-reveal-item-in-dir",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

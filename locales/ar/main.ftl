@@ -191,3 +191,22 @@ error-save-failed = تعذّر حفظ الملف. تأكد من صلاحية ا�
 error-io = تعذّرت قراءة الملف.
 error-internal = حدث خطأ ما.
 dismiss = إغلاق
+
+## Updates
+check-updates = البحث عن تحديثات…
+auto-update = البحث عن التحديثات تلقائيًا
+update-checking = جارٍ البحث عن تحديثات…
+update-up-to-date-title = لديك أحدث إصدار من PDFRivet
+update-up-to-date = إصدارك الحالي هو الأحدث ({ $version }).
+update-available-title = يتوفر تحديث
+update-available = يتوفر الإصدار { $version } من PDFRivet. إصدارك الحالي { $current }.
+update-notes = ما الجديد
+update-now = حدِّث الآن
+update-later = لاحقًا
+update-skip = تخطَّ هذا الإصدار
+update-downloading = جارٍ تنزيل التحديث… { NUMBER($progress, style: "percent") }
+update-downloading-unknown = جارٍ تنزيل التحديث…
+update-installing = جارٍ التثبيت… سيُعاد تشغيل PDFRivet بعد لحظات.
+update-error-title = تعذّر التحديث
+update-error = تحقّق من اتصالك بالإنترنت وحاول مرة أخرى.
+try-again = حاول مرة أخرى

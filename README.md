@@ -45,7 +45,7 @@ translations (left-to-right and right-to-left alike) are welcome; see [CONTRIBUT
 ## Installing
 
 Download the installer for your system from the
-[Releases](https://github.com/AbdullahHouso/rivet-pdf/releases) page.
+[Releases](https://github.com/AbdullahHouso/pdfrivet/releases) page.
 The installers are not code-signed yet:
 
 - **Windows:** if SmartScreen warns you, choose *More info → Run anyway*.
@@ -57,8 +57,8 @@ You need [Rust](https://rustup.rs), [Bun](https://bun.sh) and [Node.js](https://
 plus the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS.
 
 ```sh
-git clone https://github.com/AbdullahHouso/rivet-pdf.git
-cd rivet-pdf
+git clone https://github.com/AbdullahHouso/pdfrivet.git
+cd pdfrivet
 cargo xtask fetch-pdfium   # downloads the PDFium library for your OS
 cd app
 bun install

@@ -120,3 +120,22 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   **incremental update** to the bytes PDFium wrote (only the Info dictionary and the XMP stream
   are appended; nothing else is rewritten). Password-protected files are read-only for now.
 - The pdfium-render fork also fixes reading the modification date (`ModDate` key).
+
+## Updates
+
+- `tauri-plugin-updater` checks
+  `https://github.com/AbdullahHouso/pdfrivet/releases/latest/download/latest.json`, a file
+  `tauri-action` writes into every release. "Latest" means the newest *published* release that
+  is not marked as a prerelease, so drafts are never offered.
+- Every update file is signed with the project's private update key (a GitHub secret). The
+  public half is `plugins.updater.pubkey` in `tauri.conf.json`; the app refuses any download
+  whose signature doesn't match. **Losing the private key means existing installs can never
+  update again**, so it is backed up outside the repository.
+- `updater.svelte.ts` runs an automatic check at most once a day, 5 s after startup (release
+  builds only, and only while "Check for updates automatically" is on). Automatic checks stay
+  silent unless there is a new version the user hasn't skipped; "Check for updates…" always
+  shows the result.
+- After downloading, the app offers to save documents with changes, then installs and restarts.
+  On Windows the NSIS installer runs in passive mode (progress bar only, per-user, no admin
+  prompt) and starts the new version; on Linux the AppImage is replaced (a `.deb` install asks
+  for the admin password through pkexec); on macOS the `.app` is replaced.

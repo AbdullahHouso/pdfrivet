@@ -26,7 +26,7 @@ $effect(() => {
   {#if version}<p class="version">{i18n.t("version", { version })}</p>{/if}
   <p>{i18n.t("app-tagline")}</p>
   <p class="small">{i18n.t("about-license")}</p>
-  <p class="small" dir="ltr">github.com/AbdullahHouso/rivet-pdf</p>
+  <p class="small" dir="ltr">github.com/AbdullahHouso/pdfrivet</p>
   <form method="dialog">
     <button class="primary">{i18n.t("close")}</button>
   </form>

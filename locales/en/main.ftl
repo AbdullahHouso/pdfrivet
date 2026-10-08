@@ -193,3 +193,22 @@ error-save-failed = The file could not be saved. Check that you can write to tha
 error-io = The file could not be read.
 error-internal = Something went wrong.
 dismiss = Dismiss
+
+## Updates
+check-updates = Check for updates…
+auto-update = Check for updates automatically
+update-checking = Checking for updates…
+update-up-to-date-title = PDFRivet is up to date
+update-up-to-date = You have the latest version ({ $version }).
+update-available-title = Update available
+update-available = PDFRivet { $version } is available. You have { $current }.
+update-notes = What's new
+update-now = Update now
+update-later = Later
+update-skip = Skip this version
+update-downloading = Downloading the update… { NUMBER($progress, style: "percent") }
+update-downloading-unknown = Downloading the update…
+update-installing = Installing… PDFRivet will restart in a moment.
+update-error-title = Couldn't update
+update-error = Check your internet connection and try again.
+try-again = Try again

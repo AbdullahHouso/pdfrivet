@@ -23,6 +23,8 @@ import { settings } from "./lib/settings.svelte";
 import TabBar from "./lib/TabBar.svelte";
 import Toolbar from "./lib/Toolbar.svelte";
 import { type Tab, tabs } from "./lib/tabs.svelte";
+import UpdateDialog from "./lib/UpdateDialog.svelte";
+import { updater } from "./lib/updater.svelte";
 import Viewer from "./lib/Viewer.svelte";
 
 let error = $state<RivetError | null>(null);
@@ -215,6 +217,25 @@ async function closeTab(tab: Tab) {
   await tabs.close(tab.id);
 }
 
+/**
+ * Before the app closes or restarts for an update: offers to save every
+ * document with changes. Returns false if the user cancelled.
+ */
+async function offerToSaveAll(): Promise<boolean> {
+  const unsaved = tabs.list.filter((t) => t.dirty);
+  if (unsaved.length === 0) return true;
+  const answer = await ask(
+    i18n.t("unsaved-title"),
+    i18n.t("unsaved-message-many", { count: unsaved.length }),
+    saveChoices(),
+  );
+  if (answer === "cancel") return false;
+  if (answer === "save") {
+    for (const tab of unsaved) if (!(await saveTab(tab))) return false;
+  }
+  return true;
+}
+
 async function openPending() {
   for (const path of await takePendingFiles()) await openPath(path);
 }
@@ -293,23 +314,16 @@ function onKey(e: KeyboardEvent) {
 
 onMount(() => {
   // Load settings first, so reopened files find their saved position.
-  settings.init().then(openPending);
+  settings.init().then(() => {
+    openPending();
+    updater.startAutomaticChecks();
+  });
   const unlisten = [
     // Ask before closing the window with unsaved changes.
     getCurrentWindow().onCloseRequested(async (event) => {
-      const unsaved = tabs.list.filter((t) => t.dirty);
-      if (unsaved.length === 0) return;
+      if (!tabs.list.some((t) => t.dirty)) return;
       event.preventDefault();
-      const answer = await ask(
-        i18n.t("unsaved-title"),
-        i18n.t("unsaved-message-many", { count: unsaved.length }),
-        saveChoices(),
-      );
-      if (answer === "cancel") return;
-      if (answer === "save") {
-        for (const tab of unsaved) if (!(await saveTab(tab))) return;
-      }
-      await getCurrentWindow().destroy();
+      if (await offerToSaveAll()) await getCurrentWindow().destroy();
     }),
     // Files from "Open with" or a second launch while PDFRivet is running.
     listen("open-files", () => openPending()),
@@ -347,6 +361,7 @@ onMount(() => {
   onzoommode={setZoomMode}
   onrotate={rotate}
   onabout={() => (showAbout = true)}
+  oncheckupdates={() => updater.check(true)}
   onsave={() => active && saveTab(active)}
   onsaveas={() => active && saveTab(active, true)}
   onstep={(d) => viewer?.step(d)}
@@ -438,6 +453,10 @@ onMount(() => {
     <progress max={printing.total} value={printing.done}></progress>
     <button onclick={() => printing?.controller.abort()}>{i18n.t("cancel")}</button>
   </div>
+{/if}
+
+{#if updater.status}
+  <UpdateDialog beforeinstall={offerToSaveAll} />
 {/if}
 
 {#if question}
