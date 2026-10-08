@@ -1,5 +1,4 @@
-import "@fontsource/ibm-plex-sans-arabic/400.css";
-import "@fontsource/ibm-plex-sans-arabic/600.css";
+import "./fonts.css";
 import "./app.css";
 import { mount } from "svelte";
 import App from "./App.svelte";

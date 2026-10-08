@@ -436,8 +436,23 @@ fn system_locales_script() -> String {
     )
 }
 
+/// Draws text with greyscale smoothing, as macOS does, instead of ClearType's
+/// coloured edges. Set for the whole process, because every WebView2 window
+/// must start with the same browser arguments (windows opened from the UI
+/// can't be given their own). The first flag repeats what wry passes by default.
+#[cfg(windows)]
+#[allow(unsafe_code)]
+fn smooth_text() {
+    const ARGS: &str =
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-lcd-text";
+    // SAFETY: runs first thing in `run`, before any other thread exists.
+    unsafe { std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", ARGS) };
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    smooth_text();
     tauri::Builder::default()
         // Must be the first plugin: a second launch hands its files to this instance and exits.
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {

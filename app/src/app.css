@@ -109,8 +109,16 @@ body {
 body {
   display: flex;
   flex-direction: column;
-  font-family: "IBM Plex Sans Arabic", system-ui, sans-serif;
+  /* Latin letters and digits come from Inter, Arabic from Rubik (see fonts.css). */
+  font-family: "Inter Variable", "Rubik Variable", system-ui, sans-serif;
   font-size: 14px;
+  font-optical-sizing: auto;
+  /* Inter's contextual alternates: arrows and dashes fit the text around them. */
+  font-feature-settings: "calt";
+  /* Smooth (greyscale) edges on macOS; Windows is set up in tauri.conf.json. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   color: var(--text);
   background: var(--canvas);
 }
