@@ -57,6 +57,19 @@ jobs:
       - name: Download PDFium
         run: cargo xtask fetch-pdfium --platform ${{ matrix.pdfium }}
 
+      # This version's section of CHANGELOG.md becomes the release notes, which the app's
+      # update dialog also shows ("What's new").
+      - name: Release notes
+        id: notes
+        shell: bash
+        run: |
+          version=$(jq -r .version app/package.json)
+          notes=$(awk -v v="[$version]" '/^## /{found = index($0, v) > 0; next} found' CHANGELOG.md)
+          if [ -z "$(echo "$notes" | tr -d '[:space:]')" ]; then
+            echo "::error::CHANGELOG.md has no section for $version"; exit 1
+          fi
+          { echo "body<<NOTES_END"; echo "$notes" | sed '/./,$!d'; echo "NOTES_END"; } >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v1
         env:
           # Signs the update files; the app only installs updates with a valid signature.
@@ -69,10 +82,7 @@ jobs:
           # A manual run (not from a tag) names the draft after the version in package.json.
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseName: PDFRivet ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
-          releaseBody: |
-            See the README for what's new and for install notes.
-            Installers are not code-signed yet: on Windows choose "More info → Run anyway";
-            on macOS open System Settings → Privacy & Security and click "Open Anyway".
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           # The app looks for updates in the latest *published, non-prerelease* release
           # (`latest.json`, written by this action).

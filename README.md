@@ -14,12 +14,14 @@
 - **Continuous scrolling** that stays fast on documents with thousands of pages
 - **Zoom** (fit page, fit width, actual size, Ctrl + wheel, pinch) and **rotate** the view
 - **Single page or two pages** side by side (spreads follow the document's reading direction), with or without continuous scrolling
-- **Print** only the document pages, each at its own paper size
+- **Print** with PDFRivet's own dialog and a live preview: printer, pages, copies, scaling, paper, two-sided
 - **Thumbnails** and the document **outline** (table of contents)
 - **Fill in forms** (text fields, checkboxes, radio buttons, drop-downs) and **save**, including over the open file
 - Clickable **links** inside documents
 - **Password-protected** PDFs
 - **Recent files** that reopen where you left off
+- **Document properties**: see a file's details and edit its title, author, subject and keywords
+- **Updates from inside the app**, signed so only genuine releases install
 - **Multilingual interface** with full right-to-left support, light and dark themes
 
 PDFRivet aims to be one small app for everyday PDF work: reading, annotating, signing,
@@ -36,7 +38,7 @@ translations (left-to-right and right-to-left alike) are welcome; see [CONTRIBUT
 | Milestone | Version | Scope |
 |---|---|---|
 | M0 ✅ | – | Foundations: engine, app shell, EN/AR UI, CI |
-| M1 🧪 | 0.1 | Reader + forms: tabs, continuous scroll, zoom, thumbnails, outline, links, form filling, save |
+| M1 🧪 | 0.1 | Reader + forms: tabs, continuous scroll, zoom, thumbnails, outline, links, form filling, save, printing, document properties, in-app updates |
 | M2 | 0.2 | Text selection, copy and search |
 | M3 | 0.3 | Page tools: merge, split, rotate, reorder, extract |
 | M4 | 0.4 | Annotations and hand-drawn signatures |
@@ -50,6 +52,9 @@ The installers are not code-signed yet:
 
 - **Windows:** if SmartScreen warns you, choose *More info → Run anyway*.
 - **macOS:** the first time, open *System Settings → Privacy & Security* and click *Open Anyway* next to the PDFRivet message.
+
+After that, PDFRivet updates itself: it checks once a day and asks before installing
+(menu → *Check for updates…* checks right away). See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ## Building from source
 
