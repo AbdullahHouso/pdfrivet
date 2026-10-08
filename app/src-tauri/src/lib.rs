@@ -68,6 +68,13 @@ async fn open_document(
         .map(|(doc_id, info)| OpenedDocument { doc_id, info })
 }
 
+/// Facts about a document that is already open, for a window taking over its tab.
+#[tauri::command]
+async fn document_info(doc_id: DocId, state: State<'_, AppState>) -> Result<DocInfo, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.info(doc_id)).await
+}
+
 #[tauri::command]
 async fn get_outline(doc_id: DocId, state: State<'_, AppState>) -> Result<Vec<OutlineItem>, Error> {
     let engine = state.engine()?.clone();
@@ -476,6 +483,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             open_document,
+            document_info,
             get_outline,
             get_links,
             get_form_fields,

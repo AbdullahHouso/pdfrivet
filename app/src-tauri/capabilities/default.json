@@ -33,6 +33,7 @@
     "opener:allow-reveal-item-in-dir",
     "updater:default",
     "process:allow-restart",
-    "core:webview:allow-create-webview-window"
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-set-focus"
   ]
 }

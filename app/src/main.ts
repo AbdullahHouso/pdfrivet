@@ -3,6 +3,7 @@ import "@fontsource/ibm-plex-sans-arabic/600.css";
 import "./app.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
+import { installTooltips } from "./lib/tooltip";
 
 // Release builds are an app, not a web page: no browser right-click menu
 // (Refresh, Save as, Print…) and no reload shortcuts that would lose unsaved
@@ -20,4 +21,5 @@ if (!import.meta.env.DEV) {
   });
 }
 
+installTooltips();
 mount(App, { target: document.getElementById("app") as HTMLElement });

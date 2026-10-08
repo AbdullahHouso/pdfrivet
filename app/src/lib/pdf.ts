@@ -34,6 +34,11 @@ export function openDocument(path: string, password?: string): Promise<OpenedDoc
   return invoke("open_document", { path, password: password ?? null });
 }
 
+/** Facts about a document that is already open (for a window taking over its tab). */
+export function documentInfo(docId: number): Promise<DocInfo> {
+  return invoke("document_info", { docId });
+}
+
 export function getOutline(docId: number): Promise<OutlineItem[]> {
   return invoke("get_outline", { docId });
 }

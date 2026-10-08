@@ -10,6 +10,24 @@ import type { ZoomMode } from "./recent";
 
 export type PageLayout = "single" | "double";
 
+/**
+ * A tab's view, handed to another window when tabs move between windows
+ * (see docWindows.ts). The document itself stays open in the engine, so
+ * nothing is reopened and unsaved changes are kept.
+ */
+export interface TabState {
+  docId: number;
+  path: string;
+  page: number;
+  zoom: number;
+  zoomMode: ZoomMode;
+  rotation: Degrees;
+  pageLayout: PageLayout;
+  continuous: boolean;
+  pagesRtl: boolean;
+  dirty: boolean;
+}
+
 export class Tab {
   readonly id: number;
   readonly docId: number;
@@ -46,6 +64,22 @@ export class Tab {
 
   get fileName(): string {
     return this.path.split(/[\\/]/).at(-1) ?? this.path;
+  }
+
+  /** What another window needs to show this tab exactly as it is. */
+  state(): TabState {
+    return {
+      docId: this.docId,
+      path: this.path,
+      page: this.page,
+      zoom: this.zoom,
+      zoomMode: this.zoomMode,
+      rotation: this.rotation,
+      pageLayout: this.pageLayout,
+      continuous: this.continuous,
+      pagesRtl: this.pagesRtl,
+      dirty: this.dirty,
+    };
   }
 
   /** Document title, or the file name when the PDF has no title. */
@@ -86,6 +120,27 @@ export const tabs = {
     if (list.length < 2) return;
     const index = list.findIndex((t) => t.id === activeId);
     activeId = list[(index + direction + list.length) % list.length].id;
+  },
+  /** Shows a tab handed over from another window (its document is already open). */
+  adopt(state: TabState, info: DocInfo): Tab {
+    const tab = this.add(state.docId, state.path, info);
+    tab.page = Math.min(state.page, info.pageCount - 1);
+    tab.zoom = state.zoom;
+    tab.zoomMode = state.zoomMode;
+    tab.rotation = state.rotation;
+    tab.pageLayout = state.pageLayout;
+    tab.continuous = state.continuous;
+    tab.pagesRtl = state.pagesRtl;
+    tab.dirty = state.dirty;
+    return tab;
+  },
+  /** Removes a tab that moved to another window, leaving its document open. */
+  detach(id: number) {
+    const index = list.findIndex((t) => t.id === id);
+    if (index < 0) return;
+    list.splice(index, 1);
+    list = [...list];
+    if (activeId === id) activeId = list[Math.min(index, list.length - 1)]?.id ?? null;
   },
   /** Closes a tab right away (callers ask about unsaved changes first). */
   async close(id: number) {

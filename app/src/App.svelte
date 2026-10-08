@@ -1,14 +1,15 @@
 <script lang="ts">
+import { emitTo } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { onMount } from "svelte";
+import { onMount, untrack } from "svelte";
 import AboutDialog from "./lib/AboutDialog.svelte";
 import type { Metadata } from "./lib/bindings/Metadata";
 import type { PrintSettings } from "./lib/bindings/PrintSettings";
 import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
-import { fileFromUrl, hasOtherWindows, openInNewWindow } from "./lib/docWindows";
+import { hasOtherWindows, moveToNewWindow, openInNewWindow, tabsWindowLabel, windowRequest } from "./lib/docWindows";
 import { i18n } from "./lib/i18n.svelte";
 import { shortcutKey } from "./lib/keys";
 import { type Degrees, rotatedSize, stepZoom } from "./lib/layout";
@@ -16,6 +17,8 @@ import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
 import PropertiesDialog from "./lib/PropertiesDialog.svelte";
 import {
+  closeDocument,
+  documentInfo,
   openDocument,
   type RivetError,
   saveDocument,
@@ -29,10 +32,10 @@ import { printDocument } from "./lib/printing";
 import type { ZoomMode } from "./lib/recent";
 import Sidebar from "./lib/Sidebar.svelte";
 import StartScreen from "./lib/StartScreen.svelte";
-import { settings } from "./lib/settings.svelte";
+import { type DocumentWindows, settings } from "./lib/settings.svelte";
 import TabBar from "./lib/TabBar.svelte";
 import Toolbar from "./lib/Toolbar.svelte";
-import { type Tab, tabs } from "./lib/tabs.svelte";
+import { type Tab, type TabState, tabs } from "./lib/tabs.svelte";
 import UpdateDialog from "./lib/UpdateDialog.svelte";
 import { updater } from "./lib/updater.svelte";
 import Viewer from "./lib/Viewer.svelte";
@@ -246,6 +249,50 @@ async function closeTab(tab: Tab) {
   }
 }
 
+/** Shows a tab moved here from another window (its document is already open). */
+async function adoptTab(state: TabState) {
+  try {
+    tabs.adopt(state, await documentInfo(state.docId));
+  } catch (e) {
+    error = toRivetError(e);
+  }
+}
+
+/**
+ * Applies a change of the "Open documents in" setting right away, in every
+ * window (each one gets the change through the shared settings).
+ * - Separate windows: this window keeps its current tab; every other tab moves
+ *   to a window of its own.
+ * - Tabs: every window hands its tabs to one window and closes.
+ * Documents stay open in the engine meanwhile, so unsaved changes are kept.
+ */
+async function switchDocumentWindows(mode: DocumentWindows) {
+  if (mode === "windows") {
+    const others = tabs.list.filter((t) => t.id !== tabs.active?.id);
+    let n = 1;
+    for (const tab of others) {
+      await moveToNewWindow(tab.state(), n++);
+      tabs.detach(tab.id);
+    }
+    return;
+  }
+  const target = await tabsWindowLabel();
+  if (target === getCurrentWindow().label) return;
+  const states = tabs.list.map((t) => t.state());
+  if (states.length > 0) await emitTo(target, "adopt-tabs", states);
+  await getCurrentWindow().destroy();
+}
+
+// React to the setting changing after startup (here or in another window).
+let modeReady = false;
+let currentMode: DocumentWindows = "tabs";
+$effect(() => {
+  const mode = settings.documentWindows;
+  if (!modeReady || mode === currentMode) return;
+  currentMode = mode;
+  untrack(() => switchDocumentWindows(mode));
+});
+
 /**
  * Before the app closes or restarts for an update: offers to save every
  * document with changes. Returns false if the user cancelled.
@@ -369,20 +416,31 @@ onMount(() => {
   // Load settings first, so reopened files find their saved position.
   settings.init().then(() => {
     // A window opened for one document (see docWindows.ts) opens just that.
-    const file = fileFromUrl();
-    if (file) {
-      openPath(file);
+    currentMode = settings.documentWindows;
+    modeReady = true;
+    const request = windowRequest();
+    if (request.tab) {
+      adoptTab(request.tab);
+    } else if (request.file) {
+      openPath(request.file);
     } else {
       openPending();
       updater.startAutomaticChecks();
     }
   });
   const unlisten = [
-    // Ask before closing the window with unsaved changes.
+    // Ask before closing the window with unsaved changes, then close its
+    // documents (other windows may stay open).
     getCurrentWindow().onCloseRequested(async (event) => {
-      if (!tabs.list.some((t) => t.dirty)) return;
       event.preventDefault();
-      if (await offerToSaveAll()) await getCurrentWindow().destroy();
+      if (!(await offerToSaveAll())) return;
+      for (const tab of tabs.list) await closeDocument(tab.docId).catch(() => {});
+      await getCurrentWindow().destroy();
+    }),
+    // Tabs handed over by other windows (switching to "Tabs").
+    getCurrentWebviewWindow().listen<TabState[]>("adopt-tabs", async (event) => {
+      for (const state of event.payload) await adoptTab(state);
+      await getCurrentWindow().setFocus();
     }),
     // Files from "Open with" or a second launch while PDFRivet is running.
     // A tab's preview in the Windows taskbar was clicked or closed.

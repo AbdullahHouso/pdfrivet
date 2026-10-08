@@ -59,6 +59,7 @@ struct RenderRequest {
 
 enum Request {
     Open(PathBuf, Option<String>, Reply<(DocId, DocInfo)>),
+    Info(DocId, Reply<DocInfo>),
     Outline(DocId, Reply<Vec<OutlineItem>>),
     Links(DocId, u32, Reply<Vec<PageLink>>),
     FormFields(DocId, u32, Reply<Vec<FormField>>),
@@ -108,6 +109,11 @@ impl Engine {
     /// [`ErrorCode::WrongPassword`] for protected files.
     pub fn open(&self, path: &Path, password: Option<String>) -> Result<(DocId, DocInfo)> {
         self.call(|reply| Request::Open(path.to_path_buf(), password, reply))
+    }
+
+    /// Basic facts about an open document (as returned by [`Engine::open`]).
+    pub fn info(&self, doc: DocId) -> Result<DocInfo> {
+        self.call(|reply| Request::Info(doc, reply))
     }
 
     pub fn outline(&self, doc: DocId) -> Result<Vec<OutlineItem>> {
@@ -301,6 +307,9 @@ impl Worker {
                     Ok((id, info))
                 });
                 let _ = reply.send(result);
+            }
+            Request::Info(id, reply) => {
+                let _ = reply.send(self.doc(id).and_then(Document::info));
             }
             Request::Outline(id, reply) => {
                 let _ = reply.send(self.doc(id).map(Document::outline));

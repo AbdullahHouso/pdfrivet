@@ -99,15 +99,15 @@ const tones: { value: PageTone; swatch: string }[] = [
       aria-label={i18n.t("toggle-sidebar")} title={i18n.t("toggle-sidebar")}>
       <Icon name="sidebar" />
     </button>
-    <button class="primary open" onclick={props.onopen} title={i18n.t("open-file")}>
+    <button class="primary open" onclick={props.onopen} title={i18n.t("open-file")} data-shortcut="Ctrl+O">
       <Icon name="folder" />
       <span class="label">{i18n.t("open-file")}</span>
     </button>
     {#if tab}
-      <button class="icon" onclick={props.onsave} disabled={!tab.dirty} aria-label={i18n.t("save")} title={i18n.t("save")}>
+      <button class="icon" onclick={props.onsave} disabled={!tab.dirty} aria-label={i18n.t("save")} title={i18n.t("save")} data-shortcut="Ctrl+S">
         <Icon name="save" />
       </button>
-      <button class="icon" onclick={props.onprint} aria-label={i18n.t("print")} title={i18n.t("print")}>
+      <button class="icon" onclick={props.onprint} aria-label={i18n.t("print")} title={i18n.t("print")} data-shortcut="Ctrl+P">
         <Icon name="print" />
       </button>
     {/if}
@@ -136,11 +136,11 @@ const tones: { value: PageTone; swatch: string }[] = [
 
       <div class="group segmented-tools" role="radiogroup" aria-label={i18n.t("mouse-mode")}>
         <button class="icon" role="radio" aria-checked={settings.tool === "select"} onclick={() => (settings.tool = "select")}
-          aria-label={i18n.t("tool-select")} title={i18n.t("tool-select")}>
+          aria-label={i18n.t("tool-select")} title={i18n.t("tool-select")} data-shortcut="V">
           <Icon name="pointer" />
         </button>
         <button class="icon" role="radio" aria-checked={settings.tool === "hand"} onclick={() => (settings.tool = "hand")}
-          aria-label={i18n.t("tool-hand")} title={i18n.t("tool-hand")}>
+          aria-label={i18n.t("tool-hand")} title={i18n.t("tool-hand")} data-shortcut="H">
           <Icon name="hand" />
         </button>
       </div>
@@ -148,7 +148,7 @@ const tones: { value: PageTone; swatch: string }[] = [
       <span class="sep" aria-hidden="true"></span>
 
       <div class="group">
-        <button class="icon" onclick={() => props.onzoomstep(-1)} aria-label={i18n.t("zoom-out")} title={i18n.t("zoom-out")}>
+        <button class="icon" onclick={() => props.onzoomstep(-1)} aria-label={i18n.t("zoom-out")} title={i18n.t("zoom-out")} data-shortcut="Ctrl+-">
           <Icon name="minus" />
         </button>
         <select class="zoom" value={zoomValue} onchange={onZoomSelect} aria-label={i18n.t("zoom")}>
@@ -159,7 +159,7 @@ const tones: { value: PageTone; swatch: string }[] = [
             <option value={String(percent)}>{i18n.t("zoom-level", { percent })}</option>
           {/each}
         </select>
-        <button class="icon" onclick={() => props.onzoomstep(1)} aria-label={i18n.t("zoom-in")} title={i18n.t("zoom-in")}>
+        <button class="icon" onclick={() => props.onzoomstep(1)} aria-label={i18n.t("zoom-in")} title={i18n.t("zoom-in")} data-shortcut="Ctrl+=">
           <Icon name="plus" />
         </button>
         <button class="icon" onclick={() => props.onzoommode("fit-page")} aria-pressed={tab.zoomMode === "fit-page"}
@@ -167,7 +167,7 @@ const tones: { value: PageTone; swatch: string }[] = [
           <Icon name="fit-page" />
         </button>
         <button class="icon" onclick={() => props.onzoommode("fit-width")} aria-pressed={tab.zoomMode === "fit-width"}
-          aria-label={i18n.t("fit-width")} title={i18n.t("fit-width")}>
+          aria-label={i18n.t("fit-width")} title={i18n.t("fit-width")} data-shortcut="Ctrl+0">
           <Icon name="fit-width" />
         </button>
         <button class="icon" onclick={props.onactualsize}
