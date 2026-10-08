@@ -1,7 +1,16 @@
 <script lang="ts">
 import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import logoUrl from "../../../assets/brand/rivet-icon.svg";
+import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+
+const WEBSITE = "https://pdfrivet.com";
+const GITHUB = "https://github.com/AbdullahHouso/pdfrivet";
+
+function open(url: string) {
+  openUrl(url).catch((e) => console.warn("[about] could not open", url, e));
+}
 
 interface Props {
   onclose: () => void;
@@ -26,10 +35,14 @@ $effect(() => {
   {#if version}<p class="version">{i18n.t("version", { version })}</p>{/if}
   <p>{i18n.t("app-tagline")}</p>
   <p class="small">{i18n.t("about-license")}</p>
-  <p class="small" dir="ltr">github.com/AbdullahHouso/pdfrivet</p>
+  <div class="links">
+    <button onclick={() => open(WEBSITE)}><Icon name="globe" />{i18n.t("website")}</button>
+    <button onclick={() => open(GITHUB)}><Icon name="code" />GitHub</button>
+  </div>
   <form method="dialog">
     <button class="primary">{i18n.t("close")}</button>
   </form>
+  <p class="small url" dir="ltr">pdfrivet.com</p>
 </dialog>
 
 <style>
@@ -53,7 +66,21 @@ $effect(() => {
     color: var(--muted);
     font-size: 13px;
   }
+  .links {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-block-start: 16px;
+  }
+  .links button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   form {
     margin-block-start: 16px;
+  }
+  .url {
+    margin-block: 16px 0;
   }
 </style>

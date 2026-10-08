@@ -203,6 +203,7 @@ ok = OK
 
 version = Version { $version }
 about-license = Free and open source under the Mozilla Public License 2.0.
+website = Website
 close = Close
 
 ## Errors (keys match rivet-core ErrorCode)

@@ -201,6 +201,7 @@ ok = موافق
 
 version = الإصدار { $version }
 about-license = برنامج مجاني ومفتوح المصدر بموجب رخصة موزيلا العامة 2.0.
+website = الموقع
 close = إغلاق
 
 ## Errors
