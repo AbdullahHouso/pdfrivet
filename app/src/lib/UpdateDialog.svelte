@@ -74,8 +74,10 @@ $effect(() => {
     <p role="status">{i18n.t("update-installing")}</p>
     <progress></progress>
   {:else if status?.kind === "error"}
-    <h2 id="update-title">{i18n.t("update-error-title")}</h2>
-    <p>{i18n.t("update-error")}</p>
+    <h2 id="update-title">
+      {i18n.t(status.during === "check" ? "update-check-failed" : "update-install-failed")}
+    </h2>
+    <p>{i18n.t(`update-error-${status.reason}`)}</p>
     <p class="detail" dir="auto">{status.detail}</p>
     <div class="actions">
       <button onclick={() => updater.dismiss()}>{i18n.t("close")}</button>

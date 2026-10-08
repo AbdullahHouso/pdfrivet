@@ -21,7 +21,10 @@ export type UpdateStatus =
   | { kind: "available"; update: Update }
   | { kind: "downloading"; update: Update; downloaded: number; total: number | null }
   | { kind: "installing"; update: Update }
-  | { kind: "error"; detail: string };
+  | { kind: "error"; during: "check" | "install"; reason: ErrorReason; detail: string };
+
+/** Why checking or updating failed, so the message can say what to do. */
+export type ErrorReason = "offline" | "unavailable" | "other";
 
 /** Whether an automatic check is due (also when the clock went backwards). */
 export function isCheckDue(lastCheck: number, now: number): boolean {
@@ -33,6 +36,21 @@ let status = $state<UpdateStatus | null>(null);
 
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Sorts the updater's error messages: no connection, or the update information
+ * isn't there (e.g. no release has been published yet).
+ */
+export function errorReason(detail: string): ErrorReason {
+  if (/valid release JSON|platform .* was not found|fallback platforms/i.test(detail)) return "unavailable";
+  if (/error sending request|dns|connect|timed? ?out|network|unreachable/i.test(detail)) return "offline";
+  return "other";
+}
+
+function failure(during: "check" | "install", e: unknown): UpdateStatus {
+  const detail = errorText(e);
+  return { kind: "error", during, reason: errorReason(detail), detail };
 }
 
 export const updater = {
@@ -64,7 +82,7 @@ export const updater = {
       }
     } catch (e) {
       console.warn("[updater] check failed", e);
-      if (manual && status?.kind === "checking") status = { kind: "error", detail: errorText(e) };
+      if (manual && status?.kind === "checking") status = failure("check", e);
     }
   },
 
@@ -103,7 +121,7 @@ export const updater = {
       await relaunch();
     } catch (e) {
       console.warn("[updater] install failed", e);
-      status = { kind: "error", detail: errorText(e) };
+      status = failure("install", e);
     }
   },
 

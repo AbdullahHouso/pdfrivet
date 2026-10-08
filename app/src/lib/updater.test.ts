@@ -36,6 +36,15 @@ beforeEach(async () => {
   relaunch.mockReset();
 });
 
+describe("errorReason", () => {
+  it("tells a missing release from a missing connection", async () => {
+    const { errorReason } = await import("./updater.svelte");
+    expect(errorReason("Could not fetch a valid release JSON from the remote")).toBe("unavailable");
+    expect(errorReason("error sending request for url (https://github.com/…)")).toBe("offline");
+    expect(errorReason("signature verification failed")).toBe("other");
+  });
+});
+
 describe("isCheckDue", () => {
   it("checks once a day", () => {
     expect(isCheckDue(0, CHECK_INTERVAL)).toBe(true);
@@ -65,7 +74,7 @@ describe("updater", () => {
   it("shows errors from a manual check", async () => {
     check.mockRejectedValue(new Error("offline"));
     await updater.check(true);
-    expect(updater.status).toEqual({ kind: "error", detail: "offline" });
+    expect(updater.status).toEqual({ kind: "error", during: "check", reason: "other", detail: "offline" });
   });
 
   it("offers a new version, but not a skipped one on automatic checks", async () => {
