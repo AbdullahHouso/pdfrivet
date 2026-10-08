@@ -7,6 +7,8 @@
 // when there is a shortcut to show.
 
 const DELAY = 500;
+/** Like the system's tooltips, they go away on their own after a while. */
+const LIFETIME = 5000;
 
 const isMac = /Mac/.test(navigator.userAgent);
 
@@ -37,9 +39,18 @@ export function tooltipContent(
 let tooltip: HTMLDivElement | null = null;
 let target: Element | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
-// Checks that the pointer is still on the element: when a dialog opens or the
-// element gets disabled, browsers stop telling us the pointer left.
+// Checks that the pointer is still on the element. Browsers can stop telling
+// us the pointer left (a dialog opened, the element got disabled), and after a
+// dialog WebView2 keeps the old element "hovered", so the pointer's position
+// is tracked here instead.
 let watch: ReturnType<typeof setInterval> | undefined;
+let pointer = { x: -1, y: -1, movedAt: 0 };
+
+function pointerIsOn(el: Element): boolean {
+  if (pointer.movedAt === 0) return false;
+  const under = document.elementFromPoint(pointer.x, pointer.y);
+  return !!under && (under === el || el.contains(under));
+}
 
 function element(): HTMLDivElement {
   if (!tooltip) {
@@ -80,9 +91,10 @@ function show(el: Element) {
   tip.style.left = `${left}px`;
   tip.style.top = `${Math.max(margin, top)}px`;
   tip.classList.add("visible");
+  const shownAt = Date.now();
   clearInterval(watch);
   watch = setInterval(() => {
-    if (!el.isConnected || !el.matches(":hover") || !document.hasFocus()) hide();
+    if (!el.isConnected || !pointerIsOn(el) || !document.hasFocus() || Date.now() - shownAt > LIFETIME) hide();
   }, 200);
 }
 
@@ -111,7 +123,11 @@ function onOver(e: PointerEvent) {
   hide();
   target = el;
   // Moving from one tooltip to the next shows the next one right away.
-  timer = setTimeout(() => target === el && el.matches(":hover") && show(el), wasVisible ? 0 : DELAY);
+  // Only after real pointer movement: not when a dialog closes over a button.
+  timer = setTimeout(
+    () => target === el && pointerIsOn(el) && Date.now() - pointer.movedAt < 1500 && show(el),
+    wasVisible ? 0 : DELAY,
+  );
 }
 
 function onOut(e: PointerEvent) {
@@ -123,6 +139,14 @@ function onOut(e: PointerEvent) {
 
 /** Turns on app-drawn tooltips for the whole window. Call once at startup. */
 export function installTooltips() {
+  document.addEventListener(
+    "pointermove",
+    (e) => {
+      pointer = { x: e.clientX, y: e.clientY, movedAt: Date.now() };
+    },
+    { passive: true },
+  );
+  document.documentElement.addEventListener("pointerleave", hide);
   document.addEventListener("pointerover", onOver);
   document.addEventListener("pointerout", onOut);
   for (const event of ["pointerdown", "keydown", "wheel", "blur"]) {
