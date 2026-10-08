@@ -64,6 +64,17 @@ Query parameters: `scale`, `rot` (0/90/180/270, view only) and `thumb=1` for thu
   file to the running window. Files are queued in Rust and the UI is told with an
   `open-files` event (`take_pending_files`). macOS delivers files via `RunEvent::Opened`.
 - Settings and recent files are stored with `tauri-plugin-store` (`settings.svelte.ts`).
+  Every window reads the same store and follows changes made in the others (`onChange`).
+- **Separate windows** (setting "Open documents in"): each PDF opens in a window of its own
+  (`docWindows.ts`, label `doc-*`, told its file through `?open=<path>` in the URL). Files
+  from the OS are announced to one window only (the focused one), so they open once.
+- **Windows taskbar previews** (`taskbar_tabs.rs`, Windows only): in tabs mode, each tab is
+  represented by an invisible "proxy" window registered with `ITaskbarList3::RegisterTab`.
+  The taskbar asks each proxy for its preview (`WM_DWMSENDICONICTHUMBNAIL`), answered with
+  the tab's current page rendered by the engine; clicking or closing a preview is sent to the
+  UI as a `taskbar-tab` event.
+- **Shortcuts** (`keys.ts`): matched by the typed letter on Latin layouts and by key position
+  on others, so Ctrl+S works while the Arabic layout is active.
 
 ## Types shared with TypeScript
 
