@@ -82,7 +82,7 @@ $effect(() => {
     width: 100%;
     font: inherit;
     color: inherit;
-    background: var(--canvas);
+    background: var(--field);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 8px;

@@ -5,7 +5,12 @@ import { load, type Store } from "@tauri-apps/plugin-store";
 import { findRecent, type RecentFile, removeRecent, touchRecent, updatePosition } from "./recent";
 import type { PageLayout } from "./tabs.svelte";
 
-export type Theme = "system" | "light" | "dark";
+export type Theme = "system" | "light" | "dark" | "black";
+/**
+ * A colour laid over the pages while reading (the file isn't changed):
+ * warm paper, green, dimmed, or dark pages with light text.
+ */
+export type PageTone = "original" | "warm" | "green" | "dimmed" | "dark";
 /** Mouse mode: click links and fields, or drag the page around. */
 export type Tool = "select" | "hand";
 
@@ -26,6 +31,7 @@ let pageLayout = $state<PageLayout>("single");
 let continuous = $state(true);
 let tool = $state<Tool>("select");
 let printPrefs = $state<PrintPrefs>({});
+let pageTone = $state<PageTone>("original");
 let autoUpdate = $state(true);
 let lastUpdateCheck = 0;
 let skippedVersion = $state<string | null>(null);
@@ -54,6 +60,7 @@ export const settings = {
       continuous = (await store.get<boolean>("continuous")) ?? true;
       tool = (await store.get<Tool>("tool")) ?? "select";
       printPrefs = (await store.get<PrintPrefs>("print")) ?? {};
+      pageTone = (await store.get<PageTone>("pageTone")) ?? "original";
       autoUpdate = (await store.get<boolean>("autoUpdate")) ?? true;
       lastUpdateCheck = (await store.get<number>("lastUpdateCheck")) ?? 0;
       skippedVersion = (await store.get<string>("skippedVersion")) ?? null;
@@ -70,6 +77,14 @@ export const settings = {
     theme = value;
     applyTheme(value);
     save("theme", value);
+  },
+
+  get pageTone() {
+    return pageTone;
+  },
+  set pageTone(value: PageTone) {
+    pageTone = value;
+    save("pageTone", value);
   },
 
   get pageLayout() {

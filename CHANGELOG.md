@@ -33,4 +33,6 @@ The first version: a fast, everyday PDF reader.
 
 ### Everything else
 - Updates install from inside the app (checked once a day; you can turn this off).
-- A multilingual interface that fully mirrors for right-to-left languages, with light and dark themes.
+- A multilingual interface that fully mirrors for right-to-left languages.
+- Light, dark and pure black themes (or follow the system).
+- Page colors for comfortable reading: warm paper, green, dimmed, or dark pages with light text. Only the screen changes, never the file.

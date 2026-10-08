@@ -55,7 +55,7 @@ let { onopen, onclose }: Props = $props();
     gap: 2px;
     padding-block-start: 6px;
     padding-inline: 6px;
-    background: var(--canvas);
+    background: var(--chrome);
     border-block-end: 1px solid var(--border);
     overflow-x: auto;
     scrollbar-width: none;

@@ -272,7 +272,7 @@ const yesNo = (v: boolean) => i18n.t(v ? "yes" : "no");
   textarea {
     font: inherit;
     color: inherit;
-    background: var(--canvas);
+    background: var(--field);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding-block: 5px;

@@ -293,6 +293,7 @@ function onFieldChange() {
   onmousedown={(e) => e.button === 1 && e.preventDefault()}
   class:panning={pan?.active}
   class:hand={settings.tool === "hand"}
+  data-tone={settings.pageTone}
 >
   <div class="content" style:height="{layout.totalHeight}px" style:width="{contentWidth}px">
     {#each mounted as index (index)}
@@ -337,6 +338,33 @@ function onFieldChange() {
   }
   .content {
     position: relative;
+  }
+  /* Page colours (see PageTone): only how pages look on screen; files and
+     printing are unchanged. A colour multiplied over the page tints white
+     paper and leaves dark text dark. */
+  .scroller:is([data-tone="warm"], [data-tone="green"], [data-tone="dimmed"]) :global(.page)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+  }
+  .scroller[data-tone="warm"] :global(.page)::after {
+    background: #f3e3bd;
+  }
+  .scroller[data-tone="green"] :global(.page)::after {
+    background: #cce8cf;
+  }
+  .scroller[data-tone="dimmed"] :global(.page)::after {
+    background: #b9b9b9;
+  }
+  /* Dark pages: light text on dark paper. Turning the hue back keeps
+     colours (red stays red), and lowering the brightness softens the white. */
+  .scroller[data-tone="dark"] :global(.page) {
+    background: #232428;
+  }
+  .scroller[data-tone="dark"] :global(.page canvas) {
+    filter: invert(1) hue-rotate(180deg) brightness(0.9);
   }
   .slot {
     position: absolute;

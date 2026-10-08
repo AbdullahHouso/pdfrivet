@@ -4,7 +4,7 @@ import { i18n, languages } from "./i18n.svelte";
 import { ZOOM_STEPS } from "./layout";
 import { westernDigits } from "./pageRange";
 import type { ZoomMode } from "./recent";
-import { settings, type Theme } from "./settings.svelte";
+import { type PageTone, settings, type Theme } from "./settings.svelte";
 import type { PageLayout, Tab } from "./tabs.svelte";
 
 interface Props {
@@ -78,7 +78,15 @@ function onZoomSelect(e: Event) {
   else props.onzoom(Number(value) / 100);
 }
 
-const themes: Theme[] = ["system", "light", "dark"];
+const themes: Theme[] = ["system", "light", "dark", "black"];
+// Swatches for the page colours (what a white page looks like in each).
+const tones: { value: PageTone; swatch: string }[] = [
+  { value: "original", swatch: "#ffffff" },
+  { value: "warm", swatch: "#f3e3bd" },
+  { value: "green", swatch: "#cce8cf" },
+  { value: "dimmed", swatch: "#b9b9b9" },
+  { value: "dark", swatch: "#232428" },
+];
 </script>
 
 <header class="toolbar">
@@ -191,6 +199,18 @@ const themes: Theme[] = ["system", "light", "dark"];
             <input type="checkbox" checked={tab.pagesRtl} onchange={(e) => props.onpagesrtl(e.currentTarget.checked)} />
             {i18n.t("pages-rtl")}
           </label>
+          <div class="menu-section tones-section">
+            <span class="menu-label" id="page-tone-label">{i18n.t("page-tone")}</span>
+            <div class="tones" role="radiogroup" aria-labelledby="page-tone-label">
+              {#each tones as tone (tone.value)}
+                <button class="tone" role="radio" aria-checked={settings.pageTone === tone.value}
+                  onclick={() => (settings.pageTone = tone.value)}>
+                  <span class="swatch" style:background={tone.swatch}></span>
+                  <span class="tone-name">{i18n.t(`page-tone-${tone.value}`)}</span>
+                </button>
+              {/each}
+            </div>
+          </div>
         </div>
         <button class="icon" onclick={props.onrotate} aria-label={i18n.t("rotate-view")} title={i18n.t("rotate-view")}>
           <Icon name="rotate" />
@@ -319,7 +339,7 @@ const themes: Theme[] = ["system", "light", "dark"];
     text-align: center;
     font: inherit;
     color: inherit;
-    background: var(--canvas);
+    background: var(--field);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding-block: 4px;
@@ -412,6 +432,40 @@ const themes: Theme[] = ["system", "light", "dark"];
   }
   .check input {
     accent-color: var(--accent);
+  }
+  .tones-section {
+    border-block-start: 1px solid var(--border);
+    margin-block-start: 8px;
+    padding-block-start: 12px;
+  }
+  .tones {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+  }
+  .tone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 2px;
+    border: none;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    box-shadow: inset 0 0 0 2px var(--surface);
+  }
+  .tone[aria-checked="true"] {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .tone[aria-checked="true"] .swatch {
+    border: 2px solid var(--accent);
   }
   button.icon[aria-pressed="true"] {
     background: var(--hover);

@@ -87,6 +87,13 @@ theme = Theme
 theme-system = System
 theme-light = Light
 theme-dark = Dark
+theme-black = Black
+page-tone = Page color
+page-tone-original = Original
+page-tone-warm = Warm
+page-tone-green = Green
+page-tone-dimmed = Dimmed
+page-tone-dark = Dark
 language = Language
 about = About PDFRivet
 

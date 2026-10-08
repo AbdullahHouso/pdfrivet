@@ -83,6 +83,13 @@ theme = المظهر
 theme-system = النظام
 theme-light = فاتح
 theme-dark = داكن
+theme-black = أسود
+page-tone = لون الصفحة
+page-tone-original = الأصلي
+page-tone-warm = دافئ
+page-tone-green = أخضر
+page-tone-dimmed = خافت
+page-tone-dark = داكن
 language = اللغة
 about = حول PDFRivet
 
