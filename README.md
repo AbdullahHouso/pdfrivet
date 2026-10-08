@@ -6,7 +6,7 @@
 
 <p align="center"><strong>A free, fast PDF reader and editor for Windows, Linux and macOS.</strong></p>
 
-> 🚧 Early development: **0.1 "Reader"** is being tested. Editing features come in later versions.
+> **0.1 "Reader"** is out: get it from [pdfrivet.com](https://pdfrivet.com). PDFRivet is young; editing features come in the next versions.
 
 ## What it can do (0.1)
 
@@ -38,7 +38,7 @@ translations (left-to-right and right-to-left alike) are welcome; see [CONTRIBUT
 | Milestone | Version | Scope |
 |---|---|---|
 | M0 ✅ | – | Foundations: engine, app shell, EN/AR UI, CI |
-| M1 🧪 | 0.1 | Reader + forms: tabs, continuous scroll, zoom, thumbnails, outline, links, form filling, save, printing, document properties, in-app updates |
+| M1 ✅ | 0.1 | Reader + forms: tabs, continuous scroll, zoom, thumbnails, outline, links, form filling, save, printing, document properties, in-app updates |
 | M2 | 0.2 | Text selection, copy and search |
 | M3 | 0.3 | Page tools: merge, split, rotate, reorder, extract |
 | M4 | 0.4 | Annotations and hand-drawn signatures |
@@ -46,7 +46,7 @@ translations (left-to-right and right-to-left alike) are welcome; see [CONTRIBUT
 
 ## Installing
 
-Download the installer for your system from the
+Download the installer for your system from [pdfrivet.com](https://pdfrivet.com) or the
 [Releases](https://github.com/AbdullahHouso/pdfrivet/releases) page.
 The installers are not code-signed yet:
 

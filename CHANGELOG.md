@@ -5,7 +5,7 @@ GitHub release and in the app's update dialog, so write it for users, not develo
 The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow
 [Semantic Versioning](https://semver.org).
 
-## [0.1.0] – unreleased
+## [0.1.0] – 2026-10-08
 
 The first version: a fast, everyday PDF reader.
 
