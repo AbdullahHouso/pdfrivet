@@ -1,5 +1,5 @@
 <script lang="ts">
-// Rivet's print dialog: printer, copies, pages, sizing, paper and a live
+// PDFRivet's print dialog: printer, copies, pages, sizing, paper and a live
 // preview, all in one place, then native printing (rivet-core/src/print).
 // "Use system dialog" keeps the browser-style printing as a fallback.
 import { untrack } from "svelte";

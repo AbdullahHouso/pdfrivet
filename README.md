@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/brand/rivet-icon.svg" alt="Rivet logo" width="128" height="128">
+  <img src="assets/brand/rivet-icon.svg" alt="PDFRivet logo" width="128" height="128">
 </p>
 
-<h1 align="center">Rivet</h1>
+<h1 align="center">PDFRivet</h1>
 
 <p align="center"><strong>A free, fast PDF reader and editor for Windows, Linux and macOS.</strong></p>
 
@@ -22,7 +22,7 @@
 - **Recent files** that reopen where you left off
 - **Multilingual interface** with full right-to-left support, light and dark themes
 
-Rivet aims to be one small app for everyday PDF work: reading, annotating, signing,
+PDFRivet aims to be one small app for everyday PDF work: reading, annotating, signing,
 filling forms, organizing pages and converting — while staying light on memory and
 easy to use. It is built with Rust, [Tauri](https://tauri.app) and
 [PDFium](https://pdfium.googlesource.com/pdfium/) (the PDF engine inside Chrome).
@@ -49,7 +49,7 @@ Download the installer for your system from the
 The installers are not code-signed yet:
 
 - **Windows:** if SmartScreen warns you, choose *More info → Run anyway*.
-- **macOS:** the first time, open *System Settings → Privacy & Security* and click *Open Anyway* next to the Rivet message.
+- **macOS:** the first time, open *System Settings → Privacy & Security* and click *Open Anyway* next to the PDFRivet message.
 
 ## Building from source
 
@@ -62,7 +62,7 @@ cd rivet-pdf
 cargo xtask fetch-pdfium   # downloads the PDFium library for your OS
 cd app
 bun install
-bun tauri dev              # starts Rivet in development mode
+bun tauri dev              # starts PDFRivet in development mode
 ```
 
 Useful commands:
@@ -91,5 +91,5 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 
 ## License
 
-Rivet is licensed under the [Mozilla Public License 2.0](LICENSE).
+PDFRivet is licensed under the [Mozilla Public License 2.0](LICENSE).
 PDFium is distributed under its own BSD-style license (bundled with the app).

@@ -63,7 +63,7 @@ jobs:
           tauriScript: bun tauri
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
-          releaseName: Rivet ${{ github.ref_name }}
+          releaseName: PDFRivet ${{ github.ref_name }}
           releaseBody: |
             See the README for what's new and for install notes.
             Installers are not code-signed yet: on Windows choose "More info → Run anyway";

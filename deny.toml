@@ -15,7 +15,7 @@ ignore = [
 
 [licenses]
 version = 2
-# Licenses compatible with Rivet's MPL-2.0. Add new ones only after checking compatibility.
+# Licenses compatible with PDFRivet's MPL-2.0. Add new ones only after checking compatibility.
 unused-allowed-license = "allow"
 allow = [
     "MIT",

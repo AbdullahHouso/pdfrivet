@@ -1,6 +1,6 @@
 [package]
 name = "rivet-app"
-description = "Rivet: a free, fast PDF reader and editor"
+description = "PDFRivet: a free, fast PDF reader and editor"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

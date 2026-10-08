@@ -1,4 +1,4 @@
-//! Rivet desktop app: a thin Tauri layer over `rivet-core`.
+//! PDFRivet desktop app: a thin Tauri layer over `rivet-core`.
 //!
 //! - Commands (`open_document`, `get_outline`, …) are called from the UI with `invoke`.
 //! - Page images are served by the `rivet://` protocol (see [`page_protocol`]),
@@ -373,7 +373,7 @@ fn print_page(engine: &Engine, doc: &str, page: &str, dpi: f32) -> http::Respons
     .unwrap_or_else(|_| http::Response::new(Vec::new()))
 }
 
-/// Tells the UI the OS languages before it starts, so Rivet opens in the
+/// Tells the UI the OS languages before it starts, so PDFRivet opens in the
 /// user's language. (Some webviews don't report the OS language reliably.)
 fn system_locales_script() -> String {
     let locales: Vec<String> = sys_locale::get_locales().collect();
@@ -446,7 +446,7 @@ pub fn run() {
             files_exist
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Rivet")
+        .expect("error while building PDFRivet")
         .run(|_app, _event| {
             // macOS delivers "Open with" files as an event instead of arguments.
             #[cfg(target_os = "macos")]

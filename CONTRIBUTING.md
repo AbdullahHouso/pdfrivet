@@ -1,6 +1,6 @@
-# Contributing to Rivet
+# Contributing to PDFRivet
 
-Thanks for helping! Rivet is early, so issues and ideas are as valuable as code.
+Thanks for helping! PDFRivet is early, so issues and ideas are as valuable as code.
 
 ## Setup
 
@@ -29,7 +29,7 @@ cd app && bun run format && bun run check && bun run test && bun run i18n:check
 2. Add the language to `locales/languages.json` with its native name and `"dir": "ltr"` or `"rtl"`.
 3. Run `cd app && bun run i18n:check`.
 
-The app name **Rivet** is never translated or transliterated; keep it in Latin letters in every language.
+The app name **PDFRivet** is never translated or transliterated; keep it in Latin letters in every language.
 
 That's all: the app picks the new language up automatically. Missing strings fall back
 to English, so partial translations are welcome.

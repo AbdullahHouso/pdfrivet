@@ -9,7 +9,7 @@ export interface RecentFile {
   page: number;
   zoom: number;
   zoomMode: ZoomMode;
-  /** Page order chosen for this file, if changed from what Rivet detected. */
+  /** Page order chosen for this file, if changed from what PDFRivet detected. */
   pagesRtl?: boolean;
 }
 

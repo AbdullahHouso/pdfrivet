@@ -1,4 +1,4 @@
-//! Developer tasks for the Rivet workspace. Run with `cargo xtask <task>`.
+//! Developer tasks for the PDFRivet workspace. Run with `cargo xtask <task>`.
 //!
 //! Tasks:
 //! - `fetch-pdfium [--platform <name>]`: download the prebuilt PDFium library

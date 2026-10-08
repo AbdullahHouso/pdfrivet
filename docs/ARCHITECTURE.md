@@ -53,7 +53,7 @@ Query parameters: `scale`, `rot` (0/90/180/270, view only) and `thumb=1` for thu
 
 - Each tab (`tabs.svelte.ts`) keeps its page, zoom, rotation and scroll position. Only the
   active tab's viewer is mounted, so background tabs use no page memory.
-- `tauri-plugin-single-instance`: launching Rivet again (e.g. double-clicking a PDF) sends the
+- `tauri-plugin-single-instance`: launching PDFRivet again (e.g. double-clicking a PDF) sends the
   file to the running window. Files are queued in Rust and the UI is told with an
   `open-files` event (`take_pending_files`). macOS delivers files via `RunEvent::Opened`.
 - Settings and recent files are stored with `tauri-plugin-store` (`settings.svelte.ts`).
@@ -80,7 +80,7 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   Chrome's PDF viewer): a checkbox is "clicked", a text field is focused and its text
   replaced, an option is selected. PDFium applies each field type's rules and regenerates
   the field's appearance, so results look right in other readers too.
-- pdfium-render doesn't expose the raw handles these functions need, so Rivet uses a fork
+- pdfium-render doesn't expose the raw handles these functions need, so PDFRivet uses a fork
   with a tiny patch (`[patch.crates-io]` in `Cargo.toml`;
   https://github.com/AbdullahHouso/pdfium-render, branch `rivet/expose-raw-handles`).
   `forms.rs` is the only module allowed to use `unsafe`; each call explains why it's safe.
@@ -88,7 +88,7 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   fields open a real `<input>`, so typing Arabic and using input methods work normally.
   After each change the tab's `revision` goes up and the page re-renders.
 - Files up to 512 MB are **loaded into memory** when opened, so the file isn't kept open:
-  saving over it works on Windows, and it can be moved while Rivet shows it.
+  saving over it works on Windows, and it can be moved while PDFRivet shows it.
 - **Saving** writes `.<name>.rivet-saving` next to the target, flushes it to disk and renames
   it over the target, so a crash never leaves a half-written PDF.
 - Known PDFium limitation: in fields mixing Arabic and Latin text, PDFium may order numbers

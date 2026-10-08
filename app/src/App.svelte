@@ -248,7 +248,7 @@ $effect(() => {
   return () => clearTimeout(timer);
 });
 
-// Window title: "Document – Rivet".
+// Window title: "Document – PDFRivet".
 $effect(() => {
   const title = active ? `${active.title} – ${i18n.t("app-name")}` : i18n.t("app-name");
   document.title = title;
@@ -311,7 +311,7 @@ onMount(() => {
       }
       await getCurrentWindow().destroy();
     }),
-    // Files from "Open with" or a second launch while Rivet is running.
+    // Files from "Open with" or a second launch while PDFRivet is running.
     listen("open-files", () => openPending()),
     getCurrentWebview().onDragDropEvent(async (event) => {
       const p = event.payload;

@@ -1,4 +1,4 @@
-# Rivet brand
+# PDFRivet brand
 
 A page folded into a lowercase **r**, held together by a copper **rivet**.
 
@@ -9,7 +9,7 @@ A page folded into a lowercase **r**, held together by a copper **rivet**.
 | `rivet-mono.svg` | Single colour (`currentColor`): tray icons, favicons, monochrome contexts. |
 | `rivet-social.png` | GitHub social preview (1280 × 640). |
 
-Design source: [Figma – Rivet logo](https://www.figma.com/design/zE1HrzF2HSjyoD1zfm7qCN/Untitled?node-id=3-22)
+Design source: [Figma – PDFRivet logo](https://www.figma.com/design/zE1HrzF2HSjyoD1zfm7qCN/Untitled?node-id=3-22)
 
 ## Palette
 
@@ -39,4 +39,4 @@ bun tauri icon ../assets/brand/rivet-icon.svg
 rm -rf src-tauri/icons/android src-tauri/icons/ios   # mobile isn't built yet
 ```
 
-The logo is part of the Rivet project and licensed under the MPL-2.0 like the rest of the repository.
+The logo is part of the PDFRivet project and licensed under the MPL-2.0 like the rest of the repository.

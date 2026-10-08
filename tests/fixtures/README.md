@@ -1,6 +1,6 @@
 # Test fixtures
 
-Small PDFs used by the automated tests. All were created for Rivet and are covered by the
+Small PDFs used by the automated tests. All were created for PDFRivet and are covered by the
 project license.
 
 | File | What it tests | Source |

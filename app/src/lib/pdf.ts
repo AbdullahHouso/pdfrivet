@@ -72,7 +72,7 @@ export function closeDocument(docId: number): Promise<void> {
   return invoke("close_document", { docId });
 }
 
-/** PDFs the OS asked Rivet to open ("Open with", a second launch). Returns them only once. */
+/** PDFs the OS asked PDFRivet to open ("Open with", a second launch). Returns them only once. */
 export function takePendingFiles(): Promise<string[]> {
   return invoke("take_pending_files");
 }

@@ -1,8 +1,8 @@
-## Rivet – English (source language)
+## PDFRivet – English (source language)
 ## Every other language falls back to these strings.
 
-# The name stays "Rivet" (Latin letters) in every language.
-app-name = Rivet
+# The name stays "PDFRivet" (Latin letters) in every language.
+app-name = PDFRivet
 app-tagline = A free, fast PDF reader and editor
 
 ## Toolbar
@@ -32,7 +32,7 @@ single-page = Single page
 two-pages = Two pages
 continuous-scrolling = Continuous scrolling
 pages-rtl = Pages right to left
-pages-rtl-hint = Two-page spreads start on the right, like Arabic books. Rivet sets this from the document's language.
+pages-rtl-hint = Two-page spreads start on the right, like Arabic books. PDFRivet sets this from the document's language.
 print = Print…
 # Shown while pages are rendered for printing, e.g. "Preparing 3 of 15 pages for printing…"
 print-title = Print
@@ -88,7 +88,7 @@ theme-system = System
 theme-light = Light
 theme-dark = Dark
 language = Language
-about = About Rivet
+about = About PDFRivet
 
 ## Saving
 
@@ -179,14 +179,14 @@ close = Close
 
 ## Errors (keys match rivet-core ErrorCode)
 
-error-library-not-found = The PDF engine (PDFium) could not be loaded. Please reinstall Rivet.
+error-library-not-found = The PDF engine (PDFium) could not be loaded. Please reinstall PDFRivet.
 error-file-not-found = The file could not be found.
 error-password-required = This PDF is protected with a password.
 error-wrong-password = Wrong password. Please try again.
 error-invalid-pdf = This file is damaged or is not a PDF.
 error-page-out-of-range = That page does not exist.
 error-document-not-open = The document is no longer open.
-error-engine-stopped = The PDF engine stopped unexpectedly. Please restart Rivet.
+error-engine-stopped = The PDF engine stopped unexpectedly. Please restart PDFRivet.
 error-cancelled = The request was cancelled.
 error-read-only-field = This field can't be changed.
 error-save-failed = The file could not be saved. Check that you can write to that folder, or use “Save as…”.
