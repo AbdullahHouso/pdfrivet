@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findRecent, MAX_RECENT, type RecentFile, removeRecent, touchRecent, updatePosition } from "./recent";
+import { findRecent, MAX_RECENT, type RecentFile, removeRecent, touchRecent, updateView } from "./recent";
 
 const file = (path: string, lastOpened = 0): RecentFile => ({
   path,
@@ -26,9 +26,23 @@ describe("recent files", () => {
   });
 
   it("remembers the position without reordering", () => {
-    const list = updatePosition([file("a.pdf"), file("b.pdf")], "b.pdf", { page: 7, zoom: 1.5, zoomMode: "custom" });
+    const list = updateView([file("a.pdf"), file("b.pdf")], "b.pdf", { page: 7, zoom: 1.5, zoomMode: "custom" });
     expect(list.map((r) => r.path)).toEqual(["a.pdf", "b.pdf"]);
     expect(findRecent(list, "b.pdf")?.page).toBe(7);
+  });
+
+  it("remembers how each file was viewed", () => {
+    const view = {
+      page: 2,
+      zoom: 1,
+      zoomMode: "fit-page",
+      pageLayout: "double",
+      continuous: false,
+      pageTone: "warm",
+    } as const;
+    const list = updateView([file("a.pdf"), file("b.pdf")], "a.pdf", view);
+    expect(findRecent(list, "a.pdf")).toMatchObject(view);
+    expect(findRecent(list, "b.pdf")?.pageTone).toBeUndefined();
   });
 
   it("removes entries", () => {

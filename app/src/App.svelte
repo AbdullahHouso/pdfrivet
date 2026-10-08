@@ -98,13 +98,17 @@ async function openPath(path: string, password?: string) {
     const tab = tabs.add(docId, path, info);
     tab.pageLayout = settings.pageLayout;
     tab.continuous = settings.continuous;
-    // Reopen where you left off.
+    tab.pageTone = settings.pageTone;
+    // Reopen where you left off, the way you last viewed it.
     const saved = settings.findRecent(path);
     if (saved) {
       tab.page = Math.min(saved.page, info.pageCount - 1);
       tab.zoomMode = saved.zoomMode;
       tab.zoom = saved.zoom;
       if (saved.pagesRtl !== undefined) tab.pagesRtl = saved.pagesRtl;
+      if (saved.pageLayout) tab.pageLayout = saved.pageLayout;
+      if (saved.continuous !== undefined) tab.continuous = saved.continuous;
+      if (saved.pageTone) tab.pageTone = saved.pageTone;
     } else {
       const zoom = settings.defaultZoom;
       if (zoom === "fit-width" || zoom === "fit-page") {
@@ -114,15 +118,7 @@ async function openPath(path: string, password?: string) {
         tab.zoom = Number(zoom) / 100;
       }
     }
-    settings.touchRecent({
-      path,
-      title: tab.title,
-      lastOpened: Date.now(),
-      page: tab.page,
-      zoom: tab.zoom,
-      zoomMode: tab.zoomMode,
-      pagesRtl: tab.pagesRtl,
-    });
+    settings.touchRecent({ path, title: tab.title, lastOpened: Date.now(), ...tab.view() });
   } catch (e) {
     const err = toRivetError(e);
     if (err.code === "password-required" || err.code === "wrong-password") {
@@ -225,15 +221,7 @@ async function saveTab(tab: Tab, saveAs = false): Promise<boolean> {
     await saveDocument(tab.docId, path);
     tab.path = path;
     tab.dirty = false;
-    settings.touchRecent({
-      path,
-      title: tab.title,
-      lastOpened: Date.now(),
-      page: tab.page,
-      zoom: tab.zoom,
-      zoomMode: tab.zoomMode,
-      pagesRtl: tab.pagesRtl,
-    });
+    settings.touchRecent({ path, title: tab.title, lastOpened: Date.now(), ...tab.view() });
     return true;
   } catch (e) {
     error = toRivetError(e);
@@ -371,11 +359,13 @@ async function toggleFullscreen() {
   await win.setFullscreen(!(await win.isFullscreen()));
 }
 
-// Remember where you are in each document (saved shortly after you stop moving).
+// Remember where you are in each document and how you view it (saved shortly
+// after you stop moving).
 $effect(() => {
   if (!active) return;
-  const { path, page, zoom, zoomMode, pagesRtl } = active;
-  const timer = setTimeout(() => settings.updatePosition(path, { page, zoom, zoomMode, pagesRtl }), 800);
+  const path = active.path;
+  const view = active.view();
+  const timer = setTimeout(() => settings.updateView(path, view), 800);
   return () => clearTimeout(timer);
 });
 
@@ -540,6 +530,9 @@ onMount(() => {
   onactualsize={() => viewer?.zoomTo(1)}
   onpagelayout={(layout) => {
     if (active) active.pageLayout = layout;
+  }}
+  onpagetone={(tone) => {
+    if (active) active.pageTone = tone;
   }}
   onpagesrtl={(on) => {
     if (active) active.pagesRtl = on;

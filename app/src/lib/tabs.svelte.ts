@@ -6,7 +6,8 @@ import type { DocInfo } from "./bindings/DocInfo";
 import type { OutlineItem } from "./bindings/OutlineItem";
 import type { Degrees } from "./layout";
 import { closeDocument } from "./pdf";
-import type { ZoomMode } from "./recent";
+import type { FileView, ZoomMode } from "./recent";
+import type { PageTone } from "./settings.svelte";
 
 export type PageLayout = "single" | "double";
 
@@ -25,6 +26,7 @@ export interface TabState {
   pageLayout: PageLayout;
   continuous: boolean;
   pagesRtl: boolean;
+  pageTone: PageTone;
   dirty: boolean;
 }
 
@@ -45,6 +47,8 @@ export class Tab {
   continuous = $state(true);
   /** Two-page spreads start on the right (Arabic, Hebrew… documents). */
   pagesRtl = $state(false);
+  /** Colour laid over the pages (see settings.svelte.ts). */
+  pageTone = $state<PageTone>("original");
   /** Scroll position to restore when the tab becomes active again. */
   scrollTop = 0;
   scrollLeft = 0;
@@ -78,8 +82,15 @@ export class Tab {
       pageLayout: this.pageLayout,
       continuous: this.continuous,
       pagesRtl: this.pagesRtl,
+      pageTone: this.pageTone,
       dirty: this.dirty,
     };
+  }
+
+  /** What the recent-files list remembers about this tab. */
+  view(): FileView {
+    const { page, zoom, zoomMode, pagesRtl, pageLayout, continuous, pageTone } = this;
+    return { page, zoom, zoomMode, pagesRtl, pageLayout, continuous, pageTone };
   }
 
   /** Document title, or the file name when the PDF has no title. */
@@ -131,6 +142,7 @@ export const tabs = {
     tab.pageLayout = state.pageLayout;
     tab.continuous = state.continuous;
     tab.pagesRtl = state.pagesRtl;
+    tab.pageTone = state.pageTone ?? "original";
     tab.dirty = state.dirty;
     return tab;
   },

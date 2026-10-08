@@ -2,7 +2,7 @@
 // (settings.json in the app's config folder).
 
 import { load, type Store } from "@tauri-apps/plugin-store";
-import { findRecent, type RecentFile, removeRecent, touchRecent, updatePosition } from "./recent";
+import { type FileView, findRecent, type RecentFile, removeRecent, touchRecent, updateView } from "./recent";
 import type { PageLayout } from "./tabs.svelte";
 
 export type Theme = "system" | "light" | "dark" | "black";
@@ -11,6 +11,14 @@ export type Theme = "system" | "light" | "dark" | "black";
  * warm paper, green, dimmed, or dark pages with light text.
  */
 export type PageTone = "original" | "warm" | "green" | "dimmed" | "dark";
+/** The page colours, with a swatch showing what a white page looks like in each. */
+export const PAGE_TONES: { value: PageTone; swatch: string }[] = [
+  { value: "original", swatch: "#ffffff" },
+  { value: "warm", swatch: "#f3e3bd" },
+  { value: "green", swatch: "#cce8cf" },
+  { value: "dimmed", swatch: "#b9b9b9" },
+  { value: "dark", swatch: "#232428" },
+];
 /** Open documents as tabs in one window (default), or each in its own window. */
 export type DocumentWindows = "tabs" | "windows";
 /** The zoom new documents open at: fit the width, fit the page, or a percentage. */
@@ -30,8 +38,8 @@ export interface PrintPrefs {
 let store: Store | null = null;
 let theme = $state<Theme>("system");
 let recent = $state<RecentFile[]>([]);
-// How new documents open (Settings → Reading). Files opened before reopen at
-// their own page and zoom.
+// How documents open the first time (Settings → Appearance and Reading).
+// Files opened before reopen the way you last viewed them.
 let defaultZoom = $state<DefaultZoom>("fit-width");
 let pageLayout = $state<PageLayout>("single");
 let continuous = $state(true);
@@ -237,8 +245,8 @@ export const settings = {
     recent = touchRecent(recent, entry);
     save("recent", recent);
   },
-  updatePosition(path: string, position: Pick<RecentFile, "page" | "zoom" | "zoomMode" | "pagesRtl">) {
-    recent = updatePosition(recent, path, position);
+  updateView(path: string, view: FileView) {
+    recent = updateView(recent, path, view);
     save("recent", recent);
   },
   clearRecent() {

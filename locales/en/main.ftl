@@ -107,8 +107,8 @@ settings-appearance = Appearance
 settings-reading = Reading
 updates = Updates
 check-now = Check now
-page-tone-hint = Laid over the pages while you read. Your files aren't changed.
-reading-defaults-hint = How documents open. A file you've read before reopens at the page and zoom where you left off.
+page-tone-hint = Laid over the pages while you read; your files aren't changed. Each document remembers the colour you last used for it.
+reading-defaults-hint = How documents open the first time. After that, each file reopens the way you left it: page, zoom, page display and scrolling.
 
 ## Saving
 

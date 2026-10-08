@@ -5,7 +5,7 @@ import { ZOOM_STEPS } from "./layout";
 import { westernDigits } from "./pageRange";
 import RecentMenu from "./RecentMenu.svelte";
 import type { ZoomMode } from "./recent";
-import { type PageTone, settings } from "./settings.svelte";
+import { PAGE_TONES, type PageTone, settings } from "./settings.svelte";
 import type { PageLayout, Tab } from "./tabs.svelte";
 import { formatShortcut } from "./tooltip";
 
@@ -34,6 +34,7 @@ interface Props {
   onpagelayout: (layout: PageLayout) => void;
   oncontinuous: (continuous: boolean) => void;
   onpagesrtl: (rtl: boolean) => void;
+  onpagetone: (tone: PageTone) => void;
 }
 let props: Props = $props();
 let tab = $derived(props.tab);
@@ -92,14 +93,6 @@ function run(command: () => void) {
   appMenu.hidePopover();
   command();
 }
-// Swatches for the page colours (what a white page looks like in each).
-const tones: { value: PageTone; swatch: string }[] = [
-  { value: "original", swatch: "#ffffff" },
-  { value: "warm", swatch: "#f3e3bd" },
-  { value: "green", swatch: "#cce8cf" },
-  { value: "dimmed", swatch: "#b9b9b9" },
-  { value: "dark", swatch: "#232428" },
-];
 </script>
 
 <header class="toolbar">
@@ -215,9 +208,9 @@ const tones: { value: PageTone; swatch: string }[] = [
           <div class="menu-section tones-section">
             <span class="menu-label" id="page-tone-label">{i18n.t("page-tone")}</span>
             <div class="tones" role="radiogroup" aria-labelledby="page-tone-label">
-              {#each tones as tone (tone.value)}
-                <button class="tone" role="radio" aria-checked={settings.pageTone === tone.value}
-                  onclick={() => (settings.pageTone = tone.value)}>
+              {#each PAGE_TONES as tone (tone.value)}
+                <button class="tone" role="radio" aria-checked={tab.pageTone === tone.value}
+                  onclick={() => props.onpagetone(tone.value)}>
                   <span class="swatch" style:background={tone.swatch}></span>
                   <span class="tone-name">{i18n.t(`page-tone-${tone.value}`)}</span>
                 </button>

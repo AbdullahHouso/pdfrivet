@@ -293,7 +293,7 @@ function onFieldChange() {
   onmousedown={(e) => e.button === 1 && e.preventDefault()}
   class:panning={pan?.active}
   class:hand={settings.tool === "hand"}
-  data-tone={settings.pageTone}
+  data-tone={tab.pageTone}
 >
   <div class="content" style:height="{layout.totalHeight}px" style:width="{contentWidth}px">
     {#each mounted as index (index)}

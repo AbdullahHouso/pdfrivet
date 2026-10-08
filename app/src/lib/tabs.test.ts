@@ -21,6 +21,7 @@ describe("moving tabs between windows", () => {
     tab.zoom = 1.5;
     tab.zoomMode = "custom";
     tab.rotation = 90;
+    tab.pageTone = "green";
     tab.dirty = true;
     const state = tab.state();
 
@@ -31,7 +32,14 @@ describe("moving tabs between windows", () => {
     // Another window takes it over.
     const moved = tabs.adopt(state, info);
     expect(moved.docId).toBe(7);
-    expect([moved.page, moved.zoom, moved.zoomMode, moved.rotation, moved.dirty]).toEqual([4, 1.5, "custom", 90, true]);
+    expect([moved.page, moved.zoom, moved.zoomMode, moved.rotation, moved.pageTone, moved.dirty]).toEqual([
+      4,
+      1.5,
+      "custom",
+      90,
+      "green",
+      true,
+    ]);
     expect(tabs.active?.id).toBe(moved.id);
   });
 

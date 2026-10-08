@@ -1,5 +1,8 @@
 // Recent files list: pure logic (storage lives in settings.svelte.ts).
 
+import type { PageTone } from "./settings.svelte";
+import type { PageLayout } from "./tabs.svelte";
+
 export interface RecentFile {
   path: string;
   title: string;
@@ -11,7 +14,18 @@ export interface RecentFile {
   zoomMode: ZoomMode;
   /** Page order chosen for this file, if changed from what PDFRivet detected. */
   pagesRtl?: boolean;
+  // How you last viewed this file. Missing in entries saved by older versions,
+  // which then open with the defaults from Settings.
+  pageLayout?: PageLayout;
+  continuous?: boolean;
+  pageTone?: PageTone;
 }
+
+/** What a file remembers about how you viewed it. */
+export type FileView = Pick<
+  RecentFile,
+  "page" | "zoom" | "zoomMode" | "pagesRtl" | "pageLayout" | "continuous" | "pageTone"
+>;
 
 export type ZoomMode = "fit-width" | "fit-page" | "custom";
 
@@ -27,13 +41,9 @@ export function touchRecent(list: RecentFile[], entry: RecentFile): RecentFile[]
   return [entry, ...list.filter((r) => !samePath(r.path, entry.path))].slice(0, MAX_RECENT);
 }
 
-/** Updates where you left off, without changing the order. */
-export function updatePosition(
-  list: RecentFile[],
-  path: string,
-  position: Pick<RecentFile, "page" | "zoom" | "zoomMode" | "pagesRtl">,
-): RecentFile[] {
-  return list.map((r) => (samePath(r.path, path) ? { ...r, ...position } : r));
+/** Updates where you left off and how you viewed the file, without changing the order. */
+export function updateView(list: RecentFile[], path: string, view: FileView): RecentFile[] {
+  return list.map((r) => (samePath(r.path, path) ? { ...r, ...view } : r));
 }
 
 export function removeRecent(list: RecentFile[], path: string): RecentFile[] {

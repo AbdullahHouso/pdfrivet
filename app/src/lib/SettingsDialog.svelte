@@ -4,7 +4,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import Icon from "./Icon.svelte";
 import { i18n, languages } from "./i18n.svelte";
-import { type DefaultZoom, type DocumentWindows, type PageTone, settings, type Theme } from "./settings.svelte";
+import { type DefaultZoom, type DocumentWindows, PAGE_TONES, settings, type Theme } from "./settings.svelte";
 import type { PageLayout } from "./tabs.svelte";
 
 interface Props {
@@ -28,14 +28,6 @@ const layouts: { value: PageLayout; icon: "one-page" | "two-pages"; label: strin
   { value: "double", icon: "two-pages", label: "two-pages" },
 ];
 const zooms: DefaultZoom[] = ["fit-width", "fit-page", "50", "75", "100", "125", "150", "200"];
-// Swatches for the page colours (what a white page looks like in each).
-const tones: { value: PageTone; swatch: string }[] = [
-  { value: "original", swatch: "#ffffff" },
-  { value: "warm", swatch: "#f3e3bd" },
-  { value: "green", swatch: "#cce8cf" },
-  { value: "dimmed", swatch: "#b9b9b9" },
-  { value: "dark", swatch: "#232428" },
-];
 // Per-tab taskbar previews are a Windows feature.
 const onWindows = /Windows/.test(navigator.userAgent);
 
@@ -143,7 +135,7 @@ function zoomLabel(zoom: DefaultZoom): string {
           <span id="settings-tone">{i18n.t("page-tone")}</span>
           <p class="hint">{i18n.t("page-tone-hint")}</p>
           <div class="tones" role="radiogroup" aria-labelledby="settings-tone">
-            {#each tones as tone (tone.value)}
+            {#each PAGE_TONES as tone (tone.value)}
               <button class="tone" role="radio" aria-checked={settings.pageTone === tone.value}
                 onclick={() => (settings.pageTone = tone.value)}>
                 <span class="swatch" style:background={tone.swatch}></span>
