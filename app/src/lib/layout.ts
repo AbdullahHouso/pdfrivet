@@ -242,3 +242,58 @@ export function rotateRect(r: FractionRect, rotation: Degrees): FractionRect {
       return r;
   }
 }
+
+/** A point as fractions (0..1) of a page, from its top-left corner. */
+export interface FractionPoint {
+  x: number;
+  y: number;
+}
+
+/** Where a point of the rotated view lies on the upright page (undoes `rotateRect`). */
+export function unrotatePoint(p: FractionPoint, rotation: Degrees): FractionPoint {
+  switch (rotation) {
+    case 90:
+      return { x: p.y, y: 1 - p.x };
+    case 180:
+      return { x: 1 - p.x, y: 1 - p.y };
+    case 270:
+      return { x: 1 - p.y, y: p.x };
+    default:
+      return p;
+  }
+}
+
+/**
+ * The page at a point of the content area (in px), among `pages`, and where
+ * on it the point is, as fractions of the page as shown. A point between pages
+ * belongs to the nearest one, so dragging across a gap keeps selecting.
+ */
+export function pageAtPoint(
+  layout: Layout,
+  pages: readonly number[],
+  x: number,
+  y: number,
+  offsetX = 0,
+): { page: number; point: FractionPoint } | null {
+  let best: number | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const p of pages) {
+    const left = offsetX + layout.lefts[p];
+    const top = layout.tops[p];
+    const dx = Math.max(left - x, 0, x - (left + layout.widths[p]));
+    const dy = Math.max(top - y, 0, y - (top + layout.heights[p]));
+    const distance = Math.hypot(dx, dy);
+    if (distance < bestDistance) {
+      best = p;
+      bestDistance = distance;
+    }
+  }
+  if (best === null) return null;
+  return {
+    page: best,
+    point: {
+      x: (x - offsetX - layout.lefts[best]) / layout.widths[best],
+      y: (y - layout.tops[best]) / layout.heights[best],
+    },
+  };
+}

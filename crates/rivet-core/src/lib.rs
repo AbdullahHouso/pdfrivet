@@ -19,6 +19,7 @@ mod links;
 pub mod metadata;
 mod outline;
 pub mod print;
+mod text;
 
 pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, Rotation, pdfium_platform};
 pub use engine::{DocId, Engine};
@@ -26,3 +27,4 @@ pub use error::{Error, ErrorCode, Result};
 pub use forms::{FieldChange, FieldKind, FormField};
 pub use links::{LinkTarget, PageLink};
 pub use outline::OutlineItem;
+pub use text::{CHAR_GENERATED, CHAR_NO_BOX, PageText, TextChar, TextRange};

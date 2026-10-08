@@ -12,6 +12,7 @@ const info: DocInfo = {
   author: null,
   pageSizes: Array(10).fill({ width: 600, height: 800 }),
   rtl: false,
+  canCopy: true,
 };
 
 describe("moving tabs between windows", () => {

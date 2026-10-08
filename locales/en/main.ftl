@@ -206,6 +206,10 @@ about-license = Free and open source under the Mozilla Public License 2.0.
 website = Website
 close = Close
 
+## Text
+copy-text = Copy
+select-all = Select all
+
 ## Errors (keys match rivet-core ErrorCode)
 
 error-library-not-found = The PDF engine (PDFium) could not be loaded. Please reinstall PDFRivet.
@@ -219,6 +223,7 @@ error-engine-stopped = The PDF engine stopped unexpectedly. Please restart PDFRi
 error-cancelled = The request was cancelled.
 error-read-only-field = This field can't be changed.
 error-save-failed = The file could not be saved. Check that you can write to that folder, or use “Save as…”.
+error-copy-not-allowed = The author of this PDF doesn’t allow copying its text.
 error-io = The file could not be read.
 error-internal = Something went wrong.
 dismiss = Dismiss

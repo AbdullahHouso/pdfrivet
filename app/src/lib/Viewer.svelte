@@ -14,22 +14,29 @@ import {
   fitWidthZoom,
   type Layout,
   PAGE_GAP,
+  pageAtPoint,
   rotatedSize,
   scrollTopFor,
+  unrotatePoint,
   visibleRange,
 } from "./layout";
 import PageView from "./PageView.svelte";
+import { peekPageText } from "./pageText";
 import { type RivetError, setVisiblePages } from "./pdf";
 import { settings } from "./settings.svelte";
 import type { Tab } from "./tabs.svelte";
+import { caretAt, charAt, isEmpty, isOverText, lineAt, rangeOnPage, type TextPosition, wordAt } from "./textSelect";
 
 interface Props {
   tab: Tab;
   onerror?: (e: RivetError) => void;
+  /** Right-click on the pages (for the selection's menu). */
+  oncontextmenu?: (e: MouseEvent) => void;
 }
-let { tab, onerror }: Props = $props();
+let { tab, onerror, oncontextmenu }: Props = $props();
 
 let scroller: HTMLElement;
+let content: HTMLElement;
 let viewportWidth = $state(0);
 let viewportHeight = $state(0);
 let scrollTop = $state(0);
@@ -230,7 +237,95 @@ function onKeyDown(e: KeyboardEvent) {
 const DRAG_THRESHOLD = 4;
 let pan: { x: number; y: number; left: number; top: number; id: number; active: boolean } | null = $state(null);
 
+// Selecting text (Select mode): drag to select, double-click for a word,
+// triple-click for a line, Shift+click to extend. The page's text was loaded
+// when the page appeared (TextLayer), so matching the pointer is instant.
+let selectingPointer: number | null = null;
+let lastClick = { time: 0, x: 0, y: 0, count: 0 };
+let overText = $state(false);
+
+/** The page under the pointer and the point on it (upright page fractions). */
+function pointOnPage(e: MouseEvent) {
+  const box = content.getBoundingClientRect();
+  const hit = pageAtPoint(layout, mounted, e.clientX - box.left, e.clientY - box.top, offsetX);
+  if (!hit) return null;
+  return { page: hit.page, point: unrotatePoint(hit.point, tab.rotation) };
+}
+
+function positionAt(e: MouseEvent): TextPosition | null {
+  const hit = pointOnPage(e);
+  const text = hit && peekPageText(tab.docId, hit.page);
+  if (!hit || !text) return null;
+  return { page: hit.page, index: caretAt(text, hit.point.x, hit.point.y) };
+}
+
+/** Links and form fields keep their own clicks. */
+function isControl(target: EventTarget | null): boolean {
+  return target instanceof Element && !!target.closest("button, input, select, textarea, a");
+}
+
+function startSelection(e: PointerEvent) {
+  const now = performance.now();
+  const repeat = now - lastClick.time < 450 && Math.hypot(e.clientX - lastClick.x, e.clientY - lastClick.y) < 6;
+  const clicks = repeat ? (lastClick.count % 3) + 1 : 1;
+  lastClick = { time: now, x: e.clientX, y: e.clientY, count: clicks };
+
+  const hit = pointOnPage(e);
+  const text = hit && peekPageText(tab.docId, hit.page);
+  if (!hit || !text) {
+    tab.selection = null;
+    return;
+  }
+  // Keep the browser from starting its own selection or dragging the canvas.
+  e.preventDefault();
+  scroller.focus({ preventScroll: true });
+  if (clicks > 1) {
+    let i = charAt(text, hit.point.x, hit.point.y);
+    if (i < 0) i = Math.max(0, caretAt(text, hit.point.x, hit.point.y) - 1);
+    const [start, end] = clicks === 2 ? wordAt(text, i) : lineAt(text, i);
+    tab.selection = { anchor: { page: hit.page, index: start }, focus: { page: hit.page, index: end } };
+    return;
+  }
+  const position = { page: hit.page, index: caretAt(text, hit.point.x, hit.point.y) };
+  tab.selection =
+    e.shiftKey && tab.selection
+      ? { anchor: tab.selection.anchor, focus: position }
+      : { anchor: position, focus: position };
+  selectingPointer = e.pointerId;
+  scroller.setPointerCapture(e.pointerId);
+}
+
+function extendSelection(e: PointerEvent) {
+  // Dragging past the top or bottom edge scrolls, so long selections are possible.
+  const box = scroller.getBoundingClientRect();
+  if (e.clientY < box.top + 24) scroller.scrollTop -= 24;
+  else if (e.clientY > box.bottom - 24) scroller.scrollTop += 24;
+  const position = positionAt(e);
+  if (position && tab.selection) tab.selection = { anchor: tab.selection.anchor, focus: position };
+}
+
+function endSelection(e: PointerEvent) {
+  if (scroller.hasPointerCapture(e.pointerId)) scroller.releasePointerCapture(e.pointerId);
+  selectingPointer = null;
+  if (isEmpty(tab.selection)) tab.selection = null;
+}
+
+/** Shows the text cursor over text in Select mode. */
+function updateCursor(e: PointerEvent) {
+  if (settings.tool !== "select" || e.buttons !== 0 || isControl(e.target)) {
+    overText = false;
+    return;
+  }
+  const hit = pointOnPage(e);
+  const text = hit && peekPageText(tab.docId, hit.page);
+  overText = !!hit && !!text && isOverText(text, hit.point.x, hit.point.y);
+}
+
 function onPointerDown(e: PointerEvent) {
+  if (e.button === 0 && settings.tool === "select" && !isControl(e.target)) {
+    startSelection(e);
+    return;
+  }
   const middle = e.button === 1;
   const handDrag = e.button === 0 && settings.tool === "hand";
   if (!middle && !handDrag) return;
@@ -247,6 +342,11 @@ function onPointerDown(e: PointerEvent) {
 }
 
 function onPointerMove(e: PointerEvent) {
+  if (selectingPointer === e.pointerId) {
+    extendSelection(e);
+    return;
+  }
+  updateCursor(e);
   if (!pan || e.pointerId !== pan.id) return;
   const dx = e.clientX - pan.x;
   const dy = e.clientY - pan.y;
@@ -260,6 +360,10 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onPointerUp(e: PointerEvent) {
+  if (selectingPointer === e.pointerId) {
+    endSelection(e);
+    return;
+  }
   if (!pan || e.pointerId !== pan.id) return;
   if (scroller.hasPointerCapture(e.pointerId)) scroller.releasePointerCapture(e.pointerId);
   pan = null;
@@ -291,11 +395,17 @@ function onFieldChange() {
   onpointerup={onPointerUp}
   onpointercancel={onPointerUp}
   onmousedown={(e) => e.button === 1 && e.preventDefault()}
+  oncontextmenu={(e) => {
+    if (isControl(e.target)) return;
+    e.preventDefault();
+    oncontextmenu?.(e);
+  }}
   class:panning={pan?.active}
+  class:text-cursor={overText}
   class:hand={settings.tool === "hand"}
   data-tone={tab.pageTone}
 >
-  <div class="content" style:height="{layout.totalHeight}px" style:width="{contentWidth}px">
+  <div class="content" bind:this={content} style:height="{layout.totalHeight}px" style:width="{contentWidth}px">
     {#each mounted as index (index)}
       <div class="slot" style:top="{layout.tops[index]}px" style:left="{offsetX + layout.lefts[index]}px">
         <PageView
@@ -309,6 +419,7 @@ function onFieldChange() {
           ongotopage={goToPage}
           revision={tab.revision}
           onfieldchange={onFieldChange}
+          selected={rangeOnPage(tab.selection, index)}
         />
       </div>
     {/each}
@@ -326,6 +437,13 @@ function onFieldChange() {
   }
   .scroller.hand {
     cursor: grab;
+  }
+  .scroller.text-cursor {
+    cursor: text;
+  }
+  /* Text is selected by our own code (see textSelect.ts), never by the browser. */
+  .scroller :global(.page) {
+    user-select: none;
   }
   /* In Hand mode, page text and canvases shouldn't get selected or dragged. */
   .scroller.hand :global(.page) {

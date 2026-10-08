@@ -14,6 +14,8 @@ const renderPage = vi.fn(async (_doc: number, _page: number, opts?: RenderOption
 vi.mock("./pdf", () => ({
   renderPage: (doc: number, page: number, opts: RenderOptions) => renderPage(doc, page, opts),
   getLinks: async () => [],
+  // A page without text: just the 8-byte header.
+  fetchPageText: async () => new ArrayBuffer(8),
   toRivetError: (e: unknown) => e,
 }));
 

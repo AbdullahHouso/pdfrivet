@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use rivet_core::{
-    Engine, ErrorCode, FieldChange, FieldKind, FormField, LinkTarget, OutlineItem, Pdf, Rotation,
+    CHAR_GENERATED, CHAR_NO_BOX, Engine, ErrorCode, FieldChange, FieldKind, FormField, LinkTarget,
+    OutlineItem, PageText, Pdf, Rotation, TextRange,
 };
 
 fn repo_root() -> PathBuf {
@@ -452,4 +453,111 @@ fn engine_answers_cache_only_requests_without_rendering() {
     // A different size is a different render.
     assert!(engine.cached(doc, 0, 0.75, Rotation::None).is_err());
     engine.close(doc);
+}
+
+/// The characters of a page as a string (one `char` per character index).
+fn page_string(text: &PageText) -> String {
+    text.chars
+        .iter()
+        .map(|c| char::from_u32(c.code).unwrap_or('\u{fffd}'))
+        .collect()
+}
+
+#[test]
+fn reads_character_boxes() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let text = doc.page_text(1).unwrap();
+    let all = page_string(&text);
+    let start = all.find("rivet-needle").expect("needle on page 2");
+    // `find` counts bytes; the text before the needle is ASCII, so it matches the char index.
+    let needle = &text.chars[start..start + "rivet-needle".len()];
+
+    // Boxes are fractions of the page, left to right on one line.
+    for pair in needle.windows(2) {
+        assert!(pair[0].left < pair[1].left, "{pair:?}");
+        assert!((pair[0].top - pair[1].top).abs() < 0.01);
+    }
+    for c in needle {
+        assert_eq!(c.flags & (CHAR_NO_BOX | CHAR_GENERATED), 0);
+        assert!(c.left > 0.0 && c.right < 1.0 && c.top > 0.0 && c.bottom < 0.5);
+        assert!(c.bottom - c.top > 0.005, "boxes are line-tall: {c:?}");
+    }
+    // PDFium adds line breaks between lines; they are marked as generated.
+    assert!(
+        text.chars
+            .iter()
+            .any(|c| c.code == '\n' as u32 && c.flags & CHAR_GENERATED != 0)
+    );
+}
+
+#[test]
+fn copies_text_ranges() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let all = page_string(&doc.page_text(1).unwrap());
+    let start = all.find("rivet-needle").unwrap() as u32;
+    let one_page = TextRange {
+        start_page: 1,
+        start,
+        end_page: 1,
+        end: start + 12,
+    };
+    assert_eq!(doc.text(one_page).unwrap(), "rivet-needle");
+
+    // Across pages: the end of page 1, all of page 2, the start of page 3.
+    let across = TextRange {
+        start_page: 0,
+        start: 0,
+        end_page: 2,
+        end: 4,
+    };
+    let copied = doc.text(across).unwrap();
+    assert!(copied.starts_with("Page one"), "{copied}");
+    assert!(copied.contains("lazy dog.\nPage two"), "{copied}");
+    assert!(copied.contains("rivet-needle."), "{copied}");
+    assert!(copied.ends_with("\nPage"), "{copied}");
+    assert!(!copied.contains('\r'));
+
+    // An end past the last character means "to the end of the page".
+    let rest = TextRange {
+        start_page: 1,
+        start,
+        end_page: 1,
+        end: u32::MAX,
+    };
+    assert_eq!(doc.text(rest).unwrap(), "rivet-needle.");
+}
+
+#[test]
+fn reads_arabic_text_in_reading_order() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("arabic.pdf"), None).unwrap();
+    let text = doc.page_text(0).unwrap();
+    let copied = doc
+        .text(TextRange {
+            start_page: 0,
+            start: 0,
+            end_page: 0,
+            end: text.chars.len() as u32,
+        })
+        .unwrap();
+    // Logical (typed) order, not the visual right-to-left order of the glyphs.
+    assert!(copied.contains("مرحبا بكم"), "{copied}");
+    assert!(copied.contains("Rivet"), "{copied}");
+    // Right-to-left: in "مرحبا" each letter sits left of the one before it.
+    let all = page_string(&text);
+    let m = all.chars().position(|c| c == 'م').unwrap();
+    assert!(text.chars[m + 1].right <= text.chars[m].left + 0.002);
+}
+
+#[test]
+fn engine_returns_page_text() {
+    let _serial = serial();
+    let engine = Engine::start(&pdfium_dir()).unwrap();
+    let (id, _) = engine.open(&fixture("basic.pdf"), None).unwrap();
+    let text = engine.page_text(id, 0).unwrap();
+    assert!(page_string(&text).contains("quick brown fox"));
+    let bytes = text.to_bytes();
+    assert_eq!(bytes.len(), 8 + text.chars.len() * PageText::BYTES_PER_CHAR);
 }

@@ -5,9 +5,11 @@
 import type { DocInfo } from "./bindings/DocInfo";
 import type { OutlineItem } from "./bindings/OutlineItem";
 import type { Degrees } from "./layout";
+import { forgetPageText } from "./pageText";
 import { closeDocument } from "./pdf";
 import type { FileView, ZoomMode } from "./recent";
 import type { PageTone } from "./settings.svelte";
+import type { TextSelection } from "./textSelect";
 
 export type PageLayout = "single" | "double";
 
@@ -57,6 +59,8 @@ export class Tab {
   dirty = $state(false);
   /** Goes up after every change, so pages showing it re-render. */
   revision = $state(0);
+  /** Selected text (not kept when the tab moves to another window). */
+  selection = $state.raw<TextSelection | null>(null);
 
   constructor(id: number, docId: number, path: string, info: DocInfo) {
     this.id = id;
@@ -161,6 +165,7 @@ export const tabs = {
     const [tab] = list.splice(index, 1);
     list = [...list];
     if (activeId === id) activeId = list[Math.min(index, list.length - 1)]?.id ?? null;
+    forgetPageText(tab.docId);
     await closeDocument(tab.docId).catch(() => {});
   },
 };

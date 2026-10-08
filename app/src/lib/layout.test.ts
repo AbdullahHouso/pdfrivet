@@ -7,9 +7,11 @@ import {
   fitWidthZoom,
   PAGE_GAP,
   PX_PER_PT,
+  pageAtPoint,
   rotateRect,
   scrollTopFor,
   stepZoom,
+  unrotatePoint,
   visibleRange,
 } from "./layout";
 
@@ -130,5 +132,33 @@ describe("two pages side by side", () => {
 
   it("fits a spread to the width", () => {
     expect(fitWidthZoom([A4, A4], 0, 2 * w + 3 * PAGE_GAP, 2)).toBeCloseTo(1);
+  });
+});
+
+describe("points on rotated pages", () => {
+  it("undoes rotateRect for points", () => {
+    const r = { left: 0.1, top: 0.2, right: 0.3, bottom: 0.5 };
+    for (const rotation of [0, 90, 180, 270] as const) {
+      const shown = rotateRect(r, rotation);
+      // The rotated rectangle's corners map back to the original's corners.
+      const a = unrotatePoint({ x: shown.left, y: shown.top }, rotation);
+      const b = unrotatePoint({ x: shown.right, y: shown.bottom }, rotation);
+      expect(Math.min(a.x, b.x)).toBeCloseTo(r.left);
+      expect(Math.max(a.x, b.x)).toBeCloseTo(r.right);
+      expect(Math.min(a.y, b.y)).toBeCloseTo(r.top);
+      expect(Math.max(a.y, b.y)).toBeCloseTo(r.bottom);
+    }
+  });
+
+  it("finds the page under a point, or the nearest one in a gap", () => {
+    const l = computeLayout([A4, A4], 1, 0);
+    const hit = pageAtPoint(l, [0, 1], l.lefts[1] + l.widths[1] / 2, l.tops[1] + l.heights[1] / 4);
+    expect(hit?.page).toBe(1);
+    expect(hit?.point.x).toBeCloseTo(0.5);
+    expect(hit?.point.y).toBeCloseTo(0.25);
+    // Just above page 2, in the gap: still page 2, slightly above its top.
+    const gap = pageAtPoint(l, [0, 1], l.lefts[1] + 10, l.tops[1] - 2);
+    expect(gap?.page).toBe(1);
+    expect(gap?.point.y).toBeLessThan(0);
   });
 });

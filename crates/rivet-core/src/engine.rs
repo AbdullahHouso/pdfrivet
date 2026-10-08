@@ -17,8 +17,8 @@ use std::{
 };
 
 use crate::{
-    DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink, Pdf,
-    RenderedPage, Result, Rotation,
+    DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink, PageText,
+    Pdf, RenderedPage, Result, Rotation, TextRange,
     cache::{Key, RenderCache},
     metadata::{DocProperties, Metadata},
     print::PrintSettings,
@@ -63,6 +63,8 @@ enum Request {
     Outline(DocId, Reply<Vec<OutlineItem>>),
     Links(DocId, u32, Reply<Vec<PageLink>>),
     FormFields(DocId, u32, Reply<Vec<FormField>>),
+    PageText(DocId, u32, Reply<PageText>),
+    Text(DocId, TextRange, Reply<String>),
     ChangeField(DocId, u32, u32, FieldChange, Reply<()>),
     Save(DocId, PathBuf, Reply<()>),
     Print(DocId, Box<PrintSettings>, Option<Vec<u8>>, Reply<()>),
@@ -189,6 +191,16 @@ impl Engine {
     /// The interactive form fields on a page.
     pub fn form_fields(&self, doc: DocId, page: u32) -> Result<Vec<FormField>> {
         self.call(|reply| Request::FormFields(doc, page, reply))
+    }
+
+    /// Every character of a page with its box (for selecting text).
+    pub fn page_text(&self, doc: DocId, page: u32) -> Result<PageText> {
+        self.call(|reply| Request::PageText(doc, page, reply))
+    }
+
+    /// The text of a range of characters (for copying).
+    pub fn text(&self, doc: DocId, range: TextRange) -> Result<String> {
+        self.call(|reply| Request::Text(doc, range, reply))
     }
 
     /// Changes a form field. Rendered pages of the document are refreshed.
@@ -319,6 +331,12 @@ impl Worker {
             }
             Request::FormFields(id, page, reply) => {
                 let _ = reply.send(self.doc(id).and_then(|d| d.form_fields(page)));
+            }
+            Request::PageText(id, page, reply) => {
+                let _ = reply.send(self.doc(id).and_then(|d| d.page_text(page)));
+            }
+            Request::Text(id, range, reply) => {
+                let _ = reply.send(self.doc(id).and_then(|d| d.text(range)));
             }
             Request::ChangeField(id, page, field, change, reply) => {
                 let result = self

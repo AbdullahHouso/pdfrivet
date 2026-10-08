@@ -12,4 +12,8 @@ pageSizes: Array<PageSize>,
 /**
  * The text reads right to left (e.g. Arabic), so two-page spreads start on the right.
  */
-rtl: boolean, };
+rtl: boolean, 
+/**
+ * The document allows copying its text.
+ */
+canCopy: boolean, };

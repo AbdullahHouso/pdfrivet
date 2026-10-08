@@ -9,6 +9,8 @@ import AboutDialog from "./lib/AboutDialog.svelte";
 import type { Metadata } from "./lib/bindings/Metadata";
 import type { PrintSettings } from "./lib/bindings/PrintSettings";
 import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
+import ContextMenu, { type MenuItem } from "./lib/ContextMenu.svelte";
+import { writeClipboard } from "./lib/clipboard";
 import { hasOtherWindows, moveToNewWindow, openInNewWindow, tabsWindowLabel, windowRequest } from "./lib/docWindows";
 import { i18n } from "./lib/i18n.svelte";
 import { shortcutKey } from "./lib/keys";
@@ -21,6 +23,7 @@ import {
   closeDocument,
   documentInfo,
   filesExist,
+  getText,
   openDocument,
   type RivetError,
   saveDocument,
@@ -39,6 +42,7 @@ import { type DocumentWindows, settings } from "./lib/settings.svelte";
 import TabBar from "./lib/TabBar.svelte";
 import Toolbar from "./lib/Toolbar.svelte";
 import { type Tab, type TabState, tabs } from "./lib/tabs.svelte";
+import { isEmpty, toTextRange } from "./lib/textSelect";
 import UpdateDialog from "./lib/UpdateDialog.svelte";
 import { updater } from "./lib/updater.svelte";
 import Viewer from "./lib/Viewer.svelte";
@@ -132,6 +136,39 @@ async function openPath(path: string, password?: string) {
 }
 
 let showProperties = $state(false);
+
+/** The right-click menu on the pages, if open. */
+let contextMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
+
+async function copySelection(tab: Tab) {
+  if (!tab.selection || isEmpty(tab.selection)) return;
+  try {
+    await writeClipboard(await getText(tab.docId, toTextRange(tab.selection)));
+  } catch (e) {
+    error = toRivetError(e);
+  }
+}
+
+/** Selects the whole document's text. */
+function selectAll(tab: Tab) {
+  const last = tab.info.pageCount - 1;
+  tab.selection = { anchor: { page: 0, index: 0 }, focus: { page: last, index: Number.MAX_SAFE_INTEGER } };
+}
+
+function showPageMenu(tab: Tab, e: MouseEvent) {
+  const items: MenuItem[] = [];
+  if (!isEmpty(tab.selection)) {
+    items.push({
+      label: i18n.t("copy-text"),
+      shortcut: "Ctrl+C",
+      disabled: !tab.info.canCopy,
+      hint: i18n.t("error-copy-not-allowed"),
+      action: () => copySelection(tab),
+    });
+  }
+  items.push({ label: i18n.t("select-all"), shortcut: "Ctrl+A", action: () => selectAll(tab) });
+  contextMenu = { x: e.clientX, y: e.clientY, items };
+}
 
 async function applyMetadata(tab: Tab, metadata: Metadata) {
   showProperties = false;
@@ -411,7 +448,10 @@ $effect(() => {
 function onKey(e: KeyboardEvent) {
   const mod = e.ctrlKey || e.metaKey;
   const key = shortcutKey(e);
-  const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
+  const typing =
+    e.target instanceof HTMLInputElement ||
+    e.target instanceof HTMLSelectElement ||
+    e.target instanceof HTMLTextAreaElement;
   const tab = active;
 
   const shortcuts: [boolean, () => void][] = [
@@ -430,6 +470,15 @@ function onKey(e: KeyboardEvent) {
     [!!tab && mod && key === "0", () => setZoomMode("fit-width")],
     [!!tab && ((mod && key === "g") || e.key === "F6"), () => toolbar?.focusPageInput()],
     [!!tab && !typing && !mod && e.key === "Home", () => goTo(0)],
+    // Selected text: copy, select everything, clear.
+    [!!tab && !typing && mod && !e.shiftKey && key === "c" && !isEmpty(tab.selection), () => tab && copySelection(tab)],
+    [!!tab && !typing && mod && !e.shiftKey && key === "a", () => tab && selectAll(tab)],
+    [
+      !!tab && !typing && e.key === "Escape" && !!tab.selection,
+      () => {
+        if (tab) tab.selection = null;
+      },
+    ],
     // Mouse mode, with Figma's keys: V = select, H = hand.
     [!!tab && !typing && !mod && !e.altKey && key === "v", () => (settings.tool = "select")],
     [!!tab && !typing && !mod && !e.altKey && key === "h", () => (settings.tool = "hand")],
@@ -555,7 +604,8 @@ onMount(() => {
       {#if sidebarOpen}
         <Sidebar tab={active} ongoto={goTo} />
       {/if}
-      <Viewer bind:this={viewer} tab={active} onerror={(e) => (error = e)} />
+      {@const tab = active}
+      <Viewer bind:this={viewer} {tab} onerror={(e) => (error = e)} oncontextmenu={(e) => showPageMenu(tab, e)} />
     {/key}
   {:else}
     <StartScreen onopen={pickFiles} onopenpath={openRecent} />
@@ -631,6 +681,10 @@ onMount(() => {
 
 {#if showSettings}
   <SettingsDialog onclose={() => (showSettings = false)} oncheckupdates={() => updater.check(true)} />
+{/if}
+
+{#if contextMenu}
+  <ContextMenu {...contextMenu} onclose={() => (contextMenu = null)} />
 {/if}
 
 {#if showAbout}

@@ -16,7 +16,7 @@ use std::{
 
 use rivet_core::{
     DocId, DocInfo, Engine, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink,
-    Rotation,
+    Rotation, TextRange,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, http};
@@ -111,6 +111,17 @@ async fn change_field(
 ) -> Result<(), Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.change_field(doc_id, page, field, change)).await
+}
+
+/// The text of a range of characters (for copying).
+#[tauri::command]
+async fn get_text(
+    doc_id: DocId,
+    range: TextRange,
+    state: State<'_, AppState>,
+) -> Result<String, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.text(doc_id, range)).await
 }
 
 #[tauri::command]
@@ -340,6 +351,15 @@ fn page_protocol(engine: &Engine, uri: &http::Uri) -> http::Response<Vec<u8>> {
         .unwrap_or(1.0);
     let rotation = Rotation::from_degrees(query("rot").and_then(|s| s.parse().ok()).unwrap_or(0));
 
+    // Text: /text/<doc>/<page> returns every character with its box (see `PageText::to_bytes`).
+    if let ["text", doc, page] = parts.as_slice() {
+        let text = match (doc.parse(), page.parse()) {
+            (Ok(doc), Ok(page)) => engine.page_text(doc, page).map(|t| t.to_bytes()),
+            _ => Err(Error::new(ErrorCode::Internal, "bad text URL")),
+        };
+        return binary_response(text);
+    }
+
     // Printing: /print/<doc>/<page>?dpi=<n> returns a JPEG of the upright page.
     if let ["print", doc, page] = parts.as_slice() {
         let dpi = query("dpi")
@@ -388,6 +408,23 @@ fn page_protocol(engine: &Engine, uri: &http::Uri) -> http::Response<Vec<u8>> {
         Err(e) if e.code == ErrorCode::Cancelled => builder
             .status(http::StatusCode::NO_CONTENT)
             .body(Vec::new()),
+        Err(e) => builder
+            .status(http::StatusCode::BAD_REQUEST)
+            .header("Content-Type", "application/json")
+            .body(serde_json::to_vec(&e).unwrap_or_default()),
+    }
+    .unwrap_or_else(|_| http::Response::new(Vec::new()))
+}
+
+/// A plain binary answer, or the error as JSON.
+fn binary_response(result: Result<Vec<u8>, Error>) -> http::Response<Vec<u8>> {
+    let builder = http::Response::builder()
+        .header("Access-Control-Allow-Origin", "*")
+        .header("Cache-Control", "no-store");
+    match result {
+        Ok(bytes) => builder
+            .header("Content-Type", "application/octet-stream")
+            .body(bytes),
         Err(e) => builder
             .status(http::StatusCode::BAD_REQUEST)
             .header("Content-Type", "application/json")
@@ -514,6 +551,7 @@ pub fn run() {
             get_links,
             get_form_fields,
             change_field,
+            get_text,
             save_document,
             list_printers,
             document_properties,

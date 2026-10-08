@@ -178,6 +178,8 @@ pub struct DocInfo {
     pub page_sizes: Vec<PageSize>,
     /// The text reads right to left (e.g. Arabic), so two-page spreads start on the right.
     pub rtl: bool,
+    /// The document allows copying its text.
+    pub can_copy: bool,
 }
 
 /// Clockwise view rotation. Only affects rendering; the file is never changed.
@@ -271,7 +273,15 @@ impl Document {
             author: meta(PdfDocumentMetadataTagType::Author),
             page_sizes,
             rtl: crate::direction::detect(&self.inner),
+            can_copy: self.can_copy(),
         })
+    }
+
+    fn can_copy(&self) -> bool {
+        self.inner
+            .permissions()
+            .can_extract_text_and_graphics()
+            .unwrap_or(true)
     }
 
     /// The document's table of contents (bookmarks). Empty if it has none.
@@ -283,6 +293,45 @@ impl Document {
     pub fn links(&self, index: u32) -> Result<Vec<PageLink>> {
         let page = self.load_page(index)?;
         Ok(links::read(&page))
+    }
+
+    /// Every character of a page with its box (for selecting text).
+    pub fn page_text(&self, index: u32) -> Result<crate::PageText> {
+        let page = self.load_page(index)?;
+        Ok(crate::text::read(self.pdfium, &page))
+    }
+
+    /// The text of a range of characters, possibly across pages (for copying).
+    /// Pages are separated by a line break.
+    /// Fails with [`ErrorCode::CopyNotAllowed`] if the document forbids copying.
+    pub fn text(&self, range: crate::TextRange) -> Result<String> {
+        if !self.can_copy() {
+            return Err(Error::new(
+                ErrorCode::CopyNotAllowed,
+                "document permissions",
+            ));
+        }
+        let last = range.end_page.min(self.page_count().saturating_sub(1));
+        let mut out = String::new();
+        for index in range.start_page..=last {
+            let page = self.load_page(index)?;
+            let start = if index == range.start_page {
+                range.start
+            } else {
+                0
+            };
+            let end = if index == range.end_page {
+                range.end
+            } else {
+                u32::MAX
+            };
+            let text = crate::text::text_of(self.pdfium, &page, start, end);
+            if !out.is_empty() && !out.ends_with('\n') && !text.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&text);
+        }
+        Ok(out)
     }
 
     /// Everything shown in the Document properties dialog.
@@ -333,7 +382,7 @@ impl Document {
             permissions: Permissions {
                 print: permissions.can_print_high_quality().unwrap_or(true)
                     || permissions.can_print_only_low_quality().unwrap_or(false),
-                copy: permissions.can_extract_text_and_graphics().unwrap_or(true),
+                copy: self.can_copy(),
                 modify: permissions.can_modify_document_content().unwrap_or(true),
                 fill_forms: permissions
                     .can_fill_existing_interactive_form_fields()

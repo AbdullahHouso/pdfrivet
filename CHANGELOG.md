@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 
 ## [Unreleased]
 
+### Text
+- Select text with the mouse: drag, double-click a word, triple-click a line, Shift+click to extend, Ctrl+A for everything. Works the same in Arabic and other right-to-left text.
+- Copy with Ctrl+C or the right-click menu. PDFs whose author doesn't allow copying say so.
+
 ## [0.1.0] – 2026-10-08
 
 The first version: a fast, everyday PDF reader.

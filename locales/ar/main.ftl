@@ -204,6 +204,10 @@ about-license = برنامج مجاني ومفتوح المصدر بموجب ر�
 website = الموقع
 close = إغلاق
 
+## Text
+copy-text = نسخ
+select-all = تحديد الكل
+
 ## Errors
 
 error-library-not-found = تعذّر تحميل محرك PDF ‏(PDFium). يُرجى إعادة تثبيت PDFRivet.
@@ -217,6 +221,7 @@ error-engine-stopped = توقف محرك PDF بشكل غير متوقع. يُر�
 error-cancelled = أُلغي الطلب.
 error-read-only-field = لا يمكن تغيير هذا الحقل.
 error-save-failed = تعذّر حفظ الملف. تأكد من صلاحية الكتابة في هذا المجلد، أو استخدم «حفظ باسم…».
+error-copy-not-allowed = لا يسمح مؤلف هذا الملف بنسخ نصه.
 error-io = تعذّرت قراءة الملف.
 error-internal = حدث خطأ ما.
 dismiss = إغلاق

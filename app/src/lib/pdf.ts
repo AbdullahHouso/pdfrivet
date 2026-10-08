@@ -9,6 +9,7 @@ import type { FormField } from "./bindings/FormField";
 import type { Metadata } from "./bindings/Metadata";
 import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageLink } from "./bindings/PageLink";
+import type { TextRange } from "./bindings/TextRange";
 import type { Degrees } from "./layout";
 
 export interface OpenedDocument {
@@ -53,6 +54,11 @@ export function getFormFields(docId: number, page: number): Promise<FormField[]>
 
 export function changeField(docId: number, page: number, field: number, change: FieldChange): Promise<void> {
   return invoke("change_field", { docId, page, field, change });
+}
+
+/** The text of a range of characters (for copying). */
+export function getText(docId: number, range: TextRange): Promise<string> {
+  return invoke("get_text", { docId, range });
 }
 
 /** Saves the document, including filled-in forms, to `path`. */
@@ -149,4 +155,13 @@ export async function renderPage(docId: number, page: number, opts: RenderOption
   const height = header.getUint32(4, true);
   const data = new ImageData(new Uint8ClampedArray(buffer, 8), width, height);
   return { width, height, data };
+}
+
+/** Every character of a page with its box, in the engine's binary form (see textSelect.ts). */
+export async function fetchPageText(docId: number, page: number): Promise<ArrayBuffer> {
+  const response = await fetch(`${PROTOCOL_BASE}/text/${docId}/${page}`);
+  if (!response.ok) {
+    throw await response.json().catch(() => ({ code: "internal", detail: response.statusText }));
+  }
+  return response.arrayBuffer();
 }

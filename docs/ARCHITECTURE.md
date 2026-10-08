@@ -114,6 +114,25 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
 - Known PDFium limitation: in fields mixing Arabic and Latin text, PDFium may order numbers
   differently from the typed order (Chrome shares this).
 
+## Text selection
+
+- `rivet-core/src/text.rs` reads every character of a page with its box (PDFium's "loose"
+  boxes, as tall as the font's line) and sends them to the UI over the protocol as
+  `GET /text/<doc>/<page>`: a compact binary form (24 bytes per character, 4-byte aligned so
+  the UI reads it with typed arrays). Boxes are page fractions, like links and fields.
+- A selection is a range of **character positions in PDFium's text order**, from where the drag
+  started (anchor) to where it is now (focus), possibly across pages (`textSelect.ts`). This is
+  how Chrome's PDF viewer works. An invisible HTML text layer would rely on the browser's bidi
+  rules, which don't match how PDFs place Arabic and other right-to-left characters.
+- `pageText.ts` keeps the text of recent pages; `TextLayer.svelte` loads it when a page
+  appears, so matching the pointer to a character is synchronous while dragging, and draws
+  the selection. The Viewer handles the pointer (drag, double/triple click, Shift+click).
+- Copying asks the engine for the text of the range (`FPDFText_GetText`, so PDFium's own
+  spaces and line breaks are kept) and writes it with the webview's clipboard API (falling
+  back to the copy command). The document's "copy" permission is honoured, as in Chrome.
+- On Linux and macOS the right-click menu event arrives when the button goes *down*, so the
+  context menu is a manual popover (an automatic one closes again on button up).
+
 ## Page display and printing
 
 - `layout.ts` arranges pages in **rows** of one or two pages (`columns`), mirrored for
