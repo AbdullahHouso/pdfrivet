@@ -26,7 +26,7 @@ let { onopen, onclose }: Props = $props();
       onkeydown={(e) => (e.key === "Enter" || e.key === " ") && tabs.activate(tab.id)}
     >
       <Icon name="file" />
-      <span class="name">{tab.title}</span>
+      <span class="name" dir="auto">{tab.title}</span>
       {#if tab.dirty}
         <span class="dirty" title={i18n.t("unsaved-changes")} aria-label={i18n.t("unsaved-changes")}>●</span>
       {/if}

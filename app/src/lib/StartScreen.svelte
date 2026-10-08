@@ -52,7 +52,7 @@ function when(ms: number): string {
             <button class="open" disabled={gone} onclick={() => onopenpath(file.path)} title={file.path}>
               <Icon name="file" />
               <span class="text">
-                <span class="title">{file.title}</span>
+                <span class="title" dir="auto">{file.title}</span>
                 <span class="path" dir="ltr">{file.path}</span>
               </span>
               <span class="when">{gone ? i18n.t("file-missing") : when(file.lastOpened)}</span>

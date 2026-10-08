@@ -31,7 +31,7 @@ let hasChildren = $derived(item.children.length > 0);
       onclick={() => item.page !== null && ongoto(item.page)}
       title={item.title}
     >
-      {item.title || "—"}
+      <bdi>{item.title || "—"}</bdi>
     </button>
   </div>
   {#if hasChildren && open}
