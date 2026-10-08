@@ -3,6 +3,7 @@
 // stays sharp, and re-renders shortly after the size changes (while zooming
 // the old pixels are stretched, so nothing flickers).
 import { openUrl } from "@tauri-apps/plugin-opener";
+import AnnotationLayer from "./AnnotationLayer.svelte";
 import type { LinkTarget } from "./bindings/LinkTarget";
 import type { PageLink } from "./bindings/PageLink";
 import FormLayer from "./FormLayer.svelte";
@@ -11,6 +12,7 @@ import { type Degrees, rotateRect } from "./layout";
 import { getLinks, type PagePixels, type RivetError, renderPage, toRivetError } from "./pdf";
 import type { SearchMark } from "./search.svelte";
 import TextLayer from "./TextLayer.svelte";
+import type { Tab } from "./tabs.svelte";
 
 interface Props {
   docId: number;
@@ -33,6 +35,8 @@ interface Props {
   selected?: [number, number] | null;
   /** Search results on this page. */
   hits?: SearchMark[];
+  /** The tab, for drawing and editing annotations (not for thumbnails). */
+  tab?: Tab;
 }
 let {
   docId,
@@ -48,6 +52,7 @@ let {
   onfieldchange,
   selected = null,
   hits = [],
+  tab,
 }: Props = $props();
 
 // Clickable links on this page (not for thumbnails).
@@ -146,6 +151,9 @@ $effect(() => {
       onclick={() => follow(link.target)}
     ></button>
   {/each}
+  {#if tab && !thumbnail}
+    <AnnotationLayer {tab} {index} {width} {height} scale={width / widthPt} {rotation} {onerror} />
+  {/if}
   {#if !thumbnail && onfieldchange}
     <FormLayer {docId} {index} {rotation} pageHeight={height} {revision} onchanged={onfieldchange} {onerror} />
   {/if}

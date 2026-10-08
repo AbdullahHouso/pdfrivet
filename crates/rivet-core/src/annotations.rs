@@ -171,7 +171,7 @@ pub(crate) fn read(pdfium: &Pdfium, page: &PdfPage) -> Vec<Annotation> {
         .collect()
 }
 
-/// Adds an annotation; returns its id.
+/// Adds an annotation; returns its id (the given one if it's free, else a new one).
 pub(crate) fn add(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -> Result<String> {
     let map = Mapping::new(page).ok_or_else(|| internal("page has no size"))?;
     let annots = PageAnnots::new(pdfium, page);
@@ -193,7 +193,16 @@ pub(crate) fn add(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -> R
     let annot = annots
         .create(subtype as i32)
         .ok_or_else(|| internal("PDFium couldn't create the annotation"))?;
-    let id = new_id();
+    // Keep a given id (undoing a delete brings an annotation back as it was),
+    // unless it's an index id or already taken.
+    let id = if annotation.id.is_empty()
+        || annotation.id.starts_with('#')
+        || annots.find(&annotation.id).is_some()
+    {
+        new_id()
+    } else {
+        annotation.id.clone()
+    };
     let (now, _) = crate::metadata::now();
     annot.set_string("NM", &id);
     annot.set_string("CreationDate", &now);

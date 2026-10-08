@@ -174,6 +174,15 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   the appearance's path objects (what you actually see).
 - Removing a square's fill writes an empty string for `IC` (PDFium has no call to delete a key);
   readers treat it as "no fill".
+- **UI:** `annotate.svelte.ts` holds the Annotate toolbar's state (tool, per-tool styles saved in
+  settings) and the changes (`add`, `update`, `remove`, `undo`, `redo`), each recorded in the
+  tab's `History` and re-rendering only its page (`tab.pageRevisions`). `AnnotationLayer.svelte`
+  sits on each page: it draws previews while drawing or dragging (SVG), invisible shapes to click
+  drawings and shapes, the selection frame with handles, and the colour/comment/delete menu.
+  Text markup is created from a text selection (Viewer → `markSelection`) and is selected by a
+  click through the text, using the page's annotation list kept in `tab.annotations`.
+  Geometry (rotation, hit testing, moving, resizing, stroke simplification) is in
+  `annotGeometry.ts`.
 - Annotation edits mark the document as having unsaved changes (`unsaved_changes`), so the engine
   never reopens it to free memory before they're saved, and only the changed page's renders are
   dropped from the cache.

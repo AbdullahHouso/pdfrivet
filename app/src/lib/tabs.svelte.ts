@@ -2,8 +2,11 @@
 // tabs brings you back exactly where you were. Only the active tab's pages
 // are rendered; background tabs keep their state, not their pixels.
 
+import { SvelteMap } from "svelte/reactivity";
+import type { Annotation } from "./bindings/Annotation";
 import type { DocInfo } from "./bindings/DocInfo";
 import type { OutlineItem } from "./bindings/OutlineItem";
+import { History } from "./history.svelte";
 import type { Degrees } from "./layout";
 import { forgetPageText } from "./pageText";
 import { closeDocument } from "./pdf";
@@ -66,6 +69,14 @@ export class Tab {
   readonly search: DocSearch;
   /** The find bar is open. */
   findOpen = $state(false);
+  /** Undo and redo of annotation changes. */
+  readonly history = new History();
+  /** Goes up per page when its annotations change, so only that page re-renders. */
+  readonly pageRevisions = new SvelteMap<number, number>();
+  /** Annotations of the pages on screen (loaded by AnnotationLayer, used to click them). */
+  readonly annotations = new SvelteMap<number, Annotation[]>();
+  /** The annotation selected for moving, restyling or deleting. */
+  selectedAnnotation = $state<{ page: number; id: string } | null>(null);
 
   constructor(id: number, docId: number, path: string, info: DocInfo) {
     this.id = id;
@@ -74,6 +85,16 @@ export class Tab {
     this.info = info;
     this.pagesRtl = info.rtl;
     this.search = new DocSearch(docId);
+  }
+
+  /** Marks a page as changed, so it and its thumbnail render again. */
+  bumpPage(page: number) {
+    this.pageRevisions.set(page, (this.pageRevisions.get(page) ?? 0) + 1);
+  }
+
+  /** The revision a page renders at (document-wide changes plus its own). */
+  pageRevision(page: number): number {
+    return this.revision + (this.pageRevisions.get(page) ?? 0);
   }
 
   get fileName(): string {

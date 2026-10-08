@@ -3,6 +3,8 @@
 // at a time, with one or two pages per row. Only pages near the viewport are
 // mounted; everything else is just empty space.
 import { tick, untrack } from "svelte";
+import { annotate, isMarkupTool, markSelection } from "./annotate.svelte";
+import { topmostAt } from "./annotGeometry";
 import type { SearchHit } from "./bindings/SearchHit";
 import {
   type Anchor,
@@ -24,7 +26,7 @@ import {
 } from "./layout";
 import PageView from "./PageView.svelte";
 import { loadPageText, peekPageText } from "./pageText";
-import { type RivetError, setVisiblePages } from "./pdf";
+import { type RivetError, setVisiblePages, toRivetError } from "./pdf";
 import { settings } from "./settings.svelte";
 import type { Tab } from "./tabs.svelte";
 import {
@@ -319,8 +321,11 @@ function startSelection(e: PointerEvent) {
 
   const hit = pointOnPage(e);
   const text = hit && peekPageText(tab.docId, hit.page);
+  tab.selectedAnnotation = null;
+  clickStart = { x: e.clientX, y: e.clientY };
   if (!hit || !text) {
     tab.selection = null;
+    if (hit) selectAnnotationAt(e);
     return;
   }
   // Keep the browser from starting its own selection or dragging the canvas.
@@ -354,7 +359,28 @@ function extendSelection(e: PointerEvent) {
 function endSelection(e: PointerEvent) {
   if (scroller.hasPointerCapture(e.pointerId)) scroller.releasePointerCapture(e.pointerId);
   selectingPointer = null;
-  if (isEmpty(tab.selection)) tab.selection = null;
+  if (isEmpty(tab.selection)) {
+    tab.selection = null;
+    // A click (not a drag) on a highlight, a stamp… selects it.
+    if (Math.hypot(e.clientX - clickStart.x, e.clientY - clickStart.y) < 4) selectAnnotationAt(e);
+    return;
+  }
+  // With a text markup tool, selecting text marks it right away.
+  const tool = annotate.open ? annotate.tool : null;
+  if (isMarkupTool(tool)) markSelection(tab, tool).catch((err) => onerror?.(toRivetError(err)));
+}
+
+let clickStart = { x: 0, y: 0 };
+
+/** Selects the annotation under the pointer, if any (drawings and shapes select themselves). */
+function selectAnnotationAt(e: MouseEvent) {
+  const box = content.getBoundingClientRect();
+  const hit = pageAtPoint(layout, mounted, e.clientX - box.left, e.clientY - box.top, offsetX);
+  if (!hit || hit.point.x < 0 || hit.point.x > 1 || hit.point.y < 0 || hit.point.y > 1) return;
+  const list = tab.annotations.get(hit.page) ?? [];
+  const page = { width: layout.widths[hit.page], height: layout.heights[hit.page], rotation: tab.rotation };
+  const found = topmostAt(list, hit.point.x * page.width, hit.point.y * page.height, page);
+  if (found) tab.selectedAnnotation = { page: hit.page, id: found.id };
 }
 
 /** Shows the text cursor over text in Select mode. */
@@ -464,10 +490,11 @@ function onFieldChange() {
           rotation={tab.rotation}
           {onerror}
           ongotopage={goToPage}
-          revision={tab.revision}
+          revision={tab.pageRevision(index)}
           onfieldchange={onFieldChange}
           selected={rangeOnPage(tab.selection, index)}
           hits={tab.search.marksOn(index)}
+          {tab}
         />
       </div>
     {/each}

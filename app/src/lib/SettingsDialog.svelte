@@ -4,6 +4,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import Icon from "./Icon.svelte";
 import { i18n, languages } from "./i18n.svelte";
+import { userName } from "./pdf";
 import { type DefaultZoom, type DocumentWindows, PAGE_TONES, settings, type Theme } from "./settings.svelte";
 import type { PageLayout } from "./tabs.svelte";
 
@@ -33,6 +34,11 @@ const onWindows = /Windows/.test(navigator.userAgent);
 
 let dialog: HTMLDialogElement;
 let version = $state("");
+// Shown as the placeholder: the name used when none is set.
+let osUser = $state("");
+userName()
+  .then((name) => (osUser = name))
+  .catch(() => {});
 
 $effect(() => {
   dialog.showModal();
@@ -109,6 +115,12 @@ function zoomLabel(zoom: DefaultZoom): string {
             {i18n.t("taskbar-tabs")}
           </label>
         {/if}
+
+        <div class="row">
+          <label for="settings-author">{i18n.t("author-name")}</label>
+          <input id="settings-author" class="author" dir="auto" bind:value={settings.author} placeholder={osUser} />
+        </div>
+        <p class="hint">{i18n.t("author-name-hint")}</p>
 
         <h3>{i18n.t("updates")}</h3>
         <label class="check">
@@ -271,7 +283,8 @@ function zoomLabel(zoom: DefaultZoom): string {
     gap: 6px;
     padding-block: 10px;
   }
-  .row select {
+  .row select,
+  .author {
     min-width: 12em;
   }
   .hint,

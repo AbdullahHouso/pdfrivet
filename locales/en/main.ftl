@@ -229,6 +229,35 @@ search-show-all = All results
 search-selection = Search for selected text
 search-pane-empty = Search the document’s text. Arabic is found with or without diacritics, and digits in any script.
 
+author-name = Your name
+author-name-hint = Shown as the author of your comments and drawings. Leave empty to use your computer’s user name.
+## Annotations
+annotate = Annotate
+annotate-tools = Annotation tools
+annotate-close = Close annotation tools
+annot-select = Select and move annotations
+annot-hint = Pick a tool. Highlight, underline and strikeout work on text you select.
+annot-highlight = Highlight
+annot-underline = Underline
+annot-strikeout = Strikeout
+annot-pen = Pen
+annot-rectangle = Rectangle
+annot-ellipse = Ellipse
+annot-line = Line
+annot-arrow = Arrow
+annot-note = Sticky note
+annot-eraser = Eraser (drawings and shapes)
+annot-style = Style
+annot-custom-color = Other colour…
+annot-width = Width
+annot-opacity = Opacity
+annot-fill = Fill
+annot-comment = Comment
+annot-comment-placeholder = Write a comment…
+annot-delete = Delete
+undo = Undo
+redo = Redo
+
 ## Errors (keys match rivet-core ErrorCode)
 
 error-library-not-found = The PDF engine (PDFium) could not be loaded. Please reinstall PDFRivet.

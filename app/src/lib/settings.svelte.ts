@@ -2,6 +2,7 @@
 // (settings.json in the app's config folder).
 
 import { load, type Store } from "@tauri-apps/plugin-store";
+import type { Color } from "./bindings/Color";
 import { type FileView, findRecent, type RecentFile, removeRecent, touchRecent, updateView } from "./recent";
 import type { PageLayout } from "./tabs.svelte";
 
@@ -25,6 +26,17 @@ export type DocumentWindows = "tabs" | "windows";
 export type DefaultZoom = "fit-width" | "fit-page" | `${number}`;
 /** Mouse mode: click links and fields, or drag the page around. */
 export type Tool = "select" | "hand";
+
+/** How an annotation tool draws (Annotate toolbar); remembered per tool. */
+export interface ToolStyle {
+  color: Color;
+  /** Line width in points. */
+  width: number;
+  /** 0–1. */
+  opacity: number;
+  /** Rectangles and ellipses: filled with a lighter shade of the colour. */
+  fill: boolean;
+}
 
 /** Print choices remembered between prints. */
 export interface PrintPrefs {
@@ -51,6 +63,8 @@ let taskbarTabs = $state(true);
 let autoUpdate = $state(true);
 let lastUpdateCheck = 0;
 let skippedVersion = $state<string | null>(null);
+let author = $state("");
+let toolStyles = $state<Record<string, ToolStyle>>({});
 
 function applyTheme(value: Theme) {
   if (value === "system") delete document.documentElement.dataset.theme;
@@ -109,6 +123,12 @@ function apply(key: string, value: unknown) {
     case "lastUpdateCheck":
       lastUpdateCheck = value as number;
       break;
+    case "author":
+      author = value as string;
+      break;
+    case "toolStyles":
+      toolStyles = value as Record<string, ToolStyle>;
+      break;
   }
 }
 
@@ -132,6 +152,8 @@ export const settings = {
       autoUpdate = (await store.get<boolean>("autoUpdate")) ?? true;
       lastUpdateCheck = (await store.get<number>("lastUpdateCheck")) ?? 0;
       skippedVersion = (await store.get<string>("skippedVersion")) ?? null;
+      author = (await store.get<string>("author")) ?? "";
+      toolStyles = (await store.get<Record<string, ToolStyle>>("toolStyles")) ?? {};
     } catch (e) {
       console.warn("[settings] using defaults", e);
     }
@@ -233,6 +255,23 @@ export const settings = {
   set skippedVersion(value: string | null) {
     skippedVersion = value;
     save("skippedVersion", value);
+  },
+
+  /** The name written as the author of new annotations (empty: the OS user name). */
+  get author() {
+    return author;
+  },
+  set author(value: string) {
+    author = value;
+    save("author", value);
+  },
+  /** Styles chosen per annotation tool (missing tools use their defaults). */
+  get toolStyles() {
+    return toolStyles;
+  },
+  setToolStyle(tool: string, style: ToolStyle) {
+    toolStyles = { ...toolStyles, [tool]: style };
+    save("toolStyles", toolStyles);
   },
 
   get recent() {

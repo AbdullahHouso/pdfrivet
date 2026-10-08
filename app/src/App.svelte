@@ -6,6 +6,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { onMount, untrack } from "svelte";
 import AboutDialog from "./lib/AboutDialog.svelte";
+import AnnotateBar from "./lib/AnnotateBar.svelte";
+import { annotate, markSelection, redo, remove as removeAnnotation, undo } from "./lib/annotate.svelte";
 import type { Metadata } from "./lib/bindings/Metadata";
 import type { PrintSettings } from "./lib/bindings/PrintSettings";
 import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
@@ -191,6 +193,26 @@ function findNext(tab: Tab, direction: 1 | -1) {
   else openFind(tab);
 }
 
+function annotateSelection(tab: Tab, tool: "highlight" | "underline" | "strikeout") {
+  markSelection(tab, tool).catch((e) => (error = toRivetError(e)));
+}
+
+/** Undo (-1) or redo (+1) an annotation change, showing the page it happened on. */
+async function undoRedo(tab: Tab, direction: 1 | -1) {
+  try {
+    const page = await (direction < 0 ? undo(tab) : redo(tab));
+    if (page !== null && (page < tab.page - 1 || page > tab.page + 1)) goTo(page);
+  } catch (e) {
+    error = toRivetError(e);
+  }
+}
+
+function deleteSelectedAnnotation(tab: Tab) {
+  const sel = tab.selectedAnnotation;
+  const a = sel && tab.annotations.get(sel.page)?.find((x) => x.id === sel.id);
+  if (sel && a) removeAnnotation(tab, sel.page, a).catch((e) => (error = toRivetError(e)));
+}
+
 function showPageMenu(tab: Tab, e: MouseEvent) {
   const items: MenuItem[] = [];
   if (!isEmpty(tab.selection)) {
@@ -203,6 +225,11 @@ function showPageMenu(tab: Tab, e: MouseEvent) {
     });
     if (tab.info.canCopy) {
       items.push({ label: i18n.t("search-selection"), shortcut: "Ctrl+F", action: () => openFind(tab) });
+    }
+    if (tab.info.canAnnotate) {
+      for (const tool of ["highlight", "underline", "strikeout"] as const) {
+        items.push({ label: i18n.t(`annot-${tool}`), action: () => annotateSelection(tab, tool) });
+      }
     }
   }
   items.push({ label: i18n.t("select-all"), shortcut: "Ctrl+A", action: () => selectAll(tab) });
@@ -512,6 +539,26 @@ function onKey(e: KeyboardEvent) {
     // Find in document.
     [!!tab && mod && !e.shiftKey && key === "f", () => tab && openFind(tab)],
     [!!tab && e.key === "F3", () => tab && findNext(tab, e.shiftKey ? -1 : 1)],
+    // Annotating: A shows the tools; undo and redo; Delete removes the selected annotation.
+    [
+      !!tab && !typing && !mod && !e.altKey && key === "a",
+      () => {
+        if (tab?.info.canAnnotate) annotate.open = !annotate.open;
+      },
+    ],
+    [!!tab && !typing && mod && !e.shiftKey && key === "z", () => tab && undoRedo(tab, -1)],
+    [!!tab && !typing && mod && (key === "y" || (e.shiftKey && key === "z")), () => tab && undoRedo(tab, 1)],
+    [
+      !!tab && !typing && (e.key === "Delete" || e.key === "Backspace") && !!tab.selectedAnnotation,
+      () => tab && deleteSelectedAnnotation(tab),
+    ],
+    [
+      !!tab && !typing && e.key === "Escape" && (!!tab.selectedAnnotation || (annotate.open && !!annotate.tool)),
+      () => {
+        if (tab?.selectedAnnotation) tab.selectedAnnotation = null;
+        else annotate.tool = null;
+      },
+    ],
     // Selected text: copy, select everything, clear.
     [!!tab && !typing && mod && !e.shiftKey && key === "c" && !isEmpty(tab.selection), () => tab && copySelection(tab)],
     [!!tab && !typing && mod && !e.shiftKey && key === "a", () => tab && selectAll(tab)],
@@ -632,6 +679,10 @@ onMount(() => {
     if (active) active.continuous = on;
   }}
 />
+
+{#if active && annotate.open}
+  <AnnotateBar tab={active} onerror={(e) => (error = e)} />
+{/if}
 
 {#if error}
   <div class="error" role="alert">

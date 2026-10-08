@@ -136,6 +136,15 @@ async fn search_document(
     blocking(move || engine.search(doc_id, query, first)).await
 }
 
+/// The name of the user signed in to the OS (the default author of annotations).
+#[tauri::command]
+fn user_name() -> String {
+    ["USERNAME", "USER", "LOGNAME"]
+        .iter()
+        .find_map(|var| std::env::var(var).ok().filter(|v| !v.is_empty()))
+        .unwrap_or_default()
+}
+
 #[tauri::command]
 async fn get_annotations(
     doc_id: DocId,
@@ -610,6 +619,7 @@ pub fn run() {
             change_field,
             get_text,
             search_document,
+            user_name,
             get_annotations,
             add_annotation,
             update_annotation,

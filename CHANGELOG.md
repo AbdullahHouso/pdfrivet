@@ -18,6 +18,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Match case and whole-word options.
 - All results with the text around them in the sidebar's new Search tab.
 
+### Annotations
+- A new Annotate toolbar (A): highlight, underline and strike out text, draw with a pen, add rectangles, ellipses, lines, arrows and sticky notes, and erase drawings.
+- Highlight, underline or strike out selected text from the right-click menu too.
+- Pick each tool's colour, line width and opacity; rectangles and ellipses can be filled. Your choices are remembered.
+- Click an annotation to select it: move it, resize it, change its colour, add a comment or delete it (Delete key).
+- Undo and redo with Ctrl+Z and Ctrl+Y.
+- Annotations are saved the standard way, so other PDF readers show them too. Settings → General has the name shown as their author.
+
 ## [0.1.0] – 2026-10-08
 
 The first version: a fast, everyday PDF reader.

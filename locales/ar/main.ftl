@@ -229,6 +229,35 @@ search-show-all = كل النتائج
 search-selection = البحث عن النص المحدد
 search-pane-empty = ابحث في نص المستند. يُعثر على النص العربي بالتشكيل أو بدونه، وعلى الأرقام بأي صيغة كُتبت.
 
+author-name = اسمك
+author-name-hint = يظهر كاتبًا لتعليقاتك ورسوماتك. اتركه فارغًا لاستخدام اسم المستخدم في جهازك.
+## Annotations
+annotate = التعليقات التوضيحية
+annotate-tools = أدوات التعليق
+annotate-close = إغلاق أدوات التعليق
+annot-select = تحديد التعليقات ونقلها
+annot-hint = اختر أداة. التظليل والتسطير والشطب تعمل على النص الذي تحدده.
+annot-highlight = تظليل
+annot-underline = تسطير
+annot-strikeout = شطب
+annot-pen = قلم
+annot-rectangle = مستطيل
+annot-ellipse = شكل بيضاوي
+annot-line = خط
+annot-arrow = سهم
+annot-note = ملاحظة لاصقة
+annot-eraser = ممحاة (للرسومات والأشكال)
+annot-style = النمط
+annot-custom-color = لون آخر…
+annot-width = السُّمك
+annot-opacity = الشفافية
+annot-fill = تعبئة
+annot-comment = تعليق
+annot-comment-placeholder = اكتب تعليقًا…
+annot-delete = حذف
+undo = تراجع
+redo = إعادة
+
 ## Errors
 
 error-library-not-found = تعذّر تحميل محرك PDF ‏(PDFium). يُرجى إعادة تثبيت PDFRivet.

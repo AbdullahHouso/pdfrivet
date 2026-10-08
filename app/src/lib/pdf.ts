@@ -69,6 +69,11 @@ export function searchDocument(docId: number, query: SearchQuery, first: number)
   return invoke("search_document", { docId, query, first });
 }
 
+/** The name of the user signed in to the OS (the default author of annotations). */
+export function userName(): Promise<string> {
+  return invoke("user_name");
+}
+
 export function getAnnotations(docId: number, page: number): Promise<Annotation[]> {
   return invoke("get_annotations", { docId, page });
 }

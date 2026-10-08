@@ -867,6 +867,12 @@ fn changes_and_deletes_annotations() {
 
     doc.delete_annotation(0, &square.id).unwrap();
     assert!(doc.annotations(0).unwrap().is_empty());
+    // Adding it again (undo) keeps its id; a second copy gets a new one.
+    assert_eq!(doc.add_annotation(0, &square).unwrap(), square.id);
+    assert_ne!(doc.add_annotation(0, &square).unwrap(), square.id);
+    doc.delete_annotation(0, &square.id).unwrap();
+    doc.delete_annotation(0, &doc.annotations(0).unwrap()[0].id)
+        .unwrap();
     let missing = doc.delete_annotation(0, &square.id).unwrap_err();
     assert_eq!(missing.code, ErrorCode::AnnotationNotFound);
 }

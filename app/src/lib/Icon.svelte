@@ -36,6 +36,22 @@ const paths = {
   code: "M8 6l-6 6 6 6M16 6l6 6-6 6",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4.2-4.2",
   list: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01",
+  // Annotating.
+  pen: "M4 20l4-1L19 8a2.1 2.1 0 0 0-3-3L5 16zM14 7l3 3",
+  highlight: "M9 15l-3 3h-3l2-2M9 15l9-9-3-3-9 9zM9 15l-3-3M13 21h8",
+  underline: "M7 4v6a5 5 0 0 0 10 0V4M5 20h14",
+  strikeout: "M5 12h14M16 7c-.5-1.5-2-3-4.5-3S7 5.5 7 7.5c0 4 10 3 10 8 0 2-2 4.5-5 4.5s-4.5-1.5-5-3",
+  rectangle: "M4 6h16v12H4z",
+  ellipse: "M12 19c4.4 0 8-3.1 8-7s-3.6-7-8-7-8 3.1-8 7 3.6 7 8 7z",
+  line: "M5 19L19 5",
+  arrow: "M5 19L19 5M10 5h9v9",
+  note: "M5 4h14v11l-5 5H5zM14 20v-5h5M8 9h8M8 13h4",
+  eraser: "M8 20h12M5.5 13.5l7-7a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L12 19H8.5l-3-3a1.8 1.8 0 0 1 0-2.5zM9 10l6 6",
+  undo: "M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3",
+  redo: "M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3",
+  comment: "M4 5h16v11H9l-5 4z",
+  trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
+  signature: "M3 17c3-1 5-9 7-9s-1 9 1 9 3-4 4-4 1 3 3 3 2-1 3-1M3 21h18",
   book: "M3 5h6a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H3zM21 5h-6a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h7z",
 } as const;
 </script>

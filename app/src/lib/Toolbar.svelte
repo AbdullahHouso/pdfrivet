@@ -1,4 +1,5 @@
 <script lang="ts">
+import { annotate } from "./annotate.svelte";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
 import { ZOOM_STEPS } from "./layout";
@@ -147,6 +148,12 @@ function run(command: () => void) {
           <Icon name="hand" />
         </button>
       </div>
+      <button class="icon annotate" aria-pressed={annotate.open} disabled={!tab.info.canAnnotate}
+        onclick={() => (annotate.open = !annotate.open)}
+        aria-label={i18n.t("annotate")}
+        title={tab.info.canAnnotate ? i18n.t("annotate") : i18n.t("error-annotate-not-allowed")} data-shortcut="A">
+        <Icon name="pen" />
+      </button>
 
       <span class="sep" aria-hidden="true"></span>
 
@@ -324,6 +331,11 @@ function run(command: () => void) {
     .open {
       padding-inline: 8px;
     }
+  }
+  .annotate[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--accent-text);
+    border-color: var(--accent);
   }
   .segmented-tools {
     gap: 0;
