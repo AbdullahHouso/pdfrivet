@@ -6,6 +6,8 @@
    neutral greys and white for the interface, copper as the accent.
    Text contrast is checked for WCAG AA (4.5:1). */
 :root {
+  /* Plain buttons. Rubik is drawn heavier than Inter, so Arabic uses a lighter weight. */
+  --control-weight: 500;
   --text: #1b1c20;
   --muted: #5f6470;
   /* Toolbar, sidebar, menus and dialogs. */
@@ -138,8 +140,25 @@ select {
   cursor: pointer;
 }
 
+/* Weights: text 400, controls 500, and 600 for what should stand out:
+   filled buttons, titles, group headings and the current choice. */
 button {
   background: var(--surface);
+  font-weight: var(--control-weight);
+}
+
+:root:lang(ar) {
+  --control-weight: 400;
+}
+
+h1 {
+  font-weight: 700;
+}
+
+h2,
+h3,
+legend {
+  font-weight: 600;
 }
 
 /* Drop-downs are drawn by us, not the system: browsers paint their own grey
@@ -180,6 +199,7 @@ button:disabled {
 }
 
 button.primary {
+  font-weight: 600;
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-text);

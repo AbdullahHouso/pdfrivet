@@ -81,6 +81,7 @@ let { onopen, onclose }: Props = $props();
     background: var(--hover);
   }
   .tab.active {
+    font-weight: 500;
     background: var(--surface);
     border-color: var(--border);
     color: var(--text);

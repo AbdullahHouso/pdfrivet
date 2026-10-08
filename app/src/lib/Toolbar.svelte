@@ -388,9 +388,11 @@ function run(command: () => void) {
   }
   .menu-label {
     font-size: 12px;
+    font-weight: 600;
     color: var(--muted);
   }
   .menu-item {
+    font-weight: 400;
     width: 100%;
     text-align: start;
     border: none;

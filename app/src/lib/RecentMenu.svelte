@@ -92,6 +92,7 @@ function choose(path: string) {
     width: 100%;
     padding: 6px 10px;
     border: none;
+    font-weight: 400;
     text-align: start;
   }
   .item :global(.icon) {

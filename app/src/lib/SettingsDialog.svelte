@@ -314,6 +314,7 @@ function zoomLabel(zoom: DefaultZoom): string {
     font-size: 13px;
   }
   .segmented button[aria-checked="true"] {
+    font-weight: 600;
     background: var(--accent);
     color: var(--accent-text);
   }
