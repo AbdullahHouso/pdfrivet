@@ -6,7 +6,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use rivet_core::{
     CHAR_GENERATED, CHAR_NO_BOX, Engine, ErrorCode, FieldChange, FieldKind, FormField, LinkTarget,
-    OutlineItem, PageText, Pdf, Rotation, TextRange,
+    OutlineItem, PageText, Pdf, Rotation, SearchQuery, TextRange,
 };
 
 fn repo_root() -> PathBuf {
@@ -560,4 +560,104 @@ fn engine_returns_page_text() {
     assert!(page_string(&text).contains("quick brown fox"));
     let bytes = text.to_bytes();
     assert_eq!(bytes.len(), 8 + text.chars.len() * PageText::BYTES_PER_CHAR);
+}
+
+fn search_query(text: &str) -> SearchQuery {
+    SearchQuery {
+        text: text.into(),
+        match_case: false,
+        whole_word: false,
+    }
+}
+
+#[test]
+fn finds_text() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let batch = doc.search(&search_query("RIVET-needle"), 0);
+    assert_eq!(batch.next_page, None);
+    assert_eq!(batch.hits.len(), 1);
+    let hit = &batch.hits[0];
+    assert_eq!(hit.page, 1);
+    assert_eq!(hit.text, "rivet-needle");
+    assert!(hit.before.ends_with("text: "), "{hit:?}");
+    // The match is a range of characters, like a selection.
+    let copied = doc
+        .text(TextRange {
+            start_page: 1,
+            start: hit.start,
+            end_page: 1,
+            end: hit.end,
+        })
+        .unwrap();
+    assert_eq!(copied, "rivet-needle");
+
+    // "Page" is on every page; whole words and case are honoured.
+    assert_eq!(doc.search(&search_query("page"), 0).hits.len(), 3);
+    let exact = SearchQuery {
+        match_case: true,
+        ..search_query("page")
+    };
+    assert!(doc.search(&exact, 0).hits.is_empty());
+    let word = SearchQuery {
+        whole_word: true,
+        ..search_query("quic")
+    };
+    assert!(doc.search(&word, 0).hits.is_empty());
+}
+
+#[test]
+fn finds_arabic_text_loosely() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("arabic.pdf"), None).unwrap();
+    let count = |q: &str| doc.search(&search_query(q), 0).hits.len();
+    assert_eq!(count("مرحبا"), 1);
+    // Typed with a diacritic, without the hamza, or with Western digits.
+    assert_eq!(count("مَرحبا"), 1);
+    assert_eq!(count("وارقام"), 1);
+    assert_eq!(count("123"), 1);
+    // A word with the lam-alef ligature (PDFium reverses its two letters; we fix that).
+    assert_eq!(count("للاختبار"), 1);
+}
+
+#[test]
+fn copies_lam_alef_ligatures_in_order() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("arabic.pdf"), None).unwrap();
+    let all = doc
+        .text(TextRange {
+            start_page: 0,
+            start: 0,
+            end_page: 0,
+            end: u32::MAX,
+        })
+        .unwrap();
+    assert!(all.contains("ملف PDF للاختبار يحتوي"), "{all}");
+}
+
+#[test]
+fn engine_searches_in_batches() {
+    let _serial = serial();
+    let dir = temp_dir("search-batches");
+    let path = dir.join("many.pdf");
+    pdf().write_test_document(&path, 120).unwrap();
+    let engine = Engine::start(&pdfium_dir()).unwrap();
+    let (id, _) = engine.open(&path, None).unwrap();
+    let query = search_query("of 120");
+    let mut hits = Vec::new();
+    let mut next = Some(0);
+    let mut batches = 0;
+    while let Some(first) = next {
+        let batch = engine.search(id, query.clone(), first).unwrap();
+        hits.extend(batch.hits);
+        next = batch.next_page;
+        batches += 1;
+    }
+    assert_eq!(hits.len(), 120);
+    assert!(
+        batches > 1,
+        "long documents are searched in several batches"
+    );
+    let pages: Vec<u32> = hits.iter().map(|h| h.page).collect();
+    assert_eq!(pages, (0..120).collect::<Vec<_>>());
 }

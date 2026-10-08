@@ -16,7 +16,7 @@ use std::{
 
 use rivet_core::{
     DocId, DocInfo, Engine, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink,
-    Rotation, TextRange,
+    Rotation, SearchBatch, SearchQuery, TextRange,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, http};
@@ -122,6 +122,18 @@ async fn get_text(
 ) -> Result<String, Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.text(doc_id, range)).await
+}
+
+/// Searches from page `first` on; returns after a batch of pages (continue from `nextPage`).
+#[tauri::command]
+async fn search_document(
+    doc_id: DocId,
+    query: SearchQuery,
+    first: u32,
+    state: State<'_, AppState>,
+) -> Result<SearchBatch, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.search(doc_id, query, first)).await
 }
 
 #[tauri::command]
@@ -552,6 +564,7 @@ pub fn run() {
             get_form_fields,
             change_field,
             get_text,
+            search_document,
             save_document,
             list_printers,
             document_properties,

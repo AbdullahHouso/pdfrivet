@@ -9,6 +9,7 @@ import FormLayer from "./FormLayer.svelte";
 import { i18n } from "./i18n.svelte";
 import { type Degrees, rotateRect } from "./layout";
 import { getLinks, type PagePixels, type RivetError, renderPage, toRivetError } from "./pdf";
+import type { SearchMark } from "./search.svelte";
 import TextLayer from "./TextLayer.svelte";
 
 interface Props {
@@ -30,6 +31,8 @@ interface Props {
   onfieldchange?: () => void;
   /** Selected characters on this page: [start, end), or null. */
   selected?: [number, number] | null;
+  /** Search results on this page. */
+  hits?: SearchMark[];
 }
 let {
   docId,
@@ -44,6 +47,7 @@ let {
   revision = 0,
   onfieldchange,
   selected = null,
+  hits = [],
 }: Props = $props();
 
 // Clickable links on this page (not for thumbnails).
@@ -127,7 +131,7 @@ $effect(() => {
 <div class="page" class:loading={!rendered} style:width="{width}px" style:height="{height}px">
   <canvas bind:this={canvas}></canvas>
   {#if !thumbnail}
-    <TextLayer {docId} {index} {rotation} {selected} />
+    <TextLayer {docId} {index} {rotation} {selected} {hits} />
   {/if}
   {#each links as link, i (i)}
     {@const r = rotateRect(link, rotation)}

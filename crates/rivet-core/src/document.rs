@@ -334,6 +334,15 @@ impl Document {
         Ok(out)
     }
 
+    /// Searches pages from `first` on, a batch at a time (see [`crate::SearchBatch`]).
+    pub fn search(&self, query: &crate::SearchQuery, first: u32) -> crate::SearchBatch {
+        crate::search::search_pages(self.page_count(), first, query, |index| {
+            self.load_page(index)
+                .map(|page| crate::search::page_chars(self.pdfium, &page))
+                .unwrap_or_default()
+        })
+    }
+
     /// Everything shown in the Document properties dialog.
     pub fn properties(&self) -> crate::metadata::DocProperties {
         use crate::metadata::{DocProperties, Metadata, Permissions, pdf_date_to_iso};

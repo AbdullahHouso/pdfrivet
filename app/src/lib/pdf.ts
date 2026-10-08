@@ -9,6 +9,8 @@ import type { FormField } from "./bindings/FormField";
 import type { Metadata } from "./bindings/Metadata";
 import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageLink } from "./bindings/PageLink";
+import type { SearchBatch } from "./bindings/SearchBatch";
+import type { SearchQuery } from "./bindings/SearchQuery";
 import type { TextRange } from "./bindings/TextRange";
 import type { Degrees } from "./layout";
 
@@ -59,6 +61,11 @@ export function changeField(docId: number, page: number, field: number, change: 
 /** The text of a range of characters (for copying). */
 export function getText(docId: number, range: TextRange): Promise<string> {
   return invoke("get_text", { docId, range });
+}
+
+/** Searches from page `first` on; returns after a batch of pages (continue from `nextPage`). */
+export function searchDocument(docId: number, query: SearchQuery, first: number): Promise<SearchBatch> {
+  return invoke("search_document", { docId, query, first });
 }
 
 /** Saves the document, including filled-in forms, to `path`. */

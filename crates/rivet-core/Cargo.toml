@@ -14,6 +14,7 @@ pdfium-render = "0.9.4"
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.21"
 ts-rs = "12.0.1"
+unicode-normalization = "0.1.25"
 
 [lints]
 workspace = true

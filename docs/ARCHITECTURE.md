@@ -130,8 +130,29 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
 - Copying asks the engine for the text of the range (`FPDFText_GetText`, so PDFium's own
   spaces and line breaks are kept) and writes it with the webview's clipboard API (falling
   back to the copy command). The document's "copy" permission is honoured, as in Chrome.
+- PDFium reverses right-to-left text into reading order, and that also reverses the letters of
+  a ligature (lam-alef "لا" comes out as "ال"). Letters of one ligature share one glyph box, so
+  `text.rs` turns such runs back (`fix_reversed_ligatures`); selection, copying and search all
+  read characters through it. Copied text is built from those characters, not `FPDFText_GetText`.
+- Known PDFium limitation: a line mixing left-to-right and right-to-left text may come out with
+  its parts in the wrong order (PDFium decides one direction per line). Chrome shares this.
 - On Linux and macOS the right-click menu event arrives when the button goes *down*, so the
   context menu is a manual popover (an automatic one closes again on button up).
+
+## Search
+
+- `rivet-core/src/search.rs` searches the page characters itself instead of using PDFium's
+  `FPDFText_FindStart`, which compares exactly. Page text and query are both **folded**: Arabic
+  diacritics and tatweel dropped, alef forms → ا, ى/ی → ي, ک → ك, Arabic-Indic and Persian digits
+  → 0–9, compatibility decomposition (presentation forms, ligatures, accents), lower case unless
+  "match case", and whitespace runs (including line breaks) → one space so phrases match across
+  lines. Each folded character remembers its source character, so a match is a character range,
+  exactly like a selection.
+- The engine searches in **batches** (up to 40 pages or 60 ms) and returns where to continue.
+  `search.svelte.ts` keeps asking for the next batch, adding results as they come; a new search
+  simply stops asking for the old one. Renders run between batches, so scrolling stays smooth.
+- Results are drawn by `TextLayer.svelte` (same rectangles as selections). The current result is
+  scrolled into view by the Viewer; the sidebar's Search pane lists all results (virtualized).
 
 ## Page display and printing
 

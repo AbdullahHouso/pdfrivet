@@ -8,6 +8,7 @@ import type { Degrees } from "./layout";
 import { forgetPageText } from "./pageText";
 import { closeDocument } from "./pdf";
 import type { FileView, ZoomMode } from "./recent";
+import { DocSearch } from "./search.svelte";
 import type { PageTone } from "./settings.svelte";
 import type { TextSelection } from "./textSelect";
 
@@ -61,6 +62,10 @@ export class Tab {
   revision = $state(0);
   /** Selected text (not kept when the tab moves to another window). */
   selection = $state.raw<TextSelection | null>(null);
+  /** Searching this document (Ctrl+F). */
+  readonly search: DocSearch;
+  /** The find bar is open. */
+  findOpen = $state(false);
 
   constructor(id: number, docId: number, path: string, info: DocInfo) {
     this.id = id;
@@ -68,6 +73,7 @@ export class Tab {
     this.path = path;
     this.info = info;
     this.pagesRtl = info.rtl;
+    this.search = new DocSearch(docId);
   }
 
   get fileName(): string {
@@ -165,6 +171,7 @@ export const tabs = {
     const [tab] = list.splice(index, 1);
     list = [...list];
     if (activeId === id) activeId = list[Math.min(index, list.length - 1)]?.id ?? null;
+    tab.search.clear();
     forgetPageText(tab.docId);
     await closeDocument(tab.docId).catch(() => {});
   },

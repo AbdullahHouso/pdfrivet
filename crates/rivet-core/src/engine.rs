@@ -18,7 +18,7 @@ use std::{
 
 use crate::{
     DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink, PageText,
-    Pdf, RenderedPage, Result, Rotation, TextRange,
+    Pdf, RenderedPage, Result, Rotation, SearchBatch, SearchQuery, TextRange,
     cache::{Key, RenderCache},
     metadata::{DocProperties, Metadata},
     print::PrintSettings,
@@ -65,6 +65,7 @@ enum Request {
     FormFields(DocId, u32, Reply<Vec<FormField>>),
     PageText(DocId, u32, Reply<PageText>),
     Text(DocId, TextRange, Reply<String>),
+    Search(DocId, SearchQuery, u32, Reply<SearchBatch>),
     ChangeField(DocId, u32, u32, FieldChange, Reply<()>),
     Save(DocId, PathBuf, Reply<()>),
     Print(DocId, Box<PrintSettings>, Option<Vec<u8>>, Reply<()>),
@@ -203,6 +204,12 @@ impl Engine {
         self.call(|reply| Request::Text(doc, range, reply))
     }
 
+    /// Searches the document from page `first` on. Returns after a batch of
+    /// pages; continue from [`SearchBatch::next_page`].
+    pub fn search(&self, doc: DocId, query: SearchQuery, first: u32) -> Result<SearchBatch> {
+        self.call(|reply| Request::Search(doc, query, first, reply))
+    }
+
     /// Changes a form field. Rendered pages of the document are refreshed.
     pub fn change_field(
         &self,
@@ -337,6 +344,9 @@ impl Worker {
             }
             Request::Text(id, range, reply) => {
                 let _ = reply.send(self.doc(id).and_then(|d| d.text(range)));
+            }
+            Request::Search(id, query, first, reply) => {
+                let _ = reply.send(self.doc(id).map(|d| d.search(&query, first)));
             }
             Request::ChangeField(id, page, field, change, reply) => {
                 let result = self

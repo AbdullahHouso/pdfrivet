@@ -210,6 +210,25 @@ close = Close
 copy-text = Copy
 select-all = Select all
 
+## Search
+search-placeholder = Find in document
+search-tab = Search
+search-searching = Searching…
+search-no-results = No results
+search-count = { $current } of { $total }
+search-results = { $total ->
+    [one] 1 result
+   *[other] { $total } results
+}
+search-page = Page { $page }
+search-match-case = Match case
+search-whole-word = Whole words only
+search-previous = Previous result
+search-next = Next result
+search-show-all = All results
+search-selection = Search for selected text
+search-pane-empty = Search the document’s text. Arabic is found with or without diacritics, and digits in any script.
+
 ## Errors (keys match rivet-core ErrorCode)
 
 error-library-not-found = The PDF engine (PDFium) could not be loaded. Please reinstall PDFRivet.

@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 ### Text
 - Select text with the mouse: drag, double-click a word, triple-click a line, Shift+click to extend, Ctrl+A for everything. Works the same in Arabic and other right-to-left text.
 - Copy with Ctrl+C or the right-click menu. PDFs whose author doesn't allow copying say so.
+- Arabic words with the lam-alef ligature (لا) are copied and found correctly.
+
+### Search
+- Find in document with Ctrl+F: results are highlighted on the pages as you type; Enter / Shift+Enter or F3 / Shift+F3 step through them.
+- Arabic is found with or without diacritics, with any form of alef (أ إ آ ا), with ى or ي, and in old PDFs that store letters in their joined forms. Digits match in any script (١٢٣ finds 123).
+- Match case and whole-word options.
+- All results with the text around them in the sidebar's new Search tab.
 
 ## [0.1.0] – 2026-10-08
 

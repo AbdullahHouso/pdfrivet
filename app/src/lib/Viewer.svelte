@@ -3,6 +3,7 @@
 // at a time, with one or two pages per row. Only pages near the viewport are
 // mounted; everything else is just empty space.
 import { tick, untrack } from "svelte";
+import type { SearchHit } from "./bindings/SearchHit";
 import {
   type Anchor,
   anchorAt,
@@ -16,16 +17,27 @@ import {
   PAGE_GAP,
   pageAtPoint,
   rotatedSize,
+  rotateRect,
   scrollTopFor,
   unrotatePoint,
   visibleRange,
 } from "./layout";
 import PageView from "./PageView.svelte";
-import { peekPageText } from "./pageText";
+import { loadPageText, peekPageText } from "./pageText";
 import { type RivetError, setVisiblePages } from "./pdf";
 import { settings } from "./settings.svelte";
 import type { Tab } from "./tabs.svelte";
-import { caretAt, charAt, isEmpty, isOverText, lineAt, rangeOnPage, type TextPosition, wordAt } from "./textSelect";
+import {
+  caretAt,
+  charAt,
+  isEmpty,
+  isOverText,
+  lineAt,
+  rangeOnPage,
+  selectionRects,
+  type TextPosition,
+  wordAt,
+} from "./textSelect";
 
 interface Props {
   tab: Tab;
@@ -159,6 +171,41 @@ $effect.pre(() => {
     queuedAnchor = null;
     scroller.scrollTop = scrollTopFor(layout, anchor);
   });
+});
+
+/** Scrolls so a search result is in view (leaves the view alone if it already is). */
+async function revealHit(hit: SearchHit) {
+  const text = await loadPageText(tab.docId, hit.page).catch(() => null);
+  const rects = text ? selectionRects(text, hit.start, hit.end) : [];
+  if (!tab.continuous && fullLayout.rowOf[hit.page] !== fullLayout.rowOf[tab.page]) {
+    goToPage(hit.page);
+    await tick();
+  }
+  if (rects.length === 0) {
+    goToPage(hit.page);
+    return;
+  }
+  const r = rotateRect(rects[0], tab.rotation);
+  const top = layout.tops[hit.page] + r.top * layout.heights[hit.page];
+  const bottom = layout.tops[hit.page] + r.bottom * layout.heights[hit.page];
+  if (top < scroller.scrollTop || bottom > scroller.scrollTop + viewportHeight) {
+    scroller.scrollTop = top - viewportHeight / 3;
+  }
+  const left = offsetX + layout.lefts[hit.page] + r.left * layout.widths[hit.page];
+  const right = offsetX + layout.lefts[hit.page] + r.right * layout.widths[hit.page];
+  if (left < scroller.scrollLeft || right > scroller.scrollLeft + viewportWidth) {
+    scroller.scrollLeft = left - viewportWidth / 3;
+  }
+}
+
+// Show the current search result whenever it changes (not when more results arrive).
+let revealed = "";
+$effect(() => {
+  const hit = tab.search.hits[tab.search.current];
+  const key = hit ? `${hit.page}:${hit.start}` : "";
+  if (!hit || key === revealed) return;
+  revealed = key;
+  untrack(() => revealHit(hit));
 });
 
 // Tell the engine what is visible, so it skips pages we scrolled past.
@@ -420,6 +467,7 @@ function onFieldChange() {
           revision={tab.revision}
           onfieldchange={onFieldChange}
           selected={rangeOnPage(tab.selection, index)}
+          hits={tab.search.marksOn(index)}
         />
       </div>
     {/each}

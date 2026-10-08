@@ -8,7 +8,7 @@
 //! and other right-to-left text, where an invisible HTML text layer and the
 //! browser's own selection go wrong.
 //!
-//! pdfium-render doesn't expose the text page handle or `FPDFText_GetText`, so
+//! pdfium-render doesn't expose the text page handle, so
 //! [`TextPage`] calls PDFium directly (`unsafe`), following the same rules as
 //! `forms.rs`: handles come from live pdfium-render objects that outlive the
 //! calls, and everything runs on the Engine's single PDFium thread.
@@ -97,19 +97,66 @@ pub(crate) fn read(pdfium: &Pdfium, page: &PdfPage) -> PageText {
     ) else {
         return PageText::default();
     };
-    let chars = (0..text.count())
-        .map(|i| char_at(&text, &transform, i))
+    let chars = raw_chars(&text)
+        .into_iter()
+        .map(|c| to_text_char(&c, &transform))
         .collect();
     PageText { chars }
 }
 
-fn char_at(text: &TextPage, transform: &Affine, index: i32) -> TextChar {
+/// A character as PDFium reports it, with its box in PDF points.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct RawChar {
+    pub code: u32,
+    pub generated: bool,
+    /// (left, bottom, right, top)
+    pub rect: Option<(f32, f32, f32, f32)>,
+}
+
+/// Every character of a page in PDFium's order, with its ligature mistake fixed
+/// (see [`fix_reversed_ligatures`]).
+pub(crate) fn raw_chars(text: &TextPage) -> Vec<RawChar> {
+    let mut chars: Vec<RawChar> = (0..text.count())
+        .map(|i| RawChar {
+            code: text.unicode(i),
+            generated: text.is_generated(i),
+            rect: text.loose_box(i),
+        })
+        .collect();
+    fix_reversed_ligatures(&mut chars);
+    chars
+}
+
+/// PDFium puts right-to-left text into reading order by reversing it, which
+/// also reverses the letters of a ligature: the lam-alef in "للاختبار" comes
+/// out as "ال". The letters of one ligature share one glyph, so they have the
+/// same box; a run of right-to-left letters with the same box is turned back.
+fn fix_reversed_ligatures(chars: &mut [RawChar]) {
+    let mut i = 0;
+    while i < chars.len() {
+        let mut end = i + 1;
+        if chars[i].rect.is_some() && is_rtl(chars[i].code) {
+            while end < chars.len() && chars[end].rect == chars[i].rect && is_rtl(chars[end].code) {
+                end += 1;
+            }
+            chars[i..end].reverse();
+        }
+        i = end;
+    }
+}
+
+/// Arabic, Hebrew, Syriac, Thaana, N'Ko… and their presentation forms.
+fn is_rtl(code: u32) -> bool {
+    matches!(code, 0x0590..=0x08FF | 0xFB1D..=0xFDFF | 0xFE70..=0xFEFF)
+}
+
+fn to_text_char(c: &RawChar, transform: &Affine) -> TextChar {
     let mut flags = 0;
-    if text.is_generated(index) {
+    if c.generated {
         flags |= CHAR_GENERATED;
     }
-    let rect = text
-        .loose_box(index)
+    let rect = c
+        .rect
         .map(|(l, b, r, t)| transform.rect(l, b, r, t))
         .filter(|r| r.right > r.left && r.bottom > r.top);
     let (left, top, right, bottom) = match rect {
@@ -124,7 +171,7 @@ fn char_at(text: &TextPage, transform: &Affine, index: i32) -> TextChar {
         top,
         right,
         bottom,
-        code: text.unicode(index),
+        code: c.code,
         flags,
     }
 }
@@ -134,12 +181,14 @@ pub(crate) fn text_of(pdfium: &Pdfium, page: &PdfPage, start: u32, end: u32) -> 
     let Some(text) = TextPage::load(pdfium, page) else {
         return String::new();
     };
-    let count = text.count().max(0) as u32;
-    let (start, end) = (start.min(count), end.min(count));
-    if end <= start {
-        return String::new();
-    }
-    clean(&text.text(start as i32, (end - start) as i32))
+    let chars = raw_chars(&text);
+    let end = (end as usize).min(chars.len());
+    let start = (start as usize).min(end);
+    let text: String = chars[start..end]
+        .iter()
+        .filter_map(|c| char::from_u32(c.code))
+        .collect();
+    clean(&text)
 }
 
 /// Tidies extracted text for the clipboard: one kind of line break, and no
@@ -203,23 +252,6 @@ impl<'p> TextPage<'p> {
         };
         (ok != 0).then_some((rect.left, rect.bottom, rect.right, rect.top))
     }
-
-    /// The text of `count` characters from `start`, as PDFium extracts it.
-    pub fn text(&self, start: i32, count: i32) -> String {
-        if count <= 0 {
-            return String::new();
-        }
-        // PDFium writes UTF-16 plus a terminating NUL.
-        let mut buffer = vec![0u16; count as usize + 1];
-        // SAFETY: the buffer has room for `count` characters and the NUL, as
-        // FPDFText_GetText requires.
-        let written = unsafe {
-            self.bindings
-                .FPDFText_GetText(self.handle, start, count, buffer.as_mut_ptr())
-        };
-        let len = (written.max(1) as usize - 1).min(count as usize);
-        String::from_utf16_lossy(&buffer[..len])
-    }
 }
 
 impl Drop for TextPage<'_> {
@@ -232,6 +264,36 @@ impl Drop for TextPage<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn raw(code: char, rect: (f32, f32, f32, f32)) -> RawChar {
+        RawChar {
+            code: code as u32,
+            generated: false,
+            rect: Some(rect),
+        }
+    }
+
+    #[test]
+    fn puts_ligature_letters_back_in_order() {
+        let glyph = (10.0, 0.0, 20.0, 10.0);
+        // "ل" + reversed lam-alef ("ا", "ل" sharing one box) + "خ".
+        let mut chars = vec![
+            raw('ل', (20.0, 0.0, 25.0, 10.0)),
+            raw('ا', glyph),
+            raw('ل', glyph),
+            raw('خ', (5.0, 0.0, 10.0, 10.0)),
+        ];
+        fix_reversed_ligatures(&mut chars);
+        let text: String = chars
+            .iter()
+            .map(|c| char::from_u32(c.code).unwrap())
+            .collect();
+        assert_eq!(text, "للاخ");
+        // Latin ligatures ("fi") are already in order and stay as they are.
+        let mut latin = vec![raw('f', glyph), raw('i', glyph)];
+        fix_reversed_ligatures(&mut latin);
+        assert_eq!(latin[0].code, 'f' as u32);
+    }
 
     #[test]
     fn clean_keeps_line_breaks_and_drops_control_characters() {

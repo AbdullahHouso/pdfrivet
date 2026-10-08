@@ -12,6 +12,7 @@ import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
 import ContextMenu, { type MenuItem } from "./lib/ContextMenu.svelte";
 import { writeClipboard } from "./lib/clipboard";
 import { hasOtherWindows, moveToNewWindow, openInNewWindow, tabsWindowLabel, windowRequest } from "./lib/docWindows";
+import FindBar from "./lib/FindBar.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { shortcutKey } from "./lib/keys";
 import { type Degrees, rotatedSize, stepZoom } from "./lib/layout";
@@ -36,7 +37,7 @@ import { type PrintProgress, printDocument as printWithSystemDialog } from "./li
 import { printDocument } from "./lib/printing";
 import type { ZoomMode } from "./lib/recent";
 import SettingsDialog from "./lib/SettingsDialog.svelte";
-import Sidebar from "./lib/Sidebar.svelte";
+import Sidebar, { type SidebarPane } from "./lib/Sidebar.svelte";
 import StartScreen from "./lib/StartScreen.svelte";
 import { type DocumentWindows, settings } from "./lib/settings.svelte";
 import TabBar from "./lib/TabBar.svelte";
@@ -49,6 +50,8 @@ import Viewer from "./lib/Viewer.svelte";
 
 let error = $state<RivetError | null>(null);
 let sidebarOpen = $state(true);
+let sidebarPane = $state<SidebarPane>("thumbnails");
+let findBar: FindBar | undefined = $state();
 let showAbout = $state(false);
 let showSettings = $state(false);
 let dragging = $state(false);
@@ -155,6 +158,39 @@ function selectAll(tab: Tab) {
   tab.selection = { anchor: { page: 0, index: 0 }, focus: { page: last, index: Number.MAX_SAFE_INTEGER } };
 }
 
+/** The selected text, if it's short enough to search for (one line, up to 100 characters). */
+async function searchableSelection(tab: Tab): Promise<string | null> {
+  const sel = tab.selection;
+  if (!sel || isEmpty(sel) || sel.anchor.page !== sel.focus.page || !tab.info.canCopy) return null;
+  const text = await getText(tab.docId, toTextRange(sel)).catch(() => "");
+  const line = text.trim();
+  return line && line.length <= 100 && !line.includes("\n") ? line : null;
+}
+
+/** Opens the find bar (Ctrl+F), filled with the selected text if there is a short one. */
+async function openFind(tab: Tab, text?: string | null) {
+  const query = text ?? (await searchableSelection(tab));
+  tab.findOpen = true;
+  if (query) {
+    tab.search.query = query;
+    tab.search.run(tab.page);
+  }
+  findBar?.focus();
+}
+
+function closeFind(tab: Tab) {
+  tab.findOpen = false;
+  tab.search.clear();
+  // Back to the pages, so the keyboard scrolls them again.
+  document.querySelector<HTMLElement>(".scroller")?.focus({ preventScroll: true });
+}
+
+/** F3 / Shift+F3: the next or previous result, or open the find bar. */
+function findNext(tab: Tab, direction: 1 | -1) {
+  if (tab.search.hits.length > 0) tab.search.step(direction);
+  else openFind(tab);
+}
+
 function showPageMenu(tab: Tab, e: MouseEvent) {
   const items: MenuItem[] = [];
   if (!isEmpty(tab.selection)) {
@@ -165,6 +201,9 @@ function showPageMenu(tab: Tab, e: MouseEvent) {
       hint: i18n.t("error-copy-not-allowed"),
       action: () => copySelection(tab),
     });
+    if (tab.info.canCopy) {
+      items.push({ label: i18n.t("search-selection"), shortcut: "Ctrl+F", action: () => openFind(tab) });
+    }
   }
   items.push({ label: i18n.t("select-all"), shortcut: "Ctrl+A", action: () => selectAll(tab) });
   contextMenu = { x: e.clientX, y: e.clientY, items };
@@ -470,6 +509,9 @@ function onKey(e: KeyboardEvent) {
     [!!tab && mod && key === "0", () => setZoomMode("fit-width")],
     [!!tab && ((mod && key === "g") || e.key === "F6"), () => toolbar?.focusPageInput()],
     [!!tab && !typing && !mod && e.key === "Home", () => goTo(0)],
+    // Find in document.
+    [!!tab && mod && !e.shiftKey && key === "f", () => tab && openFind(tab)],
+    [!!tab && e.key === "F3", () => tab && findNext(tab, e.shiftKey ? -1 : 1)],
     // Selected text: copy, select everything, clear.
     [!!tab && !typing && mod && !e.shiftKey && key === "c" && !isEmpty(tab.selection), () => tab && copySelection(tab)],
     [!!tab && !typing && mod && !e.shiftKey && key === "a", () => tab && selectAll(tab)],
@@ -602,10 +644,21 @@ onMount(() => {
   {#if active}
     {#key active.id}
       {#if sidebarOpen}
-        <Sidebar tab={active} ongoto={goTo} />
+        <Sidebar tab={active} ongoto={goTo} bind:pane={sidebarPane} onfind={() => active && openFind(active)} />
       {/if}
       {@const tab = active}
       <Viewer bind:this={viewer} {tab} onerror={(e) => (error = e)} oncontextmenu={(e) => showPageMenu(tab, e)} />
+      {#if tab.findOpen}
+        <FindBar
+          bind:this={findBar}
+          {tab}
+          onclose={() => closeFind(tab)}
+          onshowall={() => {
+            sidebarOpen = true;
+            sidebarPane = "search";
+          }}
+        />
+      {/if}
     {/key}
   {:else}
     <StartScreen onopen={pickFiles} onopenpath={openRecent} />

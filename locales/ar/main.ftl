@@ -208,6 +208,27 @@ close = إغلاق
 copy-text = نسخ
 select-all = تحديد الكل
 
+## Search
+search-placeholder = البحث في المستند
+search-tab = البحث
+search-searching = جارٍ البحث…
+search-no-results = لا توجد نتائج
+search-count = { $current } من { $total }
+search-results = { $total ->
+    [one] نتيجة واحدة
+    [two] نتيجتان
+    [few] { $total } نتائج
+   *[other] { $total } نتيجة
+}
+search-page = صفحة { $page }
+search-match-case = مطابقة حالة الأحرف
+search-whole-word = الكلمات الكاملة فقط
+search-previous = النتيجة السابقة
+search-next = النتيجة التالية
+search-show-all = كل النتائج
+search-selection = البحث عن النص المحدد
+search-pane-empty = ابحث في نص المستند. يُعثر على النص العربي بالتشكيل أو بدونه، وعلى الأرقام بأي صيغة كُتبت.
+
 ## Errors
 
 error-library-not-found = تعذّر تحميل محرك PDF ‏(PDFium). يُرجى إعادة تثبيت PDFRivet.

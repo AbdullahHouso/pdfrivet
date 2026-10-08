@@ -22,6 +22,10 @@
   --accent-hover: #9e4a24;
   /* Selected text on pages (see-through, so the text stays readable). */
   --text-selection: rgb(46 120 230 / 0.32);
+  /* Search results on pages, and the current one. */
+  --search-hit: rgb(255 204 0 / 0.4);
+  --search-current: rgb(255 140 0 / 0.5);
+  --search-current-edge: rgb(214 100 0);
   --hover: #f1f2f5;
   --error-bg: #fde8e8;
   --error-fg: #8a1c1c;

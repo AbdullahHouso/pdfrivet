@@ -1,18 +1,22 @@
 <script lang="ts">
-// Side panel with page thumbnails and the document outline.
+// Side panel with page thumbnails, the document outline and search results.
 import { i18n } from "./i18n.svelte";
 import OutlineNode from "./OutlineNode.svelte";
 import { getOutline } from "./pdf";
+import SearchPane from "./SearchPane.svelte";
 import Thumbnails from "./Thumbnails.svelte";
 import type { Tab } from "./tabs.svelte";
+
+export type SidebarPane = "thumbnails" | "outline" | "search";
 
 interface Props {
   tab: Tab;
   ongoto: (page: number) => void;
+  /** Opens the find bar. */
+  onfind: () => void;
+  pane?: SidebarPane;
 }
-let { tab, ongoto }: Props = $props();
-
-let pane = $state<"thumbnails" | "outline">("thumbnails");
+let { tab, ongoto, onfind, pane = $bindable("thumbnails") }: Props = $props();
 
 // Load the outline the first time it is shown.
 $effect(() => {
@@ -24,7 +28,7 @@ $effect(() => {
 });
 </script>
 
-<aside class="sidebar">
+<aside class="sidebar" class:wide={pane === "search"}>
   <div class="switcher" role="tablist">
     <button role="tab" aria-selected={pane === "thumbnails"} onclick={() => (pane = "thumbnails")}>
       {i18n.t("thumbnails")}
@@ -32,10 +36,15 @@ $effect(() => {
     <button role="tab" aria-selected={pane === "outline"} onclick={() => (pane = "outline")}>
       {i18n.t("outline")}
     </button>
+    <button role="tab" aria-selected={pane === "search"} onclick={() => (pane = "search")}>
+      {i18n.t("search-tab")}
+    </button>
   </div>
-  <div class="pane">
+  <div class="pane" class:fixed={pane === "search"}>
     {#if pane === "thumbnails"}
       <Thumbnails {tab} {ongoto} />
+    {:else if pane === "search"}
+      <SearchPane {tab} {onfind} />
     {:else if tab.outline === null}
       <p class="empty">…</p>
     {:else if tab.outline.length === 0}
@@ -78,10 +87,18 @@ $effect(() => {
     border-color: var(--border);
     font-weight: 600;
   }
+  /* Room for the text around search results. */
+  .sidebar.wide {
+    width: 280px;
+  }
   .pane {
     flex: 1;
     min-height: 0;
     overflow: auto;
+  }
+  /* The search results scroll by themselves (they're virtualized). */
+  .pane.fixed {
+    overflow: hidden;
   }
   .tree {
     list-style: none;
