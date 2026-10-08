@@ -6,6 +6,9 @@
 //! - Files opened from the OS ("Open with", double-click, a second launch) are
 //!   queued and announced to the UI with the `open-files` event.
 
+#[cfg(windows)]
+mod taskbar_tabs;
+
 use std::{
     path::{Path, PathBuf},
     sync::Mutex,
@@ -246,7 +249,29 @@ fn files_from_args(args: impl IntoIterator<Item = String>, cwd: &Path) -> Vec<Pa
         .collect()
 }
 
+/// Windows: shows each tab as its own preview in the taskbar (see `taskbar_tabs`).
+/// `enabled` is false when the setting is off or documents open in separate windows.
+#[cfg(windows)]
+#[tauri::command]
+fn set_taskbar_tabs(
+    window: tauri::WebviewWindow,
+    tabs: Vec<taskbar_tabs::TaskbarTab>,
+    active: Option<u32>,
+    enabled: bool,
+) {
+    let target = window.clone();
+    let _ = window.run_on_main_thread(move || taskbar_tabs::sync(&target, tabs, active, enabled));
+}
+
+/// Taskbar previews per tab are a Windows feature; elsewhere this does nothing.
+#[cfg(not(windows))]
+#[tauri::command]
+fn set_taskbar_tabs(_tabs: Vec<serde_json::Value>, _active: Option<u32>, _enabled: bool) {}
+
 /// Hands files to the UI: queued for `take_pending_files`, plus an event for a running UI.
+///
+/// With several windows open ("Separate windows" setting), only one is told, so
+/// the files don't open twice: the focused window, else the main one, else any.
 fn open_files(app: &AppHandle, files: Vec<PathBuf>) {
     if files.is_empty() {
         return;
@@ -254,8 +279,14 @@ fn open_files(app: &AppHandle, files: Vec<PathBuf>) {
     if let Ok(mut pending) = app.state::<AppState>().pending_files.lock() {
         pending.extend(files.iter().cloned());
     }
-    let _ = app.emit("open-files", ());
-    if let Some(window) = app.get_webview_window("main") {
+    let windows = app.webview_windows();
+    let target = windows
+        .values()
+        .find(|w| w.is_focused().unwrap_or(false))
+        .or_else(|| windows.get("main"))
+        .or_else(|| windows.values().next());
+    if let Some(window) = target {
+        let _ = window.emit_to(window.label(), "open-files", ());
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
@@ -399,7 +430,13 @@ pub fn run() {
         // Opens web links from PDFs in the default browser (http, https and mailto only).
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        // Remembers the main window's size and position. Windows opened for single
+        // documents ("Separate windows") are placed next to the one they came from.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_filter(|label| label == "main")
+                .build(),
+        )
         // Restarts the app after an update.
         .plugin(tauri_plugin_process::init())
         .append_invoke_initialization_script(system_locales_script())
@@ -453,6 +490,7 @@ pub fn run() {
             set_visible_pages,
             close_document,
             take_pending_files,
+            set_taskbar_tabs,
             files_exist
         ])
         .build(tauri::generate_context!())

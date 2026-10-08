@@ -91,6 +91,10 @@ page-tone-green = أخضر
 page-tone-dimmed = خافت
 page-tone-dark = داكن
 language = اللغة
+open-documents-in = فتح المستندات في
+documents-tabs = علامات تبويب
+documents-windows = نوافذ منفصلة
+taskbar-tabs = إظهار كل علامة تبويب في شريط المهام
 about = حول PDFRivet
 
 ## Saving

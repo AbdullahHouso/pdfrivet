@@ -95,6 +95,10 @@ page-tone-green = Green
 page-tone-dimmed = Dimmed
 page-tone-dark = Dark
 language = Language
+open-documents-in = Open documents in
+documents-tabs = Tabs
+documents-windows = Separate windows
+taskbar-tabs = Show each tab in the taskbar
 about = About PDFRivet
 
 ## Saving

@@ -11,6 +11,8 @@ export type Theme = "system" | "light" | "dark" | "black";
  * warm paper, green, dimmed, or dark pages with light text.
  */
 export type PageTone = "original" | "warm" | "green" | "dimmed" | "dark";
+/** Open documents as tabs in one window (default), or each in its own window. */
+export type DocumentWindows = "tabs" | "windows";
 /** Mouse mode: click links and fields, or drag the page around. */
 export type Tool = "select" | "hand";
 
@@ -32,6 +34,8 @@ let continuous = $state(true);
 let tool = $state<Tool>("select");
 let printPrefs = $state<PrintPrefs>({});
 let pageTone = $state<PageTone>("original");
+let documentWindows = $state<DocumentWindows>("tabs");
+let taskbarTabs = $state(true);
 let autoUpdate = $state(true);
 let lastUpdateCheck = 0;
 let skippedVersion = $state<string | null>(null);
@@ -49,6 +53,44 @@ async function save(key: string, value: unknown) {
   }
 }
 
+/** Takes over a setting changed in another window. */
+function apply(key: string, value: unknown) {
+  if (value === undefined || value === null) return;
+  switch (key) {
+    case "theme":
+      theme = value as Theme;
+      applyTheme(theme);
+      break;
+    case "recent":
+      recent = value as RecentFile[];
+      break;
+    case "pageTone":
+      pageTone = value as PageTone;
+      break;
+    case "documentWindows":
+      documentWindows = value as DocumentWindows;
+      break;
+    case "taskbarTabs":
+      taskbarTabs = value as boolean;
+      break;
+    case "tool":
+      tool = value as Tool;
+      break;
+    case "print":
+      printPrefs = value as PrintPrefs;
+      break;
+    case "autoUpdate":
+      autoUpdate = value as boolean;
+      break;
+    case "skippedVersion":
+      skippedVersion = value as string;
+      break;
+    case "lastUpdateCheck":
+      lastUpdateCheck = value as number;
+      break;
+  }
+}
+
 export const settings = {
   /** Loads saved settings. Call once at startup; the app works without it. */
   async init() {
@@ -61,6 +103,10 @@ export const settings = {
       tool = (await store.get<Tool>("tool")) ?? "select";
       printPrefs = (await store.get<PrintPrefs>("print")) ?? {};
       pageTone = (await store.get<PageTone>("pageTone")) ?? "original";
+      documentWindows = (await store.get<DocumentWindows>("documentWindows")) ?? "tabs";
+      taskbarTabs = (await store.get<boolean>("taskbarTabs")) ?? true;
+      // Several windows share these settings: follow changes made in the others.
+      await store.onChange((key, value) => apply(key, value));
       autoUpdate = (await store.get<boolean>("autoUpdate")) ?? true;
       lastUpdateCheck = (await store.get<number>("lastUpdateCheck")) ?? 0;
       skippedVersion = (await store.get<string>("skippedVersion")) ?? null;
@@ -77,6 +123,23 @@ export const settings = {
     theme = value;
     applyTheme(value);
     save("theme", value);
+  },
+
+  /** Tabs in one window, or a window per document. */
+  get documentWindows() {
+    return documentWindows;
+  },
+  set documentWindows(value: DocumentWindows) {
+    documentWindows = value;
+    save("documentWindows", value);
+  },
+  /** Windows only: each tab gets its own preview in the taskbar. */
+  get taskbarTabs() {
+    return taskbarTabs;
+  },
+  set taskbarTabs(value: boolean) {
+    taskbarTabs = value;
+    save("taskbarTabs", value);
   },
 
   get pageTone() {

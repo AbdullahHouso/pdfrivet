@@ -4,7 +4,7 @@ import { i18n, languages } from "./i18n.svelte";
 import { ZOOM_STEPS } from "./layout";
 import { westernDigits } from "./pageRange";
 import type { ZoomMode } from "./recent";
-import { type PageTone, settings, type Theme } from "./settings.svelte";
+import { type DocumentWindows, type PageTone, settings, type Theme } from "./settings.svelte";
 import type { PageLayout, Tab } from "./tabs.svelte";
 
 interface Props {
@@ -79,6 +79,9 @@ function onZoomSelect(e: Event) {
 }
 
 const themes: Theme[] = ["system", "light", "dark", "black"];
+const documentModes: DocumentWindows[] = ["tabs", "windows"];
+// Per-tab taskbar previews are a Windows feature.
+const onWindows = /Windows/.test(navigator.userAgent);
 // Swatches for the page colours (what a white page looks like in each).
 const tones: { value: PageTone; swatch: string }[] = [
   { value: "original", swatch: "#ffffff" },
@@ -243,6 +246,23 @@ const tones: { value: PageTone; swatch: string }[] = [
         {/each}
       </select>
     </label>
+    <div class="menu-section">
+      <span class="menu-label" id="documents-label">{i18n.t("open-documents-in")}</span>
+      <div class="segmented" role="radiogroup" aria-labelledby="documents-label">
+        {#each documentModes as mode (mode)}
+          <button role="radio" aria-checked={settings.documentWindows === mode}
+            onclick={() => (settings.documentWindows = mode)}>
+            {i18n.t(`documents-${mode}`)}
+          </button>
+        {/each}
+      </div>
+      {#if onWindows && settings.documentWindows === "tabs"}
+        <label class="inline-check">
+          <input type="checkbox" bind:checked={settings.taskbarTabs} />
+          {i18n.t("taskbar-tabs")}
+        </label>
+      {/if}
+    </div>
     {#if tab}
       <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onsaveas}>
         {i18n.t("save-as")}
@@ -431,6 +451,17 @@ const tones: { value: PageTone; swatch: string }[] = [
     padding-block-start: 4px;
   }
   .check input {
+    accent-color: var(--accent);
+  }
+  .inline-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-block-start: 4px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .inline-check input {
     accent-color: var(--accent);
   }
   .tones-section {

@@ -1,6 +1,6 @@
 <script lang="ts">
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { onMount } from "svelte";
@@ -8,12 +8,22 @@ import AboutDialog from "./lib/AboutDialog.svelte";
 import type { Metadata } from "./lib/bindings/Metadata";
 import type { PrintSettings } from "./lib/bindings/PrintSettings";
 import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
+import { fileFromUrl, hasOtherWindows, openInNewWindow } from "./lib/docWindows";
 import { i18n } from "./lib/i18n.svelte";
-import { type Degrees, stepZoom } from "./lib/layout";
+import { shortcutKey } from "./lib/keys";
+import { type Degrees, rotatedSize, stepZoom } from "./lib/layout";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
 import PropertiesDialog from "./lib/PropertiesDialog.svelte";
-import { openDocument, type RivetError, saveDocument, setMetadata, takePendingFiles, toRivetError } from "./lib/pdf";
+import {
+  openDocument,
+  type RivetError,
+  saveDocument,
+  setMetadata,
+  setTaskbarTabs,
+  takePendingFiles,
+  toRivetError,
+} from "./lib/pdf";
 import { type PrintProgress, printDocument as printWithSystemDialog } from "./lib/print";
 import { printDocument } from "./lib/printing";
 import type { ZoomMode } from "./lib/recent";
@@ -52,7 +62,21 @@ async function pickFiles() {
     directory: false,
     filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }],
   });
-  for (const path of picked ?? []) await openPath(path);
+  await openFiles(picked ?? []);
+}
+
+/**
+ * Opens PDFs as tabs here, or, with "Separate windows", each in a window of
+ * its own (the first one here if this window is still empty).
+ */
+async function openFiles(paths: string[]) {
+  for (const path of paths) {
+    if (settings.documentWindows === "windows" && tabs.list.length > 0 && !tabs.findByPath(path)) {
+      await openInNewWindow(path);
+    } else {
+      await openPath(path);
+    }
+  }
 }
 
 async function openPath(path: string, password?: string) {
@@ -215,6 +239,11 @@ async function closeTab(tab: Tab) {
     if (answer === "save" && !(await saveTab(tab))) return;
   }
   await tabs.close(tab.id);
+  // With a window per document, closing its document closes the window,
+  // unless it's the last one (which goes back to the start screen).
+  if (settings.documentWindows === "windows" && tabs.list.length === 0 && (await hasOtherWindows())) {
+    await getCurrentWindow().destroy();
+  }
 }
 
 /**
@@ -237,7 +266,7 @@ async function offerToSaveAll(): Promise<boolean> {
 }
 
 async function openPending() {
-  for (const path of await takePendingFiles()) await openPath(path);
+  await openFiles(await takePendingFiles());
 }
 
 function goTo(page: number) {
@@ -279,9 +308,33 @@ $effect(() => {
 });
 
 /** Keyboard shortcuts. Each returns true when it handled the key. */
+// Windows: each tab gets its own preview in the taskbar (only the main window
+// has tabs; windows opened per document are taskbar entries of their own).
+const onWindows = /Windows/.test(navigator.userAgent);
+$effect(() => {
+  if (!onWindows || getCurrentWindow().label !== "main") return;
+  const enabled = settings.taskbarTabs && settings.documentWindows === "tabs";
+  const list = tabs.list.map((t) => {
+    const size = rotatedSize(t.info.pageSizes[t.page] ?? t.info.pageSizes[0], t.rotation);
+    return {
+      id: t.id,
+      title: t.title,
+      docId: t.docId,
+      page: t.page,
+      widthPt: size.width,
+      heightPt: size.height,
+      rotation: t.rotation,
+    };
+  });
+  const activeId = tabs.active?.id ?? null;
+  // Wait until scrolling settles, so the preview isn't refreshed for every page.
+  const timer = setTimeout(() => setTaskbarTabs(list, activeId, enabled).catch(() => {}), 300);
+  return () => clearTimeout(timer);
+});
+
 function onKey(e: KeyboardEvent) {
   const mod = e.ctrlKey || e.metaKey;
-  const key = e.key.toLowerCase();
+  const key = shortcutKey(e);
   const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement;
   const tab = active;
 
@@ -315,8 +368,14 @@ function onKey(e: KeyboardEvent) {
 onMount(() => {
   // Load settings first, so reopened files find their saved position.
   settings.init().then(() => {
-    openPending();
-    updater.startAutomaticChecks();
+    // A window opened for one document (see docWindows.ts) opens just that.
+    const file = fileFromUrl();
+    if (file) {
+      openPath(file);
+    } else {
+      openPending();
+      updater.startAutomaticChecks();
+    }
   });
   const unlisten = [
     // Ask before closing the window with unsaved changes.
@@ -326,14 +385,22 @@ onMount(() => {
       if (await offerToSaveAll()) await getCurrentWindow().destroy();
     }),
     // Files from "Open with" or a second launch while PDFRivet is running.
-    listen("open-files", () => openPending()),
+    // A tab's preview in the Windows taskbar was clicked or closed.
+    getCurrentWebviewWindow().listen<{ action: "activate" | "close"; id: number }>("taskbar-tab", (event) => {
+      const tab = tabs.list.find((t) => t.id === event.payload.id);
+      if (!tab) return;
+      if (event.payload.action === "activate") tabs.activate(tab.id);
+      else closeTab(tab);
+    }),
+    // (Sent to one window only, so files don't open twice.)
+    getCurrentWebviewWindow().listen("open-files", () => openPending()),
     getCurrentWebview().onDragDropEvent(async (event) => {
       const p = event.payload;
       if (p.type === "enter" || p.type === "over") dragging = true;
       else if (p.type === "leave") dragging = false;
       else if (p.type === "drop") {
         dragging = false;
-        for (const path of p.paths.filter((x) => x.toLowerCase().endsWith(".pdf"))) await openPath(path);
+        await openFiles(p.paths.filter((x) => x.toLowerCase().endsWith(".pdf")));
       }
     }),
   ];
@@ -345,7 +412,9 @@ onMount(() => {
 
 <svelte:window onkeydown={onKey} />
 
-{#if tabs.list.length > 0}
+<!-- With a window per document the tab bar is hidden, unless this window
+     still has several tabs from before the setting changed. -->
+{#if tabs.list.length > 1 || (tabs.list.length > 0 && settings.documentWindows === "tabs")}
   <TabBar onopen={pickFiles} onclose={closeTab} />
 {/if}
 
@@ -397,7 +466,7 @@ onMount(() => {
       <Viewer bind:this={viewer} tab={active} onerror={(e) => (error = e)} />
     {/key}
   {:else}
-    <StartScreen onopen={pickFiles} onopenpath={(p) => openPath(p)} />
+    <StartScreen onopen={pickFiles} onopenpath={(p) => openFiles([p])} />
   {/if}
 
   {#if dragging}

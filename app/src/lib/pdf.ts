@@ -81,6 +81,23 @@ export function filesExist(paths: string[]): Promise<boolean[]> {
   return invoke("files_exist", { paths });
 }
 
+/** One tab for the Windows taskbar (see `taskbar_tabs.rs`). */
+export interface TaskbarTab {
+  id: number;
+  title: string;
+  docId: number;
+  page: number;
+  /** Page size on screen in PDF points, after rotation. */
+  widthPt: number;
+  heightPt: number;
+  rotation: number;
+}
+
+/** Windows: one taskbar preview per tab. Does nothing on other systems. */
+export function setTaskbarTabs(tabs: TaskbarTab[], active: number | null, enabled: boolean): Promise<void> {
+  return invoke("set_taskbar_tabs", { tabs, active, enabled });
+}
+
 // Custom protocols are exposed as http://<name>.localhost on Windows/Android
 // and as <name>://localhost elsewhere.
 const PROTOCOL_BASE = /Windows|Android/.test(navigator.userAgent) ? "http://rivet.localhost" : "rivet://localhost";
