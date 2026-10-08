@@ -41,20 +41,22 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 /** When a tooltip last closed: moving on to the next button shows its tooltip at once. */
 let closedAt = 0;
 
+// A plain floating element, not a top-layer popover: WebView2 (Windows) can
+// keep painting a closed popover. To appear above an open menu or dialog, it
+// is moved inside that menu or dialog while it shows.
 function element(): HTMLDivElement {
   if (!tooltip) {
     tooltip = document.createElement("div");
     tooltip.className = "tooltip";
     tooltip.setAttribute("role", "tooltip");
-    // A popover sits in the top layer, above menus and dialogs.
-    tooltip.popover = "manual";
+    tooltip.hidden = true;
     document.body.append(tooltip);
   }
   return tooltip;
 }
 
 function isOpen(): boolean {
-  return !!tooltip?.matches(":popover-open");
+  return !!tooltip && !tooltip.hidden;
 }
 
 function show(el: Element) {
@@ -73,7 +75,9 @@ function show(el: Element) {
     kbd.textContent = formatShortcut(content.shortcut);
     tip.append(kbd);
   }
-  if (!isOpen()) tip.showPopover();
+  const host = el.closest("dialog[open], [popover]") ?? document.body;
+  if (tip.parentElement !== host) host.append(tip);
+  tip.hidden = false;
   // Below the element, centred and kept on screen; above it if there's no room.
   const box = el.getBoundingClientRect();
   const size = tip.getBoundingClientRect();
@@ -90,8 +94,8 @@ function hide() {
   clearTimeout(timer);
   target?.removeEventListener("pointerleave", hide);
   target = null;
-  if (isOpen()) {
-    tooltip?.hidePopover();
+  if (tooltip && !tooltip.hidden) {
+    tooltip.hidden = true;
     closedAt = Date.now();
   }
 }
