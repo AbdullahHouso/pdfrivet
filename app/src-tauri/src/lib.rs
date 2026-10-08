@@ -273,11 +273,12 @@ fn pdfium_dir(app: &tauri::App) -> PathBuf {
     }
 }
 
-/// Handles `rivet://localhost/page/<doc>/<page>?scale=<f32>&rot=<degrees>[&thumb=1]`.
+/// Handles `rivet://localhost/page/<doc>/<page>?scale=<f32>&rot=<degrees>[&thumb=1][&cached=1]`.
 ///
 /// The body is an 8-byte header (width and height as little-endian u32)
 /// followed by raw RGBA pixels, ready for `ImageData` on a canvas.
-/// Pages that scrolled out of view get an empty `204 No Content`.
+/// Pages that scrolled out of view get an empty `204 No Content`, and so do
+/// `cached=1` requests for pages that aren't rendered at that size yet.
 fn page_protocol(engine: &Engine, uri: &http::Uri) -> http::Response<Vec<u8>> {
     let parts: Vec<&str> = uri.path().trim_matches('/').split('/').collect();
     let query = |name: &str| {
@@ -301,6 +302,9 @@ fn page_protocol(engine: &Engine, uri: &http::Uri) -> http::Response<Vec<u8>> {
 
     let result = match parts.as_slice() {
         ["page", doc, page] => match (doc.parse(), page.parse()) {
+            (Ok(doc), Ok(page)) if query("cached").is_some() => {
+                engine.cached(doc, page, scale, rotation)
+            }
             (Ok(doc), Ok(page)) if query("thumb").is_some() => {
                 engine.render_thumbnail(doc, page, scale, rotation)
             }

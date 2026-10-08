@@ -96,16 +96,20 @@ export interface RenderOptions {
   rotation: Degrees;
   /** Thumbnails render even when the page is far from the main view. */
   thumbnail?: boolean;
+  /** Only return the page if it's already rendered at this size (never renders). */
+  cachedOnly?: boolean;
   signal?: AbortSignal;
 }
 
 /**
  * Renders a page to raw pixels (`scale` 1 = 72 DPI).
- * Resolves to `null` when the engine skipped it because it scrolled out of view.
+ * Resolves to `null` when the engine skipped it because it scrolled out of view,
+ * or, with `cachedOnly`, when it isn't rendered at this size yet.
  */
 export async function renderPage(docId: number, page: number, opts: RenderOptions): Promise<PagePixels | null> {
   let url = `${PROTOCOL_BASE}/page/${docId}/${page}?scale=${opts.scale.toFixed(3)}&rot=${opts.rotation}`;
   if (opts.thumbnail) url += "&thumb=1";
+  if (opts.cachedOnly) url += "&cached=1";
   const response = await fetch(url, { signal: opts.signal });
   if (response.status === 204) return null;
   if (!response.ok) {

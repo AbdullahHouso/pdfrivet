@@ -1,4 +1,6 @@
 use std::{
+    cell::Cell,
+    io::Cursor,
     path::Path,
     sync::{Arc, OnceLock},
 };
@@ -13,6 +15,12 @@ use crate::{
 
 /// Files up to this size are loaded into memory when opened (see [`Pdf::open`]).
 pub const IN_MEMORY_LIMIT: u64 = 512 * 1024 * 1024;
+
+/// PDFium keeps fonts, images and other data of every page it has shown until
+/// the document is closed, so memory grows as you read (about 20 MB per 100
+/// pages in image-heavy files). After this many pages the document is quietly
+/// opened again, which lets go of all that (see [`Document::release_memory`]).
+const RELEASE_AFTER_PAGES: u32 = 100;
 
 /// The loaded PDFium library. Create one per process with [`Pdf::load`].
 ///
@@ -59,15 +67,14 @@ impl Pdf {
             ));
         }
         let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(u64::MAX);
-        let loaded = if size <= IN_MEMORY_LIMIT {
+        let source = if size <= IN_MEMORY_LIMIT {
             let bytes =
                 std::fs::read(path).map_err(|e| Error::new(ErrorCode::Io, e.to_string()))?;
-            self.pdfium.load_pdf_from_byte_vec(bytes, password)
+            Source::Memory(Arc::new(bytes))
         } else {
-            self.pdfium.load_pdf_from_file(path, password)
+            Source::File
         };
-        let inner = loaded.map_err(|e| {
-            let err = Error::from(e);
+        let inner = load(self.pdfium, &source, path, password).map_err(|err| {
             // PDFium reports the same error for "no password" and "wrong password".
             if err.code == ErrorCode::PasswordRequired && password.is_some() {
                 Error::new(ErrorCode::WrongPassword, err.detail)
@@ -80,6 +87,10 @@ impl Pdf {
             inner,
             path: path.to_path_buf(),
             new_metadata: None,
+            source,
+            password: password.map(str::to_owned),
+            pages_loaded: Cell::new(0),
+            unsaved_form_changes: Cell::new(false),
         })
     }
 
@@ -113,6 +124,38 @@ impl Pdf {
         doc.save_to_file(path)?;
         Ok(())
     }
+}
+
+/// Where a document's bytes come from, so it can be opened again.
+enum Source {
+    /// Read into memory once; every reopening shares these bytes.
+    Memory(Arc<Vec<u8>>),
+    /// Too big to keep in memory; read from `Document::path` as needed.
+    File,
+}
+
+/// Lets PDFium read shared in-memory bytes without copying the whole file.
+struct SharedBytes(Arc<Vec<u8>>);
+
+impl AsRef<[u8]> for SharedBytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+fn load(
+    pdfium: &'static Pdfium,
+    source: &Source,
+    path: &Path,
+    password: Option<&str>,
+) -> Result<PdfDocument<'static>> {
+    let loaded = match source {
+        Source::Memory(bytes) => {
+            pdfium.load_pdf_from_reader(Cursor::new(SharedBytes(bytes.clone())), password)
+        }
+        Source::File => pdfium.load_pdf_from_file(path, password),
+    };
+    Ok(loaded?)
 }
 
 /// Page size in PDF points (1 pt = 1/72 inch).
@@ -185,6 +228,13 @@ pub struct Document {
     path: std::path::PathBuf,
     /// Title/author/… changed by the user, written into the file on save.
     new_metadata: Option<crate::metadata::Metadata>,
+    source: Source,
+    password: Option<String>,
+    /// Pages PDFium has loaded since the document was (re)opened.
+    pages_loaded: Cell<u32>,
+    /// Filled-in form fields live only inside PDFium until they're saved, so
+    /// the document must not be reopened while there are any.
+    unsaved_form_changes: Cell<bool>,
 }
 
 impl Document {
@@ -231,8 +281,7 @@ impl Document {
 
     /// The clickable links on a page.
     pub fn links(&self, index: u32) -> Result<Vec<PageLink>> {
-        self.check_index(index)?;
-        let page = self.inner.pages().get(index as PdfPageIndex)?;
+        let page = self.load_page(index)?;
         Ok(links::read(&page))
     }
 
@@ -311,23 +360,23 @@ impl Document {
 
     /// The interactive form fields on a page (empty if it has none).
     pub fn form_fields(&self, index: u32) -> Result<Vec<FormField>> {
-        self.check_index(index)?;
-        let page = self.inner.pages().get(index as PdfPageIndex)?;
+        let page = self.load_page(index)?;
         Ok(forms::read(&page))
     }
 
     /// Changes a form field (see [`FieldChange`]).
     pub fn change_field(&self, page: u32, field: u32, change: &FieldChange) -> Result<()> {
-        self.check_index(page)?;
-        let pdf_page = self.inner.pages().get(page as PdfPageIndex)?;
-        forms::apply(self.pdfium, &self.inner, &pdf_page, field, change)
+        let pdf_page = self.load_page(page)?;
+        forms::apply(self.pdfium, &self.inner, &pdf_page, field, change)?;
+        self.unsaved_form_changes.set(true);
+        Ok(())
     }
 
     /// Saves the document (including filled-in forms) to `path`.
     ///
     /// The new file is written next to the target first and then moved into
     /// place, so a crash or full disk never leaves a half-written PDF behind.
-    pub fn save(&self, path: &Path) -> Result<()> {
+    pub fn save(&mut self, path: &Path) -> Result<()> {
         let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
         let mut bytes = self
             .inner
@@ -356,7 +405,41 @@ impl Document {
         write().map_err(|e| {
             let _ = std::fs::remove_file(&temp);
             failed(&e)
-        })
+        })?;
+        // The saved bytes now hold the filled-in fields, so reopening is safe again.
+        if let Source::Memory(_) = self.source {
+            self.source = Source::Memory(Arc::new(bytes));
+            self.unsaved_form_changes.set(false);
+        }
+        Ok(())
+    }
+
+    /// Whether [`Document::release_memory`] would free a worthwhile amount.
+    pub fn should_release_memory(&self) -> bool {
+        self.pages_loaded.get() >= RELEASE_AFTER_PAGES && !self.unsaved_form_changes.get()
+    }
+
+    /// Opens the document again from the same bytes, freeing what PDFium has
+    /// kept from pages shown so far. Does nothing while filled-in form fields
+    /// aren't saved yet. If reopening fails, the current document stays open.
+    pub fn release_memory(&mut self) -> Result<()> {
+        if self.unsaved_form_changes.get() {
+            return Ok(());
+        }
+        let fresh = load(
+            self.pdfium,
+            &self.source,
+            &self.path,
+            self.password.as_deref(),
+        )?;
+        // A big file is read from disk again; if it was changed by another program
+        // meanwhile, keep showing the version that is open.
+        if fresh.pages().len() != self.inner.pages().len() {
+            return Err(Error::new(ErrorCode::Io, "the file changed on disk"));
+        }
+        self.inner = fresh;
+        self.pages_loaded.set(0);
+        Ok(())
     }
 
     /// Prints pages with the given settings. `printer_settings` are driver
@@ -375,8 +458,7 @@ impl Document {
     /// Renders a page. `scale` 1.0 means 1 pixel per PDF point (72 DPI);
     /// the UI passes zoom × device pixel ratio.
     pub fn render_page(&self, index: u32, scale: f32, rotation: Rotation) -> Result<RenderedPage> {
-        self.check_index(index)?;
-        let page = self.inner.pages().get(index as PdfPageIndex)?;
+        let page = self.load_page(index)?;
         let config = PdfRenderConfig::new()
             .scale_page_by_factor(scale.clamp(0.05, 16.0))
             .rotate(rotation.to_pdfium(), true)
@@ -392,6 +474,13 @@ impl Document {
             height: bitmap.height() as u32,
             rgba: bitmap.as_rgba_bytes().into(),
         })
+    }
+
+    fn load_page(&self, index: u32) -> Result<PdfPage<'_>> {
+        self.check_index(index)?;
+        self.pages_loaded
+            .set(self.pages_loaded.get().saturating_add(1));
+        Ok(self.inner.pages().get(index as PdfPageIndex)?)
     }
 
     fn check_index(&self, index: u32) -> Result<()> {

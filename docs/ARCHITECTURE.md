@@ -46,8 +46,15 @@ Query parameters: `scale`, `rot` (0/90/180/270, view only) and `thumb=1` for thu
   Thumbnails (`thumb=1`) are exempt.
 - **Newest first:** the engine drains its queue and renders the most recent requests first.
 - **Render cache:** a 48 MB LRU of rendered pages in the engine (`cache.rs`).
-- **Progressive pages:** a quick low-resolution preview, then the sharp page; when zooming,
-  the old pixels are stretched until the new render arrives.
+- **Progressive pages:** a page coming into view first asks the cache (`cached=1`); if it was
+  rendered before at that size it appears sharp at once. Otherwise a quick low-resolution
+  preview shows while the sharp page renders. When zooming, the old pixels are stretched
+  until the new render arrives.
+- **PDFium's own caches:** PDFium keeps fonts, images and other data of every page it has
+  shown until the document is closed (about 20 MB per 100 pages in image-heavy files). After
+  100 pages the engine quietly reopens the document from the same bytes
+  (`Document::release_memory`, ~30 ms, between requests), which keeps memory flat. It never
+  does this while filled-in form fields are unsaved, because they exist only inside PDFium.
 
 ## Tabs and files from the OS
 

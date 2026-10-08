@@ -256,7 +256,7 @@ fn reads_form_fields() {
 #[test]
 fn fills_in_and_saves_a_form() {
     let _serial = serial();
-    let doc = pdf().open(&fixture("forms.pdf"), None).unwrap();
+    let mut doc = pdf().open(&fixture("forms.pdf"), None).unwrap();
     let fields = doc.form_fields(0).unwrap();
     let index = |name: &str| field(&fields, name).index;
     let blue = fields
@@ -324,7 +324,7 @@ fn saves_over_the_open_file() {
     let dir = temp_dir("overwrite");
     let path = dir.join("form.pdf");
     std::fs::copy(fixture("forms.pdf"), &path).unwrap();
-    let doc = pdf().open(&path, None).unwrap();
+    let mut doc = pdf().open(&path, None).unwrap();
     let agree = field(&doc.form_fields(0).unwrap(), "agree").index;
     doc.change_field(0, agree, &FieldChange::Toggle).unwrap();
     // The file is open in Rivet and is replaced in place (this fails on
@@ -394,4 +394,62 @@ fn reads_and_changes_document_properties() {
     let protected = pdf().open(&fixture("password.pdf"), Some("rivet")).unwrap();
     let props = protected.properties();
     assert!(props.encrypted && !props.can_edit_metadata);
+}
+
+#[test]
+fn reopens_to_release_memory_and_keeps_rendering() {
+    let _serial = serial();
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let before = doc.render_page(1, 0.5, Rotation::None).unwrap();
+    assert!(!doc.should_release_memory());
+    // Showing many pages makes PDFium's caches worth releasing.
+    for i in 0..120 {
+        doc.render_page(i % 3, 0.2, Rotation::None).unwrap();
+    }
+    assert!(doc.should_release_memory());
+    doc.release_memory().unwrap();
+    assert!(!doc.should_release_memory());
+    let after = doc.render_page(1, 0.5, Rotation::None).unwrap();
+    assert_eq!((after.width, after.height), (before.width, before.height));
+    assert_eq!(after.rgba, before.rgba);
+}
+
+#[test]
+fn keeps_unsaved_form_changes_when_releasing_memory() {
+    let _serial = serial();
+    let dir = temp_dir("release");
+    let mut doc = pdf().open(&fixture("forms.pdf"), None).unwrap();
+    let agree = field(&doc.form_fields(0).unwrap(), "agree").index;
+    doc.change_field(0, agree, &FieldChange::Toggle).unwrap();
+    for _ in 0..120 {
+        doc.render_page(0, 0.2, Rotation::None).unwrap();
+    }
+    // The ticked box exists only inside PDFium, so the document must stay open.
+    assert!(!doc.should_release_memory());
+    doc.release_memory().unwrap();
+    let checked =
+        |doc: &rivet_core::Document| field(&doc.form_fields(0).unwrap(), "agree").field.clone();
+    assert_eq!(checked(&doc), FieldKind::Checkbox { checked: true });
+
+    // Once saved, reopening is safe and the tick survives it.
+    doc.save(&dir.join("saved.pdf")).unwrap();
+    assert!(doc.should_release_memory());
+    doc.release_memory().unwrap();
+    assert_eq!(checked(&doc), FieldKind::Checkbox { checked: true });
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn engine_answers_cache_only_requests_without_rendering() {
+    let _serial = serial();
+    let engine = Engine::start(&pdfium_dir()).unwrap_or_else(|e| panic!("{e}"));
+    let (doc, _) = engine.open(&fixture("basic.pdf"), None).unwrap();
+    let missing = engine.cached(doc, 0, 0.5, Rotation::None).err().unwrap();
+    assert_eq!(missing.code, ErrorCode::Cancelled);
+    let rendered = engine.render(doc, 0, 0.5, Rotation::None).unwrap();
+    let cached = engine.cached(doc, 0, 0.5, Rotation::None).unwrap();
+    assert_eq!(cached.rgba, rendered.rgba);
+    // A different size is a different render.
+    assert!(engine.cached(doc, 0, 0.75, Rotation::None).is_err());
+    engine.close(doc);
 }

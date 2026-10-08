@@ -44,6 +44,8 @@ enum Purpose {
     Thumbnail,
     /// Printing: always rendered; not cached (big bitmaps would push out pages you're reading).
     Print,
+    /// Only answered from the cache; never rendered.
+    Cached,
 }
 
 struct RenderRequest {
@@ -127,6 +129,19 @@ impl Engine {
         rotation: Rotation,
     ) -> Result<RenderedPage> {
         self.render_request(doc, page, scale, rotation, Purpose::View)
+    }
+
+    /// A page that is already rendered at this size, without rendering it.
+    /// Fails with [`ErrorCode::Cancelled`] when it isn't in the cache, so the UI
+    /// can show a quick preview first only when a real render is needed.
+    pub fn cached(
+        &self,
+        doc: DocId,
+        page: u32,
+        scale: f32,
+        rotation: Rotation,
+    ) -> Result<RenderedPage> {
+        self.render_request(doc, page, scale, rotation, Purpose::Cached)
     }
 
     /// Renders a page regardless of what is visible (used for thumbnails).
@@ -258,6 +273,20 @@ impl Worker {
                 let result = self.render(&render);
                 let _ = render.reply.send(result);
             }
+            self.release_memory();
+        }
+    }
+
+    /// Reopens documents that have shown many pages, so PDFium's per-document
+    /// caches don't keep growing (see `Document::release_memory`). Runs between
+    /// batches of requests, so it never delays a page that is waiting.
+    fn release_memory(&mut self) {
+        for (id, doc) in &mut self.docs {
+            if doc.should_release_memory()
+                && let Err(e) = doc.release_memory()
+            {
+                eprintln!("Couldn't reopen document {id} to free memory: {e}");
+            }
         }
     }
 
@@ -293,7 +322,14 @@ impl Worker {
                 let _ = reply.send(result);
             }
             Request::Save(id, path, reply) => {
-                let _ = reply.send(self.doc(id).and_then(|d| d.save(&path)));
+                let result = match self.docs.get_mut(&id) {
+                    Some(doc) => doc.save(&path),
+                    None => Err(Error::new(
+                        ErrorCode::DocumentNotOpen,
+                        format!("document {id}"),
+                    )),
+                };
+                let _ = reply.send(result);
             }
             Request::Print(id, settings, printer_settings, reply) => {
                 let result = self
@@ -346,6 +382,9 @@ impl Worker {
         let key = Key::new(r.doc, r.page, r.scale, r.rotation);
         if let Some(page) = self.cache.get(&key) {
             return Ok(page);
+        }
+        if r.purpose == Purpose::Cached {
+            return Err(Error::new(ErrorCode::Cancelled, "not rendered yet"));
         }
         let page = self.doc(r.doc)?.render_page(r.page, r.scale, r.rotation)?;
         self.cache.insert(key, page.clone());

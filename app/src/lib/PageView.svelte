@@ -8,7 +8,7 @@ import type { PageLink } from "./bindings/PageLink";
 import FormLayer from "./FormLayer.svelte";
 import { i18n } from "./i18n.svelte";
 import { type Degrees, rotateRect } from "./layout";
-import { getLinks, type RivetError, renderPage, toRivetError } from "./pdf";
+import { getLinks, type PagePixels, type RivetError, renderPage, toRivetError } from "./pdf";
 
 interface Props {
   docId: number;
@@ -90,12 +90,18 @@ $effect(() => {
   const signal = controller.signal;
   const run = async () => {
     try {
-      // First time: show a quick low-resolution preview, then the sharp page.
-      if (!rendered && !thumbnail && scale > 0.4) {
-        const preview = await renderPage(docId, index, { scale: 0.25, rotation: rot, signal });
-        if (preview && !signal.aborted) paint(preview);
+      // First time: if the sharp page was rendered before (scrolling back to it),
+      // show it straight away. Otherwise show a quick low-resolution preview
+      // while the sharp page renders.
+      let pixels: PagePixels | null = null;
+      if (!rendered && !thumbnail) {
+        pixels = await renderPage(docId, index, { scale, rotation: rot, cachedOnly: true, signal });
+        if (!pixels && scale > 0.4 && !signal.aborted) {
+          const preview = await renderPage(docId, index, { scale: 0.25, rotation: rot, signal });
+          if (preview && !signal.aborted) paint(preview);
+        }
       }
-      const pixels = await renderPage(docId, index, { scale, rotation: rot, thumbnail, signal });
+      pixels ??= await renderPage(docId, index, { scale, rotation: rot, thumbnail, signal });
       if (!pixels || signal.aborted) return;
       paint(pixels);
       paintedScale = scale;
