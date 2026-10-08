@@ -90,6 +90,16 @@ CI (`.github/workflows/ci.yml`) runs them on Linux and Windows on every push to 
 - **PDFium keeps per-document caches** that grow as pages are visited; `rivet-core` reopens the
   document from its bytes every 100 pages, never while there are unsaved form changes.
 - **Shortcuts must use `e.code` on non-Latin layouts** (Ctrl+S with the Arabic layout types "س").
+- **PDFium text order:** right-to-left runs are reversed into reading order, which also swaps the
+  letters of ligatures (lam-alef). Read characters through `text::raw_chars`, never
+  `FPDFText_GetText` or `GetUnicode` directly. Mixed LTR/RTL lines can still come out in the
+  wrong part order (a PDFium limitation).
+- **PDFium annotations:** `FPDFAnnot_GetColor`/`SetColor` fail once an annotation has an
+  appearance (clear it first, read colours from the drawing); `FPDFAnnot_SetRect` doesn't update
+  the appearance's BBox; there is no API to write a Line's end points or delete a key.
+  `annotations.rs` documents the workarounds.
+- **Right-click menus:** on Linux/macOS `contextmenu` fires on button down, so menus opened from it
+  must be `popover="manual"` (an automatic popover closes on button up).
 - **Windows-only Rust can't be checked from Linux** (ring needs `lib.exe`); rely on CI's Windows job.
 
 ## Dependencies to know
