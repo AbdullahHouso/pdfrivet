@@ -8,8 +8,8 @@ describe("tooltips", () => {
     expect(formatShortcut("V", true)).toBe("V");
   });
 
-  it("doesn't repeat a label that is already visible", () => {
-    expect(tooltipContent("Open PDF…", "Open PDF…", "Ctrl+O")).toEqual({ text: null, shortcut: "Ctrl+O" });
+  it("skips a tooltip that would only repeat the visible label", () => {
+    expect(tooltipContent("Open PDF…", "Open PDF…", "Ctrl+O")).toEqual({ text: "Open PDF…", shortcut: "Ctrl+O" });
     expect(tooltipContent("Open PDF…", "Open PDF…", null)).toBeNull();
     expect(tooltipContent("Zoom in", "", "Ctrl+=")).toEqual({ text: "Zoom in", shortcut: "Ctrl+=" });
     expect(tooltipContent("Rotate view", "", null)).toEqual({ text: "Rotate view", shortcut: null });

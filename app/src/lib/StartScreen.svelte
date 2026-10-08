@@ -49,7 +49,7 @@ function when(ms: number): string {
         {#each settings.recent as file (file.path)}
           {@const gone = missing.has(file.path)}
           <li class:gone>
-            <button class="open" disabled={gone} onclick={() => onopenpath(file.path)} title={file.path}>
+            <button class="open" onclick={() => onopenpath(file.path)} title={file.path}>
               <Icon name="file" />
               <span class="text">
                 <span class="title" dir="auto">{file.title}</span>

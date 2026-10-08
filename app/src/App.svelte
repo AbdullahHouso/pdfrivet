@@ -20,6 +20,7 @@ import {
   captureTaskbarTab,
   closeDocument,
   documentInfo,
+  filesExist,
   openDocument,
   type RivetError,
   saveDocument,
@@ -116,6 +117,8 @@ async function openPath(path: string, password?: string) {
     const err = toRivetError(e);
     if (err.code === "password-required" || err.code === "wrong-password") {
       passwordFor = { path, wrong: err.code === "wrong-password" };
+    } else if (err.code === "file-not-found" && settings.findRecent(path)) {
+      await recentFileMissing(path);
     } else {
       error = err;
     }
@@ -248,6 +251,26 @@ async function closeTab(tab: Tab) {
   if (settings.documentWindows === "windows" && tabs.list.length === 0 && (await hasOtherWindows())) {
     await getCurrentWindow().destroy();
   }
+}
+
+/**
+ * A recent file that no longer exists: says so, and offers to remove it from
+ * the list.
+ */
+async function recentFileMissing(path: string) {
+  const name = settings.findRecent(path)?.title || fileName(path);
+  const answer = await ask(i18n.t("file-not-found-title"), i18n.t("file-not-found-message", { name }), [
+    { id: "remove", label: i18n.t("remove-from-recent-short"), primary: true },
+    { id: "cancel", label: i18n.t("cancel") },
+  ]);
+  if (answer === "remove") settings.removeRecent(path);
+}
+
+/** Opens a file from the recent files (menu or start screen). */
+async function openRecent(path: string) {
+  const [exists] = await filesExist([path]).catch(() => [true]);
+  if (exists) await openFiles([path]);
+  else await recentFileMissing(path);
 }
 
 /** Shows a tab moved here from another window (its document is already open). */
@@ -494,6 +517,8 @@ onMount(() => {
   onzoommode={setZoomMode}
   onrotate={rotate}
   onabout={() => (showAbout = true)}
+  onopenrecent={openRecent}
+  onclosedocument={() => active && closeTab(active)}
   oncheckupdates={() => updater.check(true)}
   onsave={() => active && saveTab(active)}
   onsaveas={() => active && saveTab(active, true)}
@@ -530,7 +555,7 @@ onMount(() => {
       <Viewer bind:this={viewer} tab={active} onerror={(e) => (error = e)} />
     {/key}
   {:else}
-    <StartScreen onopen={pickFiles} onopenpath={(p) => openFiles([p])} />
+    <StartScreen onopen={pickFiles} onopenpath={openRecent} />
   {/if}
 
   {#if dragging}

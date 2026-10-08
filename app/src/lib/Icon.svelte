@@ -8,6 +8,8 @@ let { name }: Props = $props();
 const paths = {
   "chevron-up": "M6 15l6-6 6 6",
   "chevron-down": "M6 9l6 6 6-6",
+  // Points to the end of the line; add class="flip-rtl" to its parent in RTL layouts.
+  "chevron-end": "M9 6l6 6-6 6",
   minus: "M5 12h14",
   plus: "M12 5v14M5 12h14",
   close: "M6 6l12 12M18 6L6 18",

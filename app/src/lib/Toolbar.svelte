@@ -3,9 +3,11 @@ import Icon from "./Icon.svelte";
 import { i18n, languages } from "./i18n.svelte";
 import { ZOOM_STEPS } from "./layout";
 import { westernDigits } from "./pageRange";
+import RecentMenu from "./RecentMenu.svelte";
 import type { ZoomMode } from "./recent";
 import { type DocumentWindows, type PageTone, settings, type Theme } from "./settings.svelte";
 import type { PageLayout, Tab } from "./tabs.svelte";
+import { formatShortcut } from "./tooltip";
 
 interface Props {
   tab: Tab | null;
@@ -20,6 +22,8 @@ interface Props {
   onzoommode: (mode: ZoomMode) => void;
   onrotate: () => void;
   onabout: () => void;
+  onopenrecent: (path: string) => void;
+  onclosedocument: () => void;
   oncheckupdates: () => void;
   onsave: () => void;
   onsaveas: () => void;
@@ -80,6 +84,16 @@ function onZoomSelect(e: Event) {
 
 const themes: Theme[] = ["system", "light", "dark", "black"];
 const documentModes: DocumentWindows[] = ["tabs", "windows"];
+
+let appMenu: HTMLDivElement;
+let recentMenu: RecentMenu | undefined = $state();
+
+/** Runs a File menu command after closing the menus. */
+function run(command: () => void) {
+  recentMenu?.close();
+  appMenu.hidePopover();
+  command();
+}
 // Per-tab taskbar previews are a Windows feature.
 const onWindows = /Windows/.test(navigator.userAgent);
 // Swatches for the page colours (what a white page looks like in each).
@@ -227,7 +241,40 @@ const tones: { value: PageTone; swatch: string }[] = [
   <button class="icon" popovertarget="app-menu" aria-label={i18n.t("menu")} title={i18n.t("menu")}>
     <Icon name="menu" />
   </button>
-  <div id="app-menu" class="menu" popover>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div id="app-menu" class="menu" popover bind:this={appMenu}
+    ontoggle={(e) => e.newState === "closed" && recentMenu?.close()}
+    onpointerover={(e) => {
+      // Moving to any other item closes "Open recent".
+      if (!(e.target as Element).closest("[aria-haspopup], .recent-menu")) recentMenu?.close();
+    }}>
+    <div class="file-menu" role="group" aria-label={i18n.t("file-menu")}>
+      <button class="menu-item command" onclick={() => run(props.onopen)}>
+        <span>{i18n.t("open-file")}</span><kbd dir="ltr">{formatShortcut("Ctrl+O")}</kbd>
+      </button>
+      <button class="menu-item command" aria-haspopup="menu"
+        onmouseenter={(e) => recentMenu?.open(e.currentTarget)} onclick={(e) => recentMenu?.open(e.currentTarget)}>
+        <span>{i18n.t("open-recent")}</span><span class="flip-rtl submenu-arrow"><Icon name="chevron-end" /></span>
+      </button>
+      {#if tab}
+        <button class="menu-item command" disabled={!tab.dirty} onclick={() => run(props.onsave)}>
+          <span>{i18n.t("save")}</span><kbd dir="ltr">{formatShortcut("Ctrl+S")}</kbd>
+        </button>
+        <button class="menu-item command" onclick={() => run(props.onsaveas)}>
+          <span>{i18n.t("save-as")}</span><kbd dir="ltr">{formatShortcut("Ctrl+Shift+S")}</kbd>
+        </button>
+        <button class="menu-item command" onclick={() => run(props.onprint)}>
+          <span>{i18n.t("print")}</span><kbd dir="ltr">{formatShortcut("Ctrl+P")}</kbd>
+        </button>
+        <button class="menu-item command" onclick={() => run(props.onproperties)}>
+          <span>{i18n.t("document-properties")}</span><kbd dir="ltr">{formatShortcut("Ctrl+D")}</kbd>
+        </button>
+        <button class="menu-item command" onclick={() => run(props.onclosedocument)}>
+          <span>{i18n.t("close-document")}</span><kbd dir="ltr">{formatShortcut("Ctrl+W")}</kbd>
+        </button>
+      {/if}
+      <RecentMenu bind:this={recentMenu} onopen={(path) => run(() => props.onopenrecent(path))} />
+    </div>
     <div class="menu-section">
       <span class="menu-label">{i18n.t("theme")}</span>
       <div class="segmented" role="radiogroup" aria-label={i18n.t("theme")}>
@@ -263,14 +310,6 @@ const tones: { value: PageTone; swatch: string }[] = [
         </label>
       {/if}
     </div>
-    {#if tab}
-      <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onsaveas}>
-        {i18n.t("save-as")}
-      </button>
-      <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.onproperties}>
-        {i18n.t("document-properties")}
-      </button>
-    {/if}
     <button class="menu-item" popovertarget="app-menu" popovertargetaction="hide" onclick={props.oncheckupdates}>
       {i18n.t("check-updates")}
     </button>
@@ -452,6 +491,31 @@ const tones: { value: PageTone; swatch: string }[] = [
   }
   .check input {
     accent-color: var(--accent);
+  }
+  .file-menu {
+    padding-block-end: 6px;
+    margin-block-end: 4px;
+    border-block-end: 1px solid var(--border);
+  }
+  .command {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-block-start: 0;
+  }
+  .command kbd {
+    font: inherit;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .submenu-arrow {
+    display: grid;
+    color: var(--muted);
+  }
+  .submenu-arrow :global(.icon) {
+    width: 14px;
+    height: 14px;
   }
   .inline-check {
     display: flex;

@@ -18,7 +18,7 @@ The first version: a fast, everyday PDF reader.
 - Page thumbnails and the document's outline (table of contents).
 - Clickable links, inside the document and to websites.
 - Password-protected PDFs.
-- Recent files reopen at the page and zoom where you left off.
+- Recent files reopen at the page and zoom where you left off; open them from the start screen or File → Open recent. Files that were moved or deleted are marked and can be removed from the list.
 
 ### Forms and saving
 - Fill in forms: text fields, checkboxes, radio buttons and drop-down lists.

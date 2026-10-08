@@ -220,6 +220,10 @@ export const settings = {
     recent = updatePosition(recent, path, position);
     save("recent", recent);
   },
+  clearRecent() {
+    recent = [];
+    save("recent", recent);
+  },
   removeRecent(path: string) {
     recent = removeRecent(recent, path);
     save("recent", recent);

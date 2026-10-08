@@ -3,8 +3,8 @@
 //
 // Any element with a `title` gets one automatically. Add
 // `data-shortcut="Ctrl+O"` to show the shortcut too (written with Ctrl; Macs
-// show ⌘). When the element already shows the same text (a labelled button),
-// only the shortcut is shown, or nothing.
+// show ⌘). A labelled button whose label is the same text only gets a tooltip
+// when there is a shortcut to show.
 
 const DELAY = 500;
 
@@ -19,20 +19,27 @@ export function formatShortcut(shortcut: string, mac = isMac): string {
     .replace(/Alt\+/g, "⌥");
 }
 
-/** What the tooltip says: the text (unless already visible) and the shortcut. */
+/**
+ * What the tooltip says. A label that is already visible isn't worth a
+ * tooltip of its own, but it stays next to its shortcut ("Open PDF… Ctrl+O").
+ */
 export function tooltipContent(
   tip: string,
   visibleText: string,
   shortcut: string | null,
 ): { text: string | null; shortcut: string | null } | null {
-  const text = tip.trim() && tip.trim() !== visibleText.trim() ? tip.trim() : null;
+  const text = tip.trim() || null;
   if (!text && !shortcut) return null;
+  if (text && !shortcut && text === visibleText.trim()) return null;
   return { text, shortcut };
 }
 
 let tooltip: HTMLDivElement | null = null;
 let target: Element | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
+// Checks that the pointer is still on the element: when a dialog opens or the
+// element gets disabled, browsers stop telling us the pointer left.
+let watch: ReturnType<typeof setInterval> | undefined;
 
 function element(): HTMLDivElement {
   if (!tooltip) {
@@ -73,10 +80,15 @@ function show(el: Element) {
   tip.style.left = `${left}px`;
   tip.style.top = `${Math.max(margin, top)}px`;
   tip.classList.add("visible");
+  clearInterval(watch);
+  watch = setInterval(() => {
+    if (!el.isConnected || !el.matches(":hover") || !document.hasFocus()) hide();
+  }, 200);
 }
 
 function hide() {
   clearTimeout(timer);
+  clearInterval(watch);
   target = null;
   if (tooltip?.classList.contains("visible")) {
     tooltip.classList.remove("visible");
@@ -99,7 +111,7 @@ function onOver(e: PointerEvent) {
   hide();
   target = el;
   // Moving from one tooltip to the next shows the next one right away.
-  timer = setTimeout(() => target === el && show(el), wasVisible ? 0 : DELAY);
+  timer = setTimeout(() => target === el && el.matches(":hover") && show(el), wasVisible ? 0 : DELAY);
 }
 
 function onOut(e: PointerEvent) {
@@ -116,4 +128,5 @@ export function installTooltips() {
   for (const event of ["pointerdown", "keydown", "wheel", "blur"]) {
     window.addEventListener(event, hide, true);
   }
+  document.addEventListener("visibilitychange", hide);
 }
