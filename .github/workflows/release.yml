@@ -66,8 +66,9 @@ jobs:
           projectPath: app
           tauriScript: bun tauri
           args: ${{ matrix.args }}
-          tagName: ${{ github.ref_name }}
-          releaseName: PDFRivet ${{ github.ref_name }}
+          # A manual run (not from a tag) names the draft after the version in package.json.
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
+          releaseName: PDFRivet ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseBody: |
             See the README for what's new and for install notes.
             Installers are not code-signed yet: on Windows choose "More info → Run anyway";
