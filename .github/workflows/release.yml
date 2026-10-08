@@ -72,6 +72,8 @@ jobs:
 
       - uses: tauri-apps/tauri-action@v1
         env:
+          # Lets the action create the draft release and upload the installers.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signs the update files; the app only installs updates with a valid signature.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
