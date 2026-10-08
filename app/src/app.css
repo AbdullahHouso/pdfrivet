@@ -6,8 +6,6 @@
    neutral greys and white for the interface, copper as the accent.
    Text contrast is checked for WCAG AA (4.5:1). */
 :root {
-  /* Plain buttons. Rubik is drawn heavier than Inter, so Arabic uses a lighter weight. */
-  --control-weight: 500;
   --text: #1b1c20;
   --muted: #5f6470;
   /* Toolbar, sidebar, menus and dialogs. */
@@ -112,7 +110,7 @@ body {
   display: flex;
   flex-direction: column;
   /* Latin letters and digits come from Inter, Arabic from Rubik (see fonts.css). */
-  font-family: "Inter Variable", "Rubik Variable", system-ui, sans-serif;
+  font-family: "Inter Variable", "Rubik", system-ui, sans-serif;
   font-size: 14px;
   font-optical-sizing: auto;
   /* Inter's contextual alternates: arrows and dashes fit the text around them. */
@@ -141,14 +139,11 @@ select {
 }
 
 /* Weights: text 400, controls 500, and 600 for what should stand out:
-   filled buttons, titles, group headings and the current choice. */
+   filled buttons, titles, group headings and the current choice. Arabic
+   letters come out one step lighter (see fonts.css). */
 button {
   background: var(--surface);
-  font-weight: var(--control-weight);
-}
-
-:root:lang(ar) {
-  --control-weight: 400;
+  font-weight: 500;
 }
 
 h1 {
