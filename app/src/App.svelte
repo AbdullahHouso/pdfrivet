@@ -16,6 +16,7 @@ import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
 import PropertiesDialog from "./lib/PropertiesDialog.svelte";
 import {
+  captureTaskbarTab,
   openDocument,
   type RivetError,
   saveDocument,
@@ -329,7 +330,12 @@ $effect(() => {
   const activeId = tabs.active?.id ?? null;
   // Wait until scrolling settles, so the preview isn't refreshed for every page.
   const timer = setTimeout(() => setTaskbarTabs(list, activeId, enabled).catch(() => {}), 300);
-  return () => clearTimeout(timer);
+  // Then capture the window for this tab's preview, once its pages have rendered.
+  const capture = enabled ? setTimeout(() => captureTaskbarTab().catch(() => {}), 1200) : undefined;
+  return () => {
+    clearTimeout(timer);
+    clearTimeout(capture);
+  };
 });
 
 function onKey(e: KeyboardEvent) {
