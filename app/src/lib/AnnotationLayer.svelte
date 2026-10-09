@@ -495,8 +495,29 @@ function onPointerUp(e: PointerEvent) {
 /** The id of the annotation whose comment is being edited. */
 let editing = $state<string | null>(null);
 let commentText = $state("");
+/** The box was filled with this annotation's comment (only once: the page's
+ *  list is read again after changes, which mustn't wipe what is being typed). */
+let filledFor: string | null = null;
 $effect(() => {
-  if (editing && selected?.id === editing) commentText = untrack(() => selected?.contents ?? "");
+  if (!editing) {
+    filledFor = null;
+    return;
+  }
+  if (selected?.id !== editing || filledFor === editing) return;
+  filledFor = editing;
+  commentText = untrack(() => selected?.contents ?? "");
+});
+/** What was typed and not saved yet, with the annotation it belongs to. Saved
+ *  when the box loses focus, the selection changes or the page goes away
+ *  (a click elsewhere can remove the box before it loses focus). */
+let pendingComment: { a: Annotation; text: string } | null = null;
+// What is typed is remembered as it changes (from the bound text, which is reliable).
+$effect(() => {
+  const text = commentText;
+  const id = editing;
+  const a = untrack(() => selected);
+  if (!id || a?.id !== id || filledFor !== id) return;
+  pendingComment = text === a.contents ? null : { a, text };
 });
 // Selecting a note opens its text (once per selection, so closing it stays closed).
 let lastSelected: string | null = null;
@@ -504,9 +525,19 @@ $effect(() => {
   const id = selected?.id ?? null;
   if (id === lastSelected) return;
   lastSelected = id;
+  untrack(() => flushComment());
   if (!selected) editing = null;
   else if (selected.kind.kind === "note" && selected.editable) editing = selected.id;
 });
+// The page leaving the screen closes the box too.
+$effect(() => () => untrack(() => flushComment()));
+
+function flushComment() {
+  const pending = pendingComment;
+  pendingComment = null;
+  if (!pending || pending.text === pending.a.contents) return;
+  update(tab, index, pending.a, { ...pending.a, contents: pending.text }).catch(fail);
+}
 
 async function recolor(a: Annotation, color: Color) {
   const kind = a.kind;
@@ -517,16 +548,6 @@ async function recolor(a: Annotation, color: Color) {
   }
   try {
     await update(tab, index, a, next);
-  } catch (err) {
-    fail(err);
-  }
-}
-
-async function saveComment(a: Annotation) {
-  editing = null;
-  if (commentText === a.contents) return;
-  try {
-    await update(tab, index, a, { ...a, contents: commentText });
   } catch (err) {
     fail(err);
   }
@@ -883,10 +904,16 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
         placeholder={i18n.t("annot-comment-placeholder")}
         bind:value={commentText}
         {@attach (el) => el.focus({ preventScroll: true })}
-        onblur={() => saveComment(a)}
+        onblur={() => {
+          // The selection may already be gone (a click elsewhere clears it
+          // first), so what is saved is the pending text, which knows its annotation.
+          flushComment();
+          editing = null;
+        }}
         onkeydown={(e) => {
           if (e.key === "Escape") {
             commentText = a.contents;
+            pendingComment = null;
             editing = null;
           }
           e.stopPropagation();

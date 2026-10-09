@@ -415,7 +415,7 @@ async function run(action: (t: Tab) => Promise<unknown>) {
     white-space: nowrap;
   }
   .slider input {
-    width: 80px;
+    width: 64px;
     accent-color: var(--accent);
   }
   .check input {
@@ -468,6 +468,9 @@ async function run(action: (t: Tab) => Promise<unknown>) {
     width: 100%;
   }
   .redact-info {
+    /* Shrinks like the hint, so undo and close stay on the same row. */
+    flex: 1 1 260px;
+    min-width: 0;
     gap: 10px;
   }
   /* Applying redactions can't be undone: the button says so with its colour. */
@@ -478,6 +481,9 @@ async function run(action: (t: Tab) => Promise<unknown>) {
     white-space: nowrap;
   }
   .hint {
+    /* Shrinks (its text wraps) rather than pushing the row onto a second line. */
+    flex: 1 1 200px;
+    min-width: 0;
     margin: 0;
     font-size: 12px;
     color: var(--muted);

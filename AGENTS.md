@@ -123,6 +123,9 @@ CI (`.github/workflows/ci.yml`) runs them on Linux and Windows on every push to 
   them with `fetch` + `new FontFace(name, bytes)` (see `textBox.ts`).
 - **Pointer capture swallows double-clicks** on the element under the pointer: a drag that
   captures on the layer means `dblclick` must be handled on the layer too.
+- **Handlers read `{@const}` values when they run, not when rendered:** inside
+  `{#if x}{@const a = x}`, an `onblur` that fires after a click cleared `x` sees `a` as null.
+  Keep what a handler needs from when it was set up (see the comment box in `AnnotationLayer`).
 - **Windows-only Rust can't be checked from Linux** (ring needs `lib.exe`); rely on CI's Windows job.
 
 ## Dependencies to know
