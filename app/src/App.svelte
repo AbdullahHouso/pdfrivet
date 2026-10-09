@@ -318,6 +318,17 @@ function ask(title: string, message: string, choices: Choice[]): Promise<string>
 }
 
 /** Saves a tab (asking for a file name for "Save as"). Returns false if not saved. */
+/** Asks before applying marked redactions (they can't be undone), then applies them. */
+async function confirmRedactions(tab: Tab, action: string): Promise<boolean> {
+  const answer = await ask(i18n.t("redact-confirm-title"), i18n.t("redact-confirm", { count: tab.redactions.length }), [
+    { id: "apply", label: action, primary: true },
+    { id: "cancel", label: i18n.t("cancel") },
+  ]);
+  if (answer !== "apply") return false;
+  await applyRedactions(tab);
+  return true;
+}
+
 async function saveTab(tab: Tab, saveAs = false): Promise<boolean> {
   let path: string | null = tab.path;
   if (saveAs) {
@@ -330,18 +341,7 @@ async function saveTab(tab: Tab, saveAs = false): Promise<boolean> {
   }
   try {
     // Marked redactions are applied now: their content is removed for good.
-    if (tab.redactions.length > 0) {
-      const answer = await ask(
-        i18n.t("redact-confirm-title"),
-        i18n.t("redact-confirm", { count: tab.redactions.length }),
-        [
-          { id: "apply", label: i18n.t("redact-confirm-apply"), primary: true },
-          { id: "cancel", label: i18n.t("cancel") },
-        ],
-      );
-      if (answer !== "apply") return false;
-      await applyRedactions(tab);
-    }
+    if (tab.redactions.length > 0 && !(await confirmRedactions(tab, i18n.t("redact-confirm-apply")))) return false;
     await saveDocument(tab.docId, path);
     tab.path = path;
     tab.dirty = false;
@@ -548,10 +548,12 @@ function onKey(e: KeyboardEvent) {
     [mod && key === ",", () => (showSettings = true)],
     [e.key === "F11", toggleFullscreen],
     [!!tab && mod && key === "w", () => tab && closeTab(tab)],
+    [tabs.home && mod && key === "w", () => tabs.closeHome()],
     [!!tab && mod && key === "d", () => (showProperties = true)],
     [!!tab && mod && e.shiftKey && key === "s", () => tab && saveTab(tab, true)],
     [!!tab && mod && !e.shiftKey && key === "s", () => tab?.dirty && saveTab(tab)],
-    [!!tab && mod && e.key === "Tab", () => tabs.cycle(e.shiftKey ? -1 : 1)],
+    [tabs.list.length > 0 && mod && e.key === "Tab", () => tabs.cycle(e.shiftKey ? -1 : 1)],
+    [tabs.list.length > 0 && mod && !e.shiftKey && key === "t", () => tabs.showHome()],
     [!!tab && mod && (key === "=" || key === "+"), () => zoomStep(1)],
     [!!tab && mod && key === "-", () => zoomStep(-1)],
     [!!tab && mod && key === "0", () => setZoomMode("fit-width")],
@@ -662,7 +664,7 @@ onMount(() => {
 <!-- With a window per document the tab bar is hidden, unless this window
      still has several tabs from before the setting changed. -->
 {#if tabs.list.length > 1 || (tabs.list.length > 0 && settings.documentWindows === "tabs")}
-  <TabBar onopen={pickFiles} onclose={closeTab} />
+  <TabBar onclose={closeTab} />
 {/if}
 
 <Toolbar
@@ -702,7 +704,13 @@ onMount(() => {
 />
 
 {#if active && annotate.open}
-  <AnnotateBar tab={active} onerror={(e) => (error = e)} />
+  {@const tab = active}
+  <AnnotateBar
+    {tab}
+    onerror={(e) => (error = e)}
+    onapplyredactions={() =>
+      confirmRedactions(tab, i18n.t("redact-confirm-apply-now")).catch((e) => (error = toRivetError(e)))}
+  />
 {/if}
 
 {#if error}

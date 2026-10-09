@@ -108,8 +108,7 @@ settings-reading = Reading
 updates = Updates
 check-now = Check now
 page-tone-hint = Laid over the pages while you read; your files aren't changed. Each document remembers the colour you last used for it.
-animations = Animations
-animations-hint = Menus, dialogs and tooltips fade in and out. Off by default when your system asks for less motion.
+animations = Enable animations
 reading-defaults-hint = How documents open the first time. After that, each file reopens the way you left it: page, zoom, page display and scrolling.
 
 ## Saving
@@ -132,6 +131,7 @@ form-field = Form field
 ## Tabs
 
 open-documents = Open documents
+new-tab = New tab
 close-tab = Close { $name }
 
 ## Sidebar
@@ -290,6 +290,7 @@ redact-confirm = { $count ->
    *[other] The { $count } marked areas will be blacked out and what’s under them removed from the file for good. This can’t be undone.
 }
 redact-confirm-apply = Redact and save
+redact-confirm-apply-now = Redact
 undo = Undo
 redo = Redo
 

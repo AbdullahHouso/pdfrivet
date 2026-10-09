@@ -65,14 +65,15 @@ let lastUpdateCheck = 0;
 let skippedVersion = $state<string | null>(null);
 let author = $state("");
 // Animations start off when the system asks for reduced motion.
-let animations = $state(!(typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches));
+const lessMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+let animations = $state(!lessMotion);
 let toolStyles = $state<Record<string, ToolStyle>>({});
 
 /** Turns animations on or off for the whole window (see app.css and motion.ts). */
 function applyMotion(on: boolean) {
   if (typeof document !== "undefined") document.documentElement.dataset.motion = on ? "on" : "off";
 }
-applyMotion(animations);
+applyMotion(!lessMotion);
 
 function applyTheme(value: Theme) {
   if (value === "system") delete document.documentElement.dataset.theme;

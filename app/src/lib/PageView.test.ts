@@ -20,13 +20,17 @@ vi.mock("./pdf", () => ({
 }));
 
 const { default: PageView } = await import("./PageView.svelte");
+const { forgetPages } = await import("./pageCanvasCache");
 
 const show = () => render(PageView, { docId: 1, index: 3, width: 600, height: 800, widthPt: 600, rotation: 0 });
 const scales = () =>
   renderPage.mock.calls.map(([, , opts]) => ({ scale: opts?.scale, cachedOnly: !!opts?.cachedOnly }));
 
 describe("PageView", () => {
-  beforeEach(() => renderPage.mockClear());
+  beforeEach(() => {
+    renderPage.mockClear();
+    forgetPages(1);
+  });
   afterEach(() => cleanup());
 
   it("shows a page rendered before without the blurry preview", async () => {
@@ -34,6 +38,17 @@ describe("PageView", () => {
     show();
     await waitFor(() => expect(renderPage).toHaveBeenCalledTimes(1));
     expect(scales()).toEqual([{ scale: 1, cachedOnly: true }]);
+  });
+
+  it("shows a page that was just on screen again without asking the engine", async () => {
+    state.inCache = true;
+    const first = show();
+    await waitFor(() => expect(renderPage).toHaveBeenCalledTimes(1));
+    first.unmount();
+    renderPage.mockClear();
+    show();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(renderPage).not.toHaveBeenCalled();
   });
 
   it("shows a quick preview while a new page renders", async () => {

@@ -165,7 +165,6 @@ function zoomLabel(zoom: DefaultZoom): string {
           <input type="checkbox" bind:checked={settings.animations} />
           {i18n.t("animations")}
         </label>
-        <p class="hint">{i18n.t("animations-hint")}</p>
       {:else}
         <p class="hint">{i18n.t("reading-defaults-hint")}</p>
 

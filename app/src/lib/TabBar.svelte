@@ -5,11 +5,10 @@ import { pop } from "./motion";
 import { type Tab, tabs } from "./tabs.svelte";
 
 interface Props {
-  onopen: () => void;
   /** Closes a tab (asking about unsaved changes first). */
   onclose: (tab: Tab) => void;
 }
-let { onopen, onclose }: Props = $props();
+let { onclose }: Props = $props();
 </script>
 
 <div class="tabbar" role="tablist" aria-label={i18n.t("open-documents")}>
@@ -45,7 +44,23 @@ let { onopen, onclose }: Props = $props();
       </button>
     </div>
   {/each}
-  <button class="new" onclick={onopen} aria-label={i18n.t("open-file")} title={i18n.t("open-file")}>
+  {#if tabs.home}
+    <!-- The start page, opened with +: like a tab until a document is chosen. -->
+    <div in:pop class="tab active" role="tab" tabindex="0" aria-selected="true">
+      <Icon name="file" />
+      <span class="name">{i18n.t("new-tab")}</span>
+      <button
+        class="close"
+        onclick={() => tabs.closeHome()}
+        aria-label={i18n.t("close-tab", { name: i18n.t("new-tab") })}
+        title={i18n.t("close-tab", { name: i18n.t("new-tab") })}
+      >
+        <Icon name="close" />
+      </button>
+    </div>
+  {/if}
+  <button class="new" onclick={() => tabs.showHome()} aria-label={i18n.t("new-tab")} title={i18n.t("new-tab")}
+    data-shortcut="Ctrl+T">
     <Icon name="plus" />
   </button>
 </div>

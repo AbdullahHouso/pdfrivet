@@ -2,7 +2,7 @@
 // The Annotate toolbar: a second row under the main toolbar with the
 // annotation tools, the current tool's colour, width and opacity, and undo/redo.
 import type { ComponentProps } from "svelte";
-import { type AnnotTool, annotate, applyRedactions, PALETTE, redo, toHex, undo } from "./annotate.svelte";
+import { type AnnotTool, annotate, PALETTE, redo, toHex, undo } from "./annotate.svelte";
 import type { Color } from "./bindings/Color";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
@@ -16,8 +16,10 @@ import type { Tab } from "./tabs.svelte";
 interface Props {
   tab: Tab;
   onerror: (e: RivetError) => void;
+  /** Applies the marked redactions after asking (they can't be undone). */
+  onapplyredactions: () => void;
 }
-let { tab, onerror }: Props = $props();
+let { tab, onerror, onapplyredactions }: Props = $props();
 
 type ToolButton = { tool: AnnotTool; icon: ComponentProps<typeof Icon>["name"]; label: string };
 const GROUPS: ToolButton[][] = [
@@ -202,7 +204,7 @@ async function run(action: (t: Tab) => Promise<unknown>) {
     <div class="group redact-info">
       <p class="hint">{i18n.t("redact-hint")}</p>
       {#if marked > 0}
-        <button class="danger" onclick={() => run(applyRedactions)}>
+        <button class="danger" onclick={onapplyredactions}>
           {i18n.t("redact-apply", { count: marked })}
         </button>
       {/if}

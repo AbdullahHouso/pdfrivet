@@ -3,12 +3,14 @@
 // stays sharp, and re-renders shortly after the size changes (while zooming
 // the old pixels are stretched, so nothing flickers).
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { onDestroy } from "svelte";
 import AnnotationLayer from "./AnnotationLayer.svelte";
 import type { LinkTarget } from "./bindings/LinkTarget";
 import type { PageLink } from "./bindings/PageLink";
 import FormLayer from "./FormLayer.svelte";
 import { i18n } from "./i18n.svelte";
 import { type Degrees, rotateRect } from "./layout";
+import { keep, take } from "./pageCanvasCache";
 import { getLinks, type PagePixels, type RivetError, renderPage, toRivetError } from "./pdf";
 import type { SearchMark } from "./search.svelte";
 import TextLayer from "./TextLayer.svelte";
@@ -81,6 +83,13 @@ function linkLabel(target: LinkTarget): string {
 
 let canvas: HTMLCanvasElement;
 let rendered = $state(false);
+
+// Leaving the screen: keep the pixels for a while (see pageCanvasCache.ts).
+onDestroy(() => {
+  if (!thumbnail && rendered && paintedScale > 0 && paintedRotation !== null) {
+    keep(docId, index, paintedRotation, paintedRevision, canvas, paintedScale);
+  }
+});
 // The scale that is currently painted, to avoid re-rendering for nothing.
 let paintedScale = 0;
 let paintedRotation: Degrees | null = null;
@@ -99,6 +108,23 @@ $effect(() => {
   const rev = revision;
   const sameSize = Math.abs(scale - paintedScale) < 0.01 && rot === paintedRotation;
   if (sameSize && rev === paintedRevision) return;
+
+  // Shown a moment ago (or prepared ahead): paint those pixels now, in this
+  // frame, so the empty page never shows.
+  if (!rendered && !thumbnail) {
+    const kept = take(docId, index, rot, rev, scale);
+    if (kept) {
+      canvas.width = kept.canvas.width;
+      canvas.height = kept.canvas.height;
+      canvas.getContext("2d")?.drawImage(kept.canvas, 0, 0);
+      rendered = true;
+      paintedScale = kept.scale;
+      paintedRotation = rot;
+      paintedRevision = rev;
+      tab?.markPainted(index, rev);
+      return;
+    }
+  }
 
   const controller = new AbortController();
   const signal = controller.signal;

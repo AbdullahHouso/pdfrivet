@@ -9,6 +9,7 @@ import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageRect } from "./bindings/PageRect";
 import { History } from "./history.svelte";
 import type { Degrees } from "./layout";
+import { forgetPages } from "./pageCanvasCache";
 import { forgetPageText } from "./pageText";
 import { closeDocument } from "./pdf";
 import type { FileView, ZoomMode } from "./recent";
@@ -188,8 +189,24 @@ export const tabs = {
   activate(id: number) {
     if (list.some((t) => t.id === id)) activeId = id;
   },
+  /** The start page is shown as a tab of its own (the + button), next to the open documents. */
+  get home(): boolean {
+    return activeId === null && list.length > 0;
+  },
+  /** Shows the start page (recent files, open a file) without closing anything. */
+  showHome() {
+    activeId = null;
+  },
+  /** Leaves the start page for the last document. */
+  closeHome() {
+    if (activeId === null) activeId = list.at(-1)?.id ?? null;
+  },
   /** Activates the next (+1) or previous (-1) tab, wrapping around. */
   cycle(direction: 1 | -1) {
+    if (activeId === null) {
+      activeId = (direction > 0 ? list[0] : list.at(-1))?.id ?? null;
+      return;
+    }
     if (list.length < 2) return;
     const index = list.findIndex((t) => t.id === activeId);
     activeId = list[(index + direction + list.length) % list.length].id;
@@ -225,6 +242,7 @@ export const tabs = {
     if (activeId === id) activeId = list[Math.min(index, list.length - 1)]?.id ?? null;
     tab.search.clear();
     forgetPageText(tab.docId);
+    forgetPages(tab.docId);
     await closeDocument(tab.docId).catch(() => {});
   },
 };

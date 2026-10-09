@@ -34,6 +34,7 @@ import {
   visibleRange,
 } from "./layout";
 import PageView from "./PageView.svelte";
+import { prefetch } from "./pageCanvasCache";
 import { loadPageText, peekPageText } from "./pageText";
 import { type RivetError, setVisiblePages, toRivetError } from "./pdf";
 import { settings } from "./settings.svelte";
@@ -217,6 +218,32 @@ $effect(() => {
   if (!hit || key === revealed) return;
   revealed = key;
   untrack(() => revealHit(hit));
+});
+
+// Page at a time: prepare the next and previous pages (or spreads) shortly
+// after a page is shown, so turning to them is instant.
+$effect(() => {
+  if (tab.continuous) return;
+  const { rows, rowOf } = fullLayout;
+  const row = rowOf[tab.page];
+  const rotation = tab.rotation;
+  const pages = [rows[row + 1], rows[row - 1]]
+    .filter((r) => r !== undefined)
+    .flatMap((r) => Array.from({ length: r.last - r.first + 1 }, (_, i) => r.first + i));
+  const widths = fullLayout.widths;
+  const timer = setTimeout(() => {
+    for (const page of pages) {
+      const scale = (widths[page] * window.devicePixelRatio) / rotatedSize(tab.info.pageSizes[page], rotation).width;
+      prefetch(
+        tab.docId,
+        page,
+        rotation,
+        untrack(() => tab.pageRevision(page)),
+        scale,
+      );
+    }
+  }, 250);
+  return () => clearTimeout(timer);
 });
 
 // Tell the engine what is visible, so it skips pages we scrolled past.
