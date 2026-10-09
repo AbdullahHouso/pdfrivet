@@ -133,6 +133,20 @@ body {
   text-rendering: optimizeLegibility;
   color: var(--text);
   background: var(--canvas);
+  /* An app, not a web page: labels and buttons can't be selected, and the
+     pointer stays an arrow over them. PDF text has its own selection
+     (textSelect.ts); only fields take the browser's. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="color"]),
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 #app {

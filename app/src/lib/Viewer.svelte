@@ -121,6 +121,7 @@ export function goToPage(page: number, atBottom = false) {
   tab.page = row.first;
   if (tab.continuous) {
     scroller.scrollTop = row.top - PAGE_GAP;
+    jumpedTo = { page: row.first, top: scroller.scrollTop };
   } else {
     tick().then(() => {
       scroller.scrollTop = atBottom ? scroller.scrollHeight : 0;
@@ -278,11 +279,16 @@ $effect(() => {
   }
 });
 
+// The page a jump went to stays current until the view scrolls elsewhere, even
+// when it can't reach the top of the window (near the end of the document).
+let jumpedTo: { page: number; top: number } | null = null;
+
 function onScroll() {
   scrollTop = scroller.scrollTop;
   tab.scrollTop = scroller.scrollTop;
   tab.scrollLeft = scroller.scrollLeft;
-  if (tab.continuous) tab.page = currentPage(layout, scrollTop, viewportHeight);
+  if (jumpedTo && Math.abs(scrollTop - jumpedTo.top) > 1) jumpedTo = null;
+  if (tab.continuous) tab.page = jumpedTo?.page ?? currentPage(layout, scrollTop, viewportHeight);
 }
 
 // Page at a time: scrolling past the end of a page turns to the next one.

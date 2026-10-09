@@ -54,8 +54,16 @@ describe("visible pages", () => {
     expect(visibleRange(many, y, 100)[0]).toBe(1);
   });
 
-  it("reports the page under the middle of the viewport as current", () => {
+  it("reports the page filling the viewport as current", () => {
     expect(currentPage(many, many.tops[42], pageHeight)).toBe(42);
+    // Zoomed in: a page mostly scrolled past gives way to the next one.
+    expect(currentPage(many, many.tops[42] + pageHeight * 0.7, pageHeight)).toBe(43);
+    expect(currentPage(many, many.tops[42] + pageHeight * 0.3, pageHeight)).toBe(42);
+  });
+
+  it("reports the top page as current when many small pages are in view", () => {
+    const small = computeLayout(Array(100).fill(A4), 0.1, 0);
+    expect(currentPage(small, small.tops[40] - PAGE_GAP, 1000)).toBe(40);
   });
 });
 

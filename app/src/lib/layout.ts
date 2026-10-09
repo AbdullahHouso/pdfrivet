@@ -134,11 +134,21 @@ export function visibleRange(layout: Layout, scrollTop: number, viewportHeight: 
 }
 
 /**
- * The "current" page: the first page of the row covering the middle of the
- * viewport, which matches what people mean by "the page I'm on".
+ * The "current" page: the first page of the topmost row that is at least half
+ * in view (half of the viewport, for rows taller than it). Zoomed in, that's
+ * the page filling most of the window; zoomed out with many small pages in
+ * view, it's the top one, where jumping to a page puts it.
  */
 export function currentPage(layout: Layout, scrollTop: number, viewportHeight: number): number {
-  return layout.rows[rowAt(layout, scrollTop + viewportHeight / 2)]?.first ?? 0;
+  const { rows } = layout;
+  if (rows.length === 0) return 0;
+  const bottom = scrollTop + viewportHeight;
+  for (let i = rowAt(layout, scrollTop); i < rows.length && rows[i].top < bottom; i++) {
+    const row = rows[i];
+    const shown = Math.min(row.top + row.height, bottom) - Math.max(row.top, scrollTop);
+    if (shown >= Math.min(row.height, viewportHeight) / 2) return row.first;
+  }
+  return rows[rowAt(layout, scrollTop + viewportHeight / 2)].first;
 }
 
 /** Widths (at zoom 1, in px) and page counts of each row. */
