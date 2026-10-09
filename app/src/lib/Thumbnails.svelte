@@ -2,10 +2,11 @@
 // Virtualized page thumbnails in a grid. Clicking one jumps to that page.
 // They fill the sidebar's width: a wider sidebar gives bigger thumbnails, and
 // the size control above them fits more per row.
+import { untrack } from "svelte";
 import ContextMenu, { type MenuItem } from "./ContextMenu.svelte";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
-import { maxThumbnailColumns, rotatedSize, THUMB_GAP, thumbnailGrid, visibleRange } from "./layout";
+import { maxThumbnailColumns, rotatedSize, rowAt, THUMB_GAP, thumbnailGrid, visibleRange } from "./layout";
 import PageView from "./PageView.svelte";
 import { settings } from "./settings.svelte";
 import type { Tab } from "./tabs.svelte";
@@ -49,15 +50,37 @@ function resize(bigger: boolean) {
   settings.thumbnailColumns = Math.min(Math.max(columns + (bigger ? -1 : 1), 1), maxColumns);
 }
 
-// Keep the current page's thumbnail in view while reading.
+// When the thumbnails change size (the sidebar is resized, or more fit per
+// row), the one at the top stays at the top: otherwise the list would slide
+// under the pointer while dragging.
+let anchor = { page: 0, offset: 0 };
+function onscroll() {
+  scrollTop = scroller.scrollTop;
+  const row = layout.rows[rowAt(layout, scrollTop)];
+  if (row) anchor = { page: row.first, offset: (scrollTop - row.top) / (row.height + THUMB_GAP) };
+}
+$effect(() => {
+  const l = layout;
+  untrack(() => {
+    const row = l.rows[l.rowOf[anchor.page]];
+    if (!scroller || !row) return;
+    scroller.scrollTop = row.top + anchor.offset * (row.height + THUMB_GAP);
+    scrollTop = scroller.scrollTop;
+  });
+});
+
+// Keep the current page's thumbnail in view while reading (not while resizing).
+let ready = $derived(paneWidth > 0);
 $effect(() => {
   const page = tab.page;
-  if (!scroller || layout.rows.length === 0) return;
-  const row = layout.rows[layout.rowOf[page]];
-  if (!row) return;
-  if (row.top < scroller.scrollTop || row.top + row.height > scroller.scrollTop + viewportHeight) {
-    scroller.scrollTo({ top: row.top - THUMB_GAP });
-  }
+  if (!ready) return;
+  untrack(() => {
+    const row = layout.rows[layout.rowOf[page]];
+    if (!scroller || !row) return;
+    if (row.top < scroller.scrollTop || row.top + row.height > scroller.scrollTop + viewportHeight) {
+      scroller.scrollTo({ top: row.top - THUMB_GAP });
+    }
+  });
 });
 </script>
 
@@ -79,7 +102,7 @@ $effect(() => {
     </div>
   {/if}
   <div class="thumbs" bind:this={scroller} bind:clientHeight={viewportHeight} bind:clientWidth={paneWidth}
-    onscroll={() => (scrollTop = scroller.scrollTop)}>
+    {onscroll}>
     <div class="content" style:height="{layout.totalHeight}px">
       {#if paneWidth > 0}
         {#each { length: Math.max(0, range[1] - range[0] + 1) } as _, i (range[0] + i)}

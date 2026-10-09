@@ -286,14 +286,25 @@ function onScroll() {
 }
 
 // Page at a time: scrolling past the end of a page turns to the next one.
+// A mouse wheel turns one page per notch, at once. A touchpad sends a stream
+// of small steps (and keeps sending them as the swipe coasts), so it turns
+// one page per swipe: the swipe ends after a short pause.
 let lastTurn = 0;
-function turnPage(direction: 1 | -1): boolean {
+let lastWheel = 0;
+let swipeTurned = false;
+const SWIPE_PAUSE = 180;
+
+function atEdge(direction: 1 | -1): boolean {
   const atTop = scroller.scrollTop <= 0;
   const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
-  if ((direction > 0 && !atBottom) || (direction < 0 && !atTop)) return false;
-  const now = Date.now();
-  // One turn per wheel gesture, not one per wheel event.
-  if (now - lastTurn < 350) return true;
+  return direction > 0 ? atBottom : atTop;
+}
+
+/** Turns the page if the view is at that end; true if the event is used up (turned or held back). */
+function turnPage(direction: 1 | -1, minGap: number): boolean {
+  if (!atEdge(direction)) return false;
+  const now = performance.now();
+  if (now - lastTurn < minGap) return true;
   lastTurn = now;
   step(direction, direction < 0);
   return true;
@@ -307,7 +318,19 @@ function onWheel(e: WheelEvent) {
     zoomTo(tab.zoom * Math.exp(-e.deltaY * 0.0025), e.clientY - rect.top);
     return;
   }
-  if (!tab.continuous && e.deltaY !== 0 && turnPage(e.deltaY > 0 ? 1 : -1)) e.preventDefault();
+  if (tab.continuous || e.deltaY === 0) return;
+  const now = performance.now();
+  if (now - lastWheel > SWIPE_PAUSE) swipeTurned = false;
+  lastWheel = now;
+  const direction = e.deltaY > 0 ? 1 : -1;
+  // Mouse wheels move in big steps (lines, or about 100 px per notch).
+  const notch = e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL || Math.abs(e.deltaY) >= 50;
+  if (notch) {
+    if (turnPage(direction, 40)) e.preventDefault();
+  } else if (atEdge(direction)) {
+    e.preventDefault();
+    if (!swipeTurned && turnPage(direction, 0)) swipeTurned = true;
+  }
 }
 
 function onKeyDown(e: KeyboardEvent) {
@@ -318,9 +341,10 @@ function onKeyDown(e: KeyboardEvent) {
   if (e.key === forward) step(1);
   else if (e.key === back) step(-1);
   else if (e.key === "PageDown" || e.key === " " || e.key === "ArrowDown") {
-    if (!turnPage(1)) return;
+    // Held down, a key turns a few pages a second rather than racing through.
+    if (!turnPage(1, e.repeat ? 150 : 0)) return;
   } else if (e.key === "PageUp" || e.key === "ArrowUp") {
-    if (!turnPage(-1)) return;
+    if (!turnPage(-1, e.repeat ? 150 : 0)) return;
   } else return;
   e.preventDefault();
 }
