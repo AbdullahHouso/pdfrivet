@@ -17,3 +17,18 @@ export function shortcutKey(e: Pick<KeyboardEvent, "key" | "code">): string {
   if (e.code === "Comma") return ",";
   return key;
 }
+
+/** A modal dialog (Settings, Print…) is open: the window's shortcuts wait until it closes. */
+export function modalOpen(): boolean {
+  return document.querySelector("dialog:modal") !== null;
+}
+
+/** The key goes to something the user types in (a field or editable text). */
+export function isTyping(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLSelectElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
+}

@@ -44,6 +44,7 @@ import type { Color } from "./bindings/Color";
 import type { PagePoint } from "./bindings/PagePoint";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+import { modalOpen } from "./keys";
 import type { Degrees } from "./layout";
 import { fade, out, pop, rise } from "./motion";
 import { getAnnotations, type RivetError, setAnnotationHidden, toRivetError } from "./pdf";
@@ -610,7 +611,7 @@ function onWindowKey(e: KeyboardEvent) {
   const a = selected;
   if (a?.kind.kind !== "freeText" || !a.editable || e.key !== "Enter" || annotate.textEdit) return;
   const t = e.target as HTMLElement | null;
-  if (t?.closest("input, textarea, select, button, [contenteditable]")) return;
+  if (t?.closest("input, textarea, select, button, [contenteditable]") || modalOpen()) return;
   e.preventDefault();
   editText(tab, index, a).catch(fail);
 }

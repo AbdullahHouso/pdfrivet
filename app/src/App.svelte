@@ -24,7 +24,7 @@ import { writeClipboard } from "./lib/clipboard";
 import { hasOtherWindows, moveToNewWindow, openInNewWindow, tabsWindowLabel, windowRequest } from "./lib/docWindows";
 import FindBar from "./lib/FindBar.svelte";
 import { i18n } from "./lib/i18n.svelte";
-import { shortcutKey } from "./lib/keys";
+import { isTyping, modalOpen, shortcutKey } from "./lib/keys";
 import {
   COMMENTS_DEFAULT,
   COMMENTS_MIN,
@@ -578,10 +578,7 @@ $effect(() => {
 function onKey(e: KeyboardEvent) {
   const mod = e.ctrlKey || e.metaKey;
   const key = shortcutKey(e);
-  const typing =
-    e.target instanceof HTMLInputElement ||
-    e.target instanceof HTMLSelectElement ||
-    e.target instanceof HTMLTextAreaElement;
+  const typing = isTyping(e.target);
   const tab = active;
 
   const shortcuts: [boolean, () => void][] = [
@@ -651,10 +648,17 @@ function onKey(e: KeyboardEvent) {
     [!!tab && !typing && !mod && e.key === "End", () => tab && goTo(tab.info.pageCount - 1)],
   ];
   const match = shortcuts.find(([when]) => when);
-  if (match) {
-    e.preventDefault();
-    match[1]();
+  if (!match) return;
+  // With a dialog open, shortcuts would act on the window behind it (Ctrl+A
+  // selected the page's text, Ctrl+O opened a file). The dialog keeps its own
+  // keys (Escape, typing); Ctrl combinations stay blocked so the browser
+  // doesn't print or search the window instead.
+  if (modalOpen()) {
+    if (mod) e.preventDefault();
+    return;
   }
+  e.preventDefault();
+  match[1]();
 }
 
 onMount(() => {
