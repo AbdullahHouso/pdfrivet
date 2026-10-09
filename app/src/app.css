@@ -133,6 +133,14 @@ body {
   display: contents;
 }
 
+/* Text boxes don't inherit fonts by default: without this they use the
+   system's font, which may not have Arabic (Linux) or doesn't match the app. */
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
 button,
 select {
   font: inherit;
