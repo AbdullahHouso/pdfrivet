@@ -97,7 +97,8 @@ $effect(() => {
   const scale = (width * window.devicePixelRatio) / widthPt;
   const rot = rotation;
   const rev = revision;
-  if (Math.abs(scale - paintedScale) < 0.01 && rot === paintedRotation && rev === paintedRevision) return;
+  const sameSize = Math.abs(scale - paintedScale) < 0.01 && rot === paintedRotation;
+  if (sameSize && rev === paintedRevision) return;
 
   const controller = new AbortController();
   const signal = controller.signal;
@@ -120,12 +121,14 @@ $effect(() => {
       paintedScale = scale;
       paintedRotation = rot;
       paintedRevision = rev;
+      // Previews of an edit wait for this (see Tab.whenPainted).
+      if (!thumbnail) tab?.markPainted(index, rev);
     } catch (e) {
       if (!signal.aborted) onerror?.(toRivetError(e));
     }
   };
-  // Render right away the first time; while zooming, wait until it settles.
-  const timer = setTimeout(run, rendered ? 120 : 0);
+  // Render right away the first time and after an edit; while zooming, wait until it settles.
+  const timer = setTimeout(run, rendered && !sameSize ? 120 : 0);
   return () => {
     clearTimeout(timer);
     controller.abort();

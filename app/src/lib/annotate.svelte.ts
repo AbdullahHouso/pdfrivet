@@ -270,6 +270,7 @@ export async function markSelection(tab: Tab, tool: MarkupTool) {
   if (!sel || isEmpty(sel)) return;
   const [start, end] = ordered(sel);
   const style = annotate.style(tool);
+  const marked: number[] = [];
   for (let page = start.page; page <= end.page; page++) {
     const range = rangeOnPage(sel, page);
     if (!range) continue;
@@ -294,14 +295,17 @@ export async function markSelection(tab: Tab, tool: MarkupTool) {
       modified: null,
       editable: true,
     });
+    marked.push(page);
   }
-  tab.selection = null;
+  // The selection stays until the pages show the marks, so nothing blinks.
+  await Promise.all(marked.map((page) => tab.whenPainted(page)));
+  if (tab.selection === sel) tab.selection = null;
 }
 
 /** Highlights, underlines or strikes out an area of a page (pictures and scans have no text to select). */
 export async function markArea(tab: Tab, page: number, tool: MarkupTool, rect: PageRect) {
   const style = annotate.style(tool);
-  await add(tab, page, {
+  const added = add(tab, page, {
     id: "",
     kind: { kind: "markup", style: MARKUP_STYLE[tool], quads: [rect] },
     rect,
@@ -313,6 +317,8 @@ export async function markArea(tab: Tab, page: number, tool: MarkupTool, rect: P
     modified: null,
     editable: true,
   });
+  await added;
+  await tab.whenPainted(page);
 }
 
 // --- Redaction ----------------------------------------------------------------

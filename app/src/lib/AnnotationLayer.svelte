@@ -41,7 +41,7 @@ import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
 import type { Degrees } from "./layout";
 import { getAnnotations, type RivetError, setAnnotationHidden, toRivetError } from "./pdf";
-import { settings } from "./settings.svelte";
+import { settings, type ToolStyle } from "./settings.svelte";
 import type { Tab } from "./tabs.svelte";
 
 interface Props {
@@ -146,7 +146,7 @@ function onLayerDown(e: PointerEvent) {
 }
 
 function onLayerMove(e: PointerEvent) {
-  if (tool === "signature") ghostAt = pointer(e);
+  if (tool === "signature" && !placing) ghostAt = pointer(e);
   if (!layer.hasPointerCapture(e.pointerId)) return;
   const p = pointer(e);
   if (tool === "eraser") erase(p);
@@ -178,11 +178,14 @@ async function onLayerUp(e: PointerEvent) {
   const d = draft;
   draft = null;
   if (!d || !tool) return;
+  // What was drawn stays on screen until the page shows it, so it never blinks.
+  held = [...held, d];
   try {
     if (d.tool === "pen") {
       const points = simplify(d.points, 0.6).map((p) => fromPx(p.x, p.y, box));
       if (points.length === 1) points.push({ x: points[0].x + 0.0005, y: points[0].y });
       await add(tab, index, newAnnotation("pen", { kind: "ink", strokes: [points] }, rectFrom(points[0], points[0])));
+      await tab.whenPainted(index);
       return;
     }
     // Ignore clicks: a shape needs some size.
@@ -201,10 +204,16 @@ async function onLayerUp(e: PointerEvent) {
       const kind: Annotation["kind"] = d.tool === "rectangle" ? { kind: "square", fill } : { kind: "circle", fill };
       await add(tab, index, newAnnotation(d.tool, kind, rectFrom(from, to)));
     }
+    await tab.whenPainted(index);
   } catch (err) {
     fail(err);
+  } finally {
+    held = held.filter((h) => h !== d);
   }
 }
+
+/** Finished drawings waiting for the page to show them. */
+let held = $state<Draft[]>([]);
 
 /** The eraser removes drawings and shapes it touches (text markup and notes are deleted from their menu). */
 function erase(p: { x: number; y: number }) {
@@ -265,15 +274,23 @@ async function putSignature(p: { x: number; y: number }) {
   const r = signatureBox(p);
   if (!sig || !r) return;
   try {
+    ghostAt = { ...p };
+    placing = true;
     const placed = await placeSignature(tab, index, sig, pxToRect(r, box), r, (x, y) => fromPx(x, y, box), scale);
+    await tab.whenPainted(index);
     annotate.tool = null;
     ghostAt = null;
     // Selected, so it can be moved or resized right away.
     tab.selectedAnnotation = { page: index, id: placed.id };
   } catch (err) {
     fail(err);
+  } finally {
+    placing = false;
   }
 }
+
+/** A signature was clicked down: its preview stays put until the page shows it. */
+let placing = false;
 
 // --- Selecting, moving and resizing -------------------------------------
 
@@ -358,16 +375,18 @@ async function onDragUp(e: PointerEvent) {
   // Keep showing the preview where it was dropped until the page has the change.
   dropped = movedEnough ? preview : null;
   drag = null;
-  // An annotation without a name gets one when it's first changed: show it again by that.
-  let shown = original;
   try {
-    if (movedEnough) shown = await update(tab, index, original, preview);
+    // Shown again and moved before the page renders once more, so no
+    // in-between image (hidden, or back at the old place) can flash.
+    if (hidden) await setAnnotationHidden(tab.docId, index, original.id, false);
+    if (movedEnough) await update(tab, index, original, preview);
+    else if (hidden) tab.bumpPage(index);
+    await tab.whenPainted(index);
   } catch (err) {
     fail(err);
+    tab.bumpPage(index);
   } finally {
-    if (hidden) await hide(shown, false);
-    // The page re-renders shortly; until then the preview stands in for it.
-    setTimeout(() => (dropped = null), 400);
+    dropped = null;
   }
 }
 
@@ -485,6 +504,31 @@ function strokePoints(points: PagePoint[]) {
 let draftStyle = $derived(tool ? annotate.style(tool) : null);
 </script>
 
+{#snippet drawing(draft: Draft, draftStyle: ToolStyle)}
+      {@const color = rgb(draftStyle.color)}
+      {@const w = Math.max(1, draftStyle.width * scale)}
+      {#if draft.tool === "pen"}
+        <polyline class="preview" points={draft.points.map((p) => `${p.x},${p.y}`).join(" ")}
+          stroke={color} stroke-width={w} opacity={draftStyle.opacity} />
+      {:else if draft.tool === "line" || draft.tool === "arrow"}
+        <line class="preview" x1={draft.from.x} y1={draft.from.y} x2={draft.to.x} y2={draft.to.y}
+          stroke={color} stroke-width={w} opacity={draftStyle.opacity} />
+      {:else}
+        {@const x = Math.min(draft.from.x, draft.to.x)}
+        {@const y = Math.min(draft.from.y, draft.to.y)}
+        {@const dw = Math.abs(draft.to.x - draft.from.x)}
+        {@const dh = Math.abs(draft.to.y - draft.from.y)}
+        {@const fill = draftStyle.fill ? rgb(lighter(draftStyle.color)) : "none"}
+        {#if draft.tool === "rectangle"}
+          <rect class="preview" {x} {y} width={dw} height={dh} stroke={color} stroke-width={w} {fill}
+            opacity={draftStyle.opacity} />
+        {:else}
+          <ellipse class="preview" cx={x + dw / 2} cy={y + dh / 2} rx={dw / 2} ry={dh / 2} stroke={color}
+            stroke-width={w} {fill} opacity={draftStyle.opacity} />
+        {/if}
+      {/if}
+{/snippet}
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="annot-layer"
@@ -526,29 +570,11 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
     {/if}
 
     <!-- What is being drawn. -->
+    {#each held as d, i (i)}
+      {@render drawing(d, annotate.style(d.tool))}
+    {/each}
     {#if draft && draftStyle}
-      {@const color = rgb(draftStyle.color)}
-      {@const w = Math.max(1, draftStyle.width * scale)}
-      {#if draft.tool === "pen"}
-        <polyline class="preview" points={draft.points.map((p) => `${p.x},${p.y}`).join(" ")}
-          stroke={color} stroke-width={w} opacity={draftStyle.opacity} />
-      {:else if draft.tool === "line" || draft.tool === "arrow"}
-        <line class="preview" x1={draft.from.x} y1={draft.from.y} x2={draft.to.x} y2={draft.to.y}
-          stroke={color} stroke-width={w} opacity={draftStyle.opacity} />
-      {:else}
-        {@const x = Math.min(draft.from.x, draft.to.x)}
-        {@const y = Math.min(draft.from.y, draft.to.y)}
-        {@const dw = Math.abs(draft.to.x - draft.from.x)}
-        {@const dh = Math.abs(draft.to.y - draft.from.y)}
-        {@const fill = draftStyle.fill ? rgb(lighter(draftStyle.color)) : "none"}
-        {#if draft.tool === "rectangle"}
-          <rect class="preview" {x} {y} width={dw} height={dh} stroke={color} stroke-width={w} {fill}
-            opacity={draftStyle.opacity} />
-        {:else}
-          <ellipse class="preview" cx={x + dw / 2} cy={y + dh / 2} rx={dw / 2} ry={dh / 2} stroke={color}
-            stroke-width={w} {fill} opacity={draftStyle.opacity} />
-        {/if}
-      {/if}
+      {@render drawing(draft, draftStyle)}
     {/if}
 
     <!-- The signature being placed, following the pointer. -->

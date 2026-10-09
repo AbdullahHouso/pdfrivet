@@ -25,7 +25,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Pick each tool's colour, line width and opacity; rectangles and ellipses can be filled. Your choices are remembered.
 - Click an annotation to select it: move it, resize it, change its colour, add a comment or delete it (Delete key).
 - Undo and redo with Ctrl+Z and Ctrl+Y. Undoing a delete brings an annotation back exactly as it was, even one made in another app, and even after saving.
-- Moving or resizing an annotation keeps its look (for example highlighter strokes made on an iPad keep their rounded, see-through style); while you drag, only the moved copy shows.
+- Moving or resizing an annotation keeps its look (for example highlighter strokes made on an iPad keep their rounded, see-through style); while you drag, only the moved copy shows. Nothing blinks when you finish drawing, moving or highlighting.
 - Highlight, underline and strike out on scanned pages and pictures: where there's no text, drag over the area.
 - Annotations are saved the standard way, so other PDF readers show them too. Settings → General has the name shown as their author.
 

@@ -178,6 +178,12 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   drawings keep their style. Only a change of colour, width, opacity or fill redraws it.
   Ink and lines are redrawn by us (`ink_appearance`: round ends and joins, opacity through the
   `GS` state PDFium adds), not by PDFium (square ends, no `ca`).
+- **No blinking:** an edit's preview (a drawn shape, a dropped annotation, a dragged-out area, a
+  text selection being highlighted, a placed signature) stays on screen until the page has
+  painted the change: `PageView` reports each painted revision (`tab.markPainted`), and edits
+  wait for it with `tab.whenPainted(page)`. Edits re-render the page at once (only zooming waits
+  for the size to settle). On drop, the dragged annotation is shown again and moved *before* the
+  page renders, so no in-between image can appear.
 - **Deleting** hides the annotation and marks it (`PDFRivetDeleted`); undo restores it exactly.
   Saving leaves marked annotations out of the *written file* (lopdf, `prune.rs`), so undo still
   works afterwards. While an annotation is dragged it's hidden the same way (flag only), so only

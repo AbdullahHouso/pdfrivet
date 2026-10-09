@@ -404,17 +404,23 @@ function startArea(e: PointerEvent, page: number) {
   tab.selection = null;
   const p = shownPoint(e, page);
   area = { pointerId: e.pointerId, page, from: p, to: p };
+  selectingArea = true;
   scroller.setPointerCapture(e.pointerId);
 }
 
+/** An area is being dragged (it may stay on screen a moment after, until the page shows it). */
+let selectingArea = false;
+
 function endArea(e: PointerEvent) {
-  if (!area || area.pointerId !== e.pointerId) return;
+  if (!area || area.pointerId !== e.pointerId || !selectingArea) return;
+  selectingArea = false;
   if (scroller.hasPointerCapture(e.pointerId)) scroller.releasePointerCapture(e.pointerId);
   const { page, from, to } = area;
-  area = null;
+  const dragged = area;
   const w = Math.abs(to.x - from.x) * layout.widths[page];
   const h = Math.abs(to.y - from.y) * layout.heights[page];
   if (w < 4 || h < 4) {
+    area = null;
     selectAnnotationAt(e);
     return;
   }
@@ -427,8 +433,18 @@ function endArea(e: PointerEvent) {
     bottom: Math.max(a.y, b.y),
   };
   const tool = annotate.tool;
-  if (tool === "redact") markForRedaction(tab, page, [rect]);
-  else if (isMarkupTool(tool)) markArea(tab, page, tool, rect).catch((err) => onerror?.(toRivetError(err)));
+  // The dragged area stays until the page shows the mark, so nothing blinks.
+  const done = () => {
+    if (area === dragged) area = null;
+  };
+  if (tool === "redact") {
+    markForRedaction(tab, page, [rect]);
+    done();
+  } else if (isMarkupTool(tool)) {
+    markArea(tab, page, tool, rect)
+      .catch((err) => onerror?.(toRivetError(err)))
+      .finally(done);
+  } else done();
 }
 
 let clickStart = { x: 0, y: 0 };
@@ -481,7 +497,7 @@ function onPointerDown(e: PointerEvent) {
 }
 
 function onPointerMove(e: PointerEvent) {
-  if (area && area.pointerId === e.pointerId) {
+  if (area && area.pointerId === e.pointerId && selectingArea) {
     area = { ...area, to: shownPoint(e, area.page) };
     return;
   }
@@ -503,7 +519,7 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onPointerUp(e: PointerEvent) {
-  if (area && area.pointerId === e.pointerId) {
+  if (area && area.pointerId === e.pointerId && selectingArea) {
     endArea(e);
     return;
   }

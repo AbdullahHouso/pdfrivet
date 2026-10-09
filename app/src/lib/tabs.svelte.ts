@@ -90,6 +90,34 @@ export class Tab {
     this.search = new DocSearch(docId);
   }
 
+  /** The revision each page last painted (see `whenPainted`). */
+  readonly #painted = new Map<number, number>();
+  #waiting: { page: number; revision: number; done: () => void }[] = [];
+
+  /** Called by a page once it shows `revision`. */
+  markPainted(page: number, revision: number) {
+    this.#painted.set(page, revision);
+    const ready = this.#waiting.filter((w) => w.page === page && w.revision <= revision);
+    this.#waiting = this.#waiting.filter((w) => !ready.includes(w));
+    for (const w of ready) w.done();
+  }
+
+  /**
+   * Resolves once `page` shows `revision` (or after `timeout` ms, e.g. when it
+   * scrolled away). Previews of a change stay up until then, so nothing flashes.
+   */
+  whenPainted(page: number, revision = this.pageRevision(page), timeout = 3000): Promise<void> {
+    if ((this.#painted.get(page) ?? -1) >= revision) return Promise.resolve();
+    return new Promise((resolve) => {
+      const entry = { page, revision, done: resolve };
+      this.#waiting.push(entry);
+      setTimeout(() => {
+        this.#waiting = this.#waiting.filter((w) => w !== entry);
+        resolve();
+      }, timeout);
+    });
+  }
+
   /** Marks a page as changed, so it and its thumbnail render again. */
   bumpPage(page: number) {
     this.pageRevisions.set(page, (this.pageRevisions.get(page) ?? 0) + 1);
