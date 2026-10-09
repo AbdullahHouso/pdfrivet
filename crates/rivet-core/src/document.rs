@@ -1,5 +1,6 @@
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
+    collections::BTreeSet,
     io::Cursor,
     path::Path,
     sync::{Arc, OnceLock},
@@ -91,6 +92,9 @@ impl Pdf {
             password: password.map(str::to_owned),
             pages_loaded: Cell::new(0),
             unsaved_changes: Cell::new(false),
+            deleted_on: RefCell::new(BTreeSet::new()),
+            needs_prune: Cell::new(false),
+            redacted: RefCell::new(BTreeSet::new()),
         })
     }
 
@@ -239,6 +243,13 @@ pub struct Document {
     /// Filled-in form fields and annotations live only inside PDFium until
     /// they're saved, so the document must not be reopened while there are any.
     unsaved_changes: Cell<bool>,
+    /// Pages with deleted annotations still waiting (hidden) to be removed on save.
+    deleted_on: RefCell<BTreeSet<u32>>,
+    /// Something was removed (deleted annotations, redactions): the next save
+    /// rewrites the file without the leftovers (see `prune.rs`).
+    needs_prune: Cell<bool>,
+    /// Redacted pages: when saving, they keep only the resources still used.
+    redacted: RefCell<BTreeSet<u32>>,
 }
 
 impl Document {
@@ -332,12 +343,49 @@ impl Document {
         Ok(id)
     }
 
+    /// Deletes an annotation. Until the document is saved it can be brought
+    /// back exactly as it was ([`Document::restore_annotation`]).
     pub fn delete_annotation(&self, index: u32, id: &str) -> Result<()> {
         self.check_can_annotate()?;
         let page = self.load_page(index)?;
         crate::annotations::delete(self.pdfium, &page, id)?;
+        self.deleted_on.borrow_mut().insert(index);
         self.unsaved_changes.set(true);
         Ok(())
+    }
+
+    /// Brings back a deleted annotation (undo).
+    pub fn restore_annotation(&self, index: u32, id: &str) -> Result<()> {
+        self.check_can_annotate()?;
+        let page = self.load_page(index)?;
+        crate::annotations::restore(self.pdfium, &page, id)?;
+        self.unsaved_changes.set(true);
+        Ok(())
+    }
+
+    /// Permanently removes what is under `areas` (page fractions) of a page, and
+    /// blacks them out. The removed content is gone from the file once saved.
+    pub fn redact(&self, index: u32, areas: &[crate::PageRect]) -> Result<()> {
+        self.check_can_annotate()?;
+        if self.properties().encrypted {
+            // The leftovers couldn't be removed from the saved file (see prune.rs).
+            return Err(Error::new(
+                ErrorCode::RedactProtected,
+                "password-protected PDF",
+            ));
+        }
+        let mut page = self.load_page(index)?;
+        crate::redact::redact(self.pdfium, &self.inner, &mut page, areas)?;
+        self.redacted.borrow_mut().insert(index);
+        self.unsaved_changes.set(true);
+        self.needs_prune.set(true);
+        Ok(())
+    }
+
+    /// Hides or shows an annotation while it is dragged (not a change to the document).
+    pub fn set_annotation_hidden(&self, index: u32, id: &str, hidden: bool) -> Result<()> {
+        let page = self.load_page(index)?;
+        crate::annotations::set_hidden(self.pdfium, &page, id, hidden)
     }
 
     fn check_can_annotate(&self) -> Result<()> {
@@ -508,10 +556,34 @@ impl Document {
     /// place, so a crash or full disk never leaves a half-written PDF behind.
     pub fn save(&mut self, path: &Path) -> Result<()> {
         let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
+        let has_deleted = !self.deleted_on.borrow().is_empty();
         let mut bytes = self
             .inner
             .save_to_bytes()
             .map_err(|e| failed(&format!("{e:?}")))?;
+        if has_deleted || self.needs_prune.get() {
+            let redacted: Vec<u32> = self.redacted.borrow().iter().copied().collect();
+            match crate::prune::prune(&bytes, crate::annotations::DELETED_KEY, &redacted)? {
+                Some(pruned) => bytes = pruned,
+                // Password-protected: deleted annotations can't be left out of the
+                // written file, so they are removed from the document for good.
+                None if has_deleted => {
+                    let pages: Vec<u32> = std::mem::take(&mut *self.deleted_on.borrow_mut())
+                        .into_iter()
+                        .collect();
+                    for index in pages {
+                        if let Ok(page) = self.load_page(index) {
+                            crate::annotations::purge_deleted(self.pdfium, &page);
+                        }
+                    }
+                    bytes = self
+                        .inner
+                        .save_to_bytes()
+                        .map_err(|e| failed(&format!("{e:?}")))?;
+                }
+                None => {}
+            }
+        }
         // PDFium can't write metadata; changed title/author/… are added here.
         if let Some(meta) = &self.new_metadata {
             bytes = crate::metadata::apply(bytes, meta)?;
@@ -537,6 +609,10 @@ impl Document {
             failed(&e)
         })?;
         // The saved bytes now hold every change, so reopening is safe again.
+        // Redacted leftovers aren't in the saved file; later saves needn't prune
+        // for them. (Deleted annotations are left out of every save until undone.)
+        self.needs_prune.set(false);
+        self.redacted.borrow_mut().clear();
         if let Source::Memory(_) = self.source {
             self.source = Source::Memory(Arc::new(bytes));
             self.unsaved_changes.set(false);
@@ -606,7 +682,9 @@ impl Document {
         })
     }
 
-    fn load_page(&self, index: u32) -> Result<PdfPage<'_>> {
+    // `'static` like the document itself (pdfium-render hands pages out that way);
+    // pages are only used within one call, never kept.
+    fn load_page(&self, index: u32) -> Result<PdfPage<'static>> {
         self.check_index(index)?;
         self.pages_loaded
             .set(self.pages_loaded.get().saturating_add(1));

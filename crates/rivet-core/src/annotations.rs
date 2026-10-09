@@ -147,6 +147,7 @@ const FPDF_ANNOT_STAMP: u32 = 13;
 const FPDF_ANNOT_INK: u32 = 15;
 const FPDF_ANNOT_POPUP: u32 = 16;
 const FPDF_ANNOT_WIDGET: u32 = 20;
+const FPDF_ANNOT_FLAG_HIDDEN: i32 = 2;
 const FPDF_ANNOT_FLAG_PRINT: i32 = 4;
 const FPDF_ANNOT_FLAG_LOCKED: i32 = 128;
 const FPDF_ANNOT_APPEARANCEMODE_NORMAL: i32 = 0;
@@ -154,6 +155,11 @@ const COLOR_STROKE: FPDFANNOT_COLORTYPE = 0;
 const COLOR_FILL: FPDFANNOT_COLORTYPE = 1;
 const FPDF_OBJECT_ARRAY: FPDF_OBJECT_TYPE = 5;
 const FPDF_PAGEOBJ_PATH: i32 = 2;
+
+/// Private key marking an annotation deleted in PDFRivet but not yet saved:
+/// it stays in the document (hidden) so undo can bring it back exactly as it
+/// was, and is removed when the file is saved (see [`purge_deleted`]).
+pub(crate) const DELETED_KEY: &str = "PDFRivetDeleted";
 
 /// Private key marking an Ink annotation that PDFRivet drew as a line or arrow.
 const SHAPE_KEY: &str = "PDFRivetShape";
@@ -168,6 +174,9 @@ pub(crate) fn read(pdfium: &Pdfium, page: &PdfPage) -> Vec<Annotation> {
     (0..annots.count())
         .filter_map(|index| {
             let annot = annots.get(index)?;
+            if annot.is_deleted() {
+                return None;
+            }
             annot_to_model(&annot, index, &map)
         })
         .collect()
@@ -271,7 +280,7 @@ pub(crate) fn add_image_stamp(
 
 /// The matrix that stretches a 1 × 1 image over `rect` (page fractions),
 /// upright as the page is shown (pages may have their own rotation).
-fn image_matrix(map: &Mapping, rect: &PageRect) -> FS_MATRIX {
+pub(crate) fn image_matrix(map: &Mapping, rect: &PageRect) -> FS_MATRIX {
     let (x0, y0) = map.points(PagePoint {
         x: rect.left,
         y: rect.bottom,
@@ -329,6 +338,29 @@ pub(crate) fn update(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -
         annot.set_string("M", &now);
         return Ok(id);
     }
+    if same_style(&current, annotation) && fits_by_stretching(&current, annotation) {
+        // Only moved or resized: keep the appearance exactly as it is (another
+        // app's drawing included). Readers fit an appearance's box into the
+        // annotation's Rect, so a new Rect moves and scales it.
+        annot.set_rect(&map.rect_points(&annotation.rect));
+        match &annotation.kind {
+            AnnotationKind::Ink { strokes } => {
+                annot.set_ink(&points_of(strokes, &map));
+            }
+            AnnotationKind::Line { from, to, arrow } => {
+                annot.set_ink(&line_strokes(
+                    map.points(*from),
+                    map.points(*to),
+                    *arrow,
+                    annotation.width,
+                ));
+            }
+            _ => {}
+        }
+        annot.set_string("Contents", &annotation.contents);
+        annot.set_string("M", &now);
+        return Ok(id);
+    }
     // The appearance is drawn again from the new values (and PDFium refuses to
     // change the colour of an annotation that still has one).
     annot.clear_appearance();
@@ -343,17 +375,145 @@ pub(crate) fn update(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -
     Ok(id)
 }
 
-/// Removes an annotation.
+/// Same colour, fill, opacity and line width.
+fn same_style(a: &Annotation, b: &Annotation) -> bool {
+    let fill = |x: &Annotation| match &x.kind {
+        AnnotationKind::Square { fill } | AnnotationKind::Circle { fill } => *fill,
+        _ => None,
+    };
+    a.color == b.color
+        && fill(a) == fill(b)
+        && (a.opacity - b.opacity).abs() < 0.005
+        && (a.width - b.width).abs() < 0.01
+}
+
+/// Whether `new` is `old` moved and/or stretched from its rectangle into its
+/// new one (so the old appearance, fitted into the new rectangle, is right).
+fn fits_by_stretching(old: &Annotation, new: &Annotation) -> bool {
+    let (o, n) = (&old.rect, &new.rect);
+    let (ow, oh) = (o.right - o.left, o.bottom - o.top);
+    if ow <= 0.0 || oh <= 0.0 {
+        return false;
+    }
+    let map = |p: &PagePoint| PagePoint {
+        x: n.left + (p.x - o.left) / ow * (n.right - n.left),
+        y: n.top + (p.y - o.top) / oh * (n.bottom - n.top),
+    };
+    let close = |a: &PagePoint, b: &PagePoint| (a.x - b.x).abs() < 1e-3 && (a.y - b.y).abs() < 1e-3;
+    match (&old.kind, &new.kind) {
+        (AnnotationKind::Ink { strokes: a }, AnnotationKind::Ink { strokes: b }) => {
+            a.len() == b.len()
+                && a.iter().zip(b).all(|(sa, sb)| {
+                    sa.len() == sb.len() && sa.iter().zip(sb).all(|(pa, pb)| close(&map(pa), pb))
+                })
+        }
+        (
+            AnnotationKind::Line {
+                from: fa,
+                to: ta,
+                arrow: aa,
+            },
+            AnnotationKind::Line {
+                from: fb,
+                to: tb,
+                arrow: ab,
+            },
+        ) => aa == ab && close(&map(fa), fb) && close(&map(ta), tb),
+        (AnnotationKind::Markup { quads: a, .. }, AnnotationKind::Markup { quads: b, .. }) => {
+            a == b
+        }
+        (a, b) => std::mem::discriminant(a) == std::mem::discriminant(b),
+    }
+}
+
+fn points_of(strokes: &[Vec<PagePoint>], map: &Mapping) -> Vec<Vec<(f32, f32)>> {
+    strokes
+        .iter()
+        .map(|s| s.iter().map(|&p| map.points(p)).collect())
+        .collect()
+}
+
+/// A line's strokes in points: the line, and for an arrow the two strokes of its head.
+fn line_strokes(a: (f32, f32), b: (f32, f32), arrow: bool, width: f32) -> Vec<Vec<(f32, f32)>> {
+    let mut strokes = vec![vec![a, b]];
+    if arrow {
+        strokes.extend(arrow_head(a, b, width));
+    }
+    strokes
+}
+
+/// Deletes an annotation. It is hidden and marked, and removed for good when
+/// the document is saved, so undo can bring it back exactly as it was.
 pub(crate) fn delete(pdfium: &Pdfium, page: &PdfPage, id: &str) -> Result<()> {
     let annots = PageAnnots::new(pdfium, page);
-    let (index, annot) = annots
+    let (_, annot) = annots
+        .find(id)
+        .filter(|(_, a)| !a.is_deleted())
+        .ok_or_else(|| Error::new(ErrorCode::AnnotationNotFound, id.to_owned()))?;
+    annot.set_flags(annot.flags() | FPDF_ANNOT_FLAG_HIDDEN);
+    annot.set_string(DELETED_KEY, "1");
+    Ok(())
+}
+
+/// Brings back a deleted annotation (undo).
+pub(crate) fn restore(pdfium: &Pdfium, page: &PdfPage, id: &str) -> Result<()> {
+    let annots = PageAnnots::new(pdfium, page);
+    let (_, annot) = annots
+        .find(id)
+        .filter(|(_, a)| a.is_deleted())
+        .ok_or_else(|| Error::new(ErrorCode::AnnotationNotFound, id.to_owned()))?;
+    annot.set_flags(annot.flags() & !FPDF_ANNOT_FLAG_HIDDEN);
+    // PDFium can't remove a key; an empty value means "not deleted".
+    annot.set_string(DELETED_KEY, "");
+    Ok(())
+}
+
+/// Hides or shows an annotation without changing anything else (while it is
+/// being dragged, so only its preview shows).
+pub(crate) fn set_hidden(pdfium: &Pdfium, page: &PdfPage, id: &str, hidden: bool) -> Result<()> {
+    let annots = PageAnnots::new(pdfium, page);
+    let (_, annot) = annots
         .find(id)
         .ok_or_else(|| Error::new(ErrorCode::AnnotationNotFound, id.to_owned()))?;
-    drop(annot);
-    if annots.remove(index) {
-        Ok(())
+    let flags = annot.flags();
+    annot.set_flags(if hidden {
+        flags | FPDF_ANNOT_FLAG_HIDDEN
     } else {
-        Err(internal("PDFium couldn't remove the annotation"))
+        flags & !FPDF_ANNOT_FLAG_HIDDEN
+    });
+    Ok(())
+}
+
+/// Removes every annotation that touches one of `areas` (redaction), for good.
+pub(crate) fn remove_touching(pdfium: &Pdfium, page: &PdfPage, areas: &[PageRect]) {
+    let Some(map) = Mapping::new(page) else {
+        return;
+    };
+    let annots = PageAnnots::new(pdfium, page);
+    for index in (0..annots.count()).rev() {
+        let touches = annots
+            .get(index)
+            .and_then(|a| a.rect())
+            .is_some_and(|r| areas.iter().any(|area| overlaps(&map.rect(&r), area)));
+        if touches {
+            annots.remove(index);
+        }
+    }
+}
+
+/// Whether two page rectangles overlap.
+pub(crate) fn overlaps(a: &PageRect, b: &PageRect) -> bool {
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+}
+
+/// Removes the annotations deleted on this page for good (saving a
+/// password-protected file, which can't be rewritten without them).
+pub(crate) fn purge_deleted(pdfium: &Pdfium, page: &PdfPage) {
+    let annots = PageAnnots::new(pdfium, page);
+    for index in (0..annots.count()).rev() {
+        if annots.get(index).is_some_and(|a| a.is_deleted()) {
+            annots.remove(index);
+        }
     }
 }
 
@@ -391,13 +551,13 @@ fn new_id() -> String {
 }
 
 /// Converts between page fractions and PDF points for one page.
-struct Mapping {
+pub(crate) struct Mapping {
     to_fraction: Affine,
     to_points: Affine,
 }
 
 impl Mapping {
-    fn new(page: &PdfPage) -> Option<Self> {
+    pub(crate) fn new(page: &PdfPage) -> Option<Self> {
         let to_fraction = PageGeometry::new(page)?.affine()?;
         Some(Self {
             to_fraction,
@@ -414,7 +574,7 @@ impl Mapping {
         self.to_points.apply(p.x, p.y)
     }
 
-    fn rect(&self, r: &FS_RECTF) -> PageRect {
+    pub(crate) fn rect(&self, r: &FS_RECTF) -> PageRect {
         let f = self.to_fraction.rect(r.left, r.bottom, r.right, r.top);
         PageRect {
             left: f.left,
@@ -425,7 +585,7 @@ impl Mapping {
     }
 
     /// A page rectangle in points: (left, bottom, right, top).
-    fn rect_points(&self, r: &PageRect) -> FS_RECTF {
+    pub(crate) fn rect_points(&self, r: &PageRect) -> FS_RECTF {
         let (x1, y1) = self.points(PagePoint {
             x: r.left,
             y: r.top,
@@ -507,7 +667,12 @@ fn annot_to_model(annot: &Annot, index: i32, map: &Mapping) -> Option<Annotation
         color: annot
             .main_color(matches!(subtype, FPDF_ANNOT_HIGHLIGHT | FPDF_ANNOT_TEXT))
             .unwrap_or(Color { r: 0, g: 0, b: 0 }),
-        opacity: annot.number("CA").unwrap_or(1.0).clamp(0.0, 1.0),
+        // Stroke opacity, or (some apps, e.g. Apple's highlighter) only the fill opacity.
+        opacity: annot
+            .number("CA")
+            .or_else(|| annot.number("ca"))
+            .unwrap_or(1.0)
+            .clamp(0.0, 1.0),
         width: annot.border_width().unwrap_or(1.0),
         contents: annot.string("Contents").unwrap_or_default(),
         author: annot.string("T").unwrap_or_default(),
@@ -581,19 +746,14 @@ fn write_shape(annot: &Annot, annotation: &Annotation, map: &Mapping) -> Result<
             annot.set_rect(&bounds);
         }
         AnnotationKind::Ink { strokes } => {
-            let strokes: Vec<Vec<(f32, f32)>> = strokes
-                .iter()
-                .map(|s| s.iter().map(|&p| map.points(p)).collect())
-                .collect();
-            write_strokes(annot, &strokes, pad)?;
-            annot.set_string(SHAPE_KEY, "");
+            write_strokes(annot, &points_of(strokes, map), pad)?;
+            if annot.string(SHAPE_KEY).is_some() {
+                annot.set_string(SHAPE_KEY, "");
+            }
         }
         AnnotationKind::Line { from, to, arrow } => {
-            let (a, b) = (map.points(*from), map.points(*to));
-            let mut strokes = vec![vec![a, b]];
-            if *arrow {
-                strokes.extend(arrow_head(a, b, annotation.width));
-            }
+            let strokes =
+                line_strokes(map.points(*from), map.points(*to), *arrow, annotation.width);
             write_strokes(annot, &strokes, pad)?;
             annot.set_string(SHAPE_KEY, if *arrow { "arrow" } else { "line" });
         }
@@ -606,11 +766,8 @@ fn write_shape(annot: &Annot, annotation: &Annotation, map: &Mapping) -> Result<
 }
 
 fn write_strokes(annot: &Annot, strokes: &[Vec<(f32, f32)>], pad: f32) -> Result<()> {
-    annot.remove_ink();
-    for stroke in strokes {
-        if stroke.is_empty() || !annot.add_ink_stroke(stroke) {
-            return Err(internal("PDFium refused an ink stroke"));
-        }
+    if !annot.set_ink(strokes) {
+        return Err(internal("PDFium refused an ink stroke"));
     }
     let mut rect = bounds(strokes.iter().flatten().copied());
     rect.left -= pad;
@@ -711,13 +868,57 @@ fn write_style(annot: &Annot, annotation: &Annotation, now: &str) {
 /// Draws the appearance of kinds PDFium would draw differently from what was
 /// chosen. Everything else is drawn by PDFium the first time the page renders.
 fn write_appearance(annot: &Annot, annotation: &Annotation, map: &Mapping) {
-    if annotation.kind == AnnotationKind::Note {
+    match &annotation.kind {
         // PDFium always draws notes yellow; this draws them in their colour.
-        annot.set_appearance(&note_appearance(
+        AnnotationKind::Note => annot.set_appearance(&note_appearance(
             &map.rect_points(&annotation.rect),
             annotation.color,
-        ));
+        )),
+        // PDFium draws ink with square ends and corners; pens and highlighters
+        // look right with round ones (and match what was seen while drawing).
+        AnnotationKind::Ink { strokes } => {
+            annot.set_appearance(&ink_appearance(&points_of(strokes, map), annotation));
+        }
+        AnnotationKind::Line { from, to, arrow } => {
+            let strokes =
+                line_strokes(map.points(*from), map.points(*to), *arrow, annotation.width);
+            annot.set_appearance(&ink_appearance(&strokes, annotation));
+        }
+        _ => {}
     }
+}
+
+/// Strokes (PDF points) drawn with round ends and joins, in the annotation's
+/// colour, width and opacity. PDFium adds the opacity as the `GS` graphics
+/// state when the appearance is set, because the annotation has a `CA` value.
+fn ink_appearance(strokes: &[Vec<(f32, f32)>], annotation: &Annotation) -> String {
+    let c = |v: u8| f32::from(v) / 255.0;
+    let mut out = String::from("q ");
+    if annotation.opacity < 0.999 {
+        out += "/GS gs ";
+    }
+    out += &format!(
+        "{:.3} {:.3} {:.3} RG {:.2} w 1 J 1 j\n",
+        c(annotation.color.r),
+        c(annotation.color.g),
+        c(annotation.color.b),
+        annotation.width.max(0.1)
+    );
+    for stroke in strokes {
+        let Some(((x0, y0), rest)) = stroke.split_first() else {
+            continue;
+        };
+        out += &format!("{x0:.2} {y0:.2} m");
+        if rest.is_empty() {
+            // A dot: a zero-length line shows as a round dot with round caps.
+            out += &format!(" {x0:.2} {y0:.2} l");
+        }
+        for (x, y) in rest {
+            out += &format!(" {x:.2} {y:.2} l");
+        }
+        out += " S\n";
+    }
+    out + "Q"
 }
 
 /// A sticky-note icon filling `r` (PDF points): a sheet with a folded corner
@@ -1118,6 +1319,19 @@ impl<'a> Annot<'a> {
                 })
                 .collect()
         }
+    }
+
+    /// Whether the annotation was deleted in PDFRivet (see [`delete`]).
+    fn is_deleted(&self) -> bool {
+        self.string(DELETED_KEY).as_deref() == Some("1")
+    }
+
+    /// Replaces the ink strokes (PDF points).
+    fn set_ink(&self, strokes: &[Vec<(f32, f32)>]) -> bool {
+        self.remove_ink();
+        strokes
+            .iter()
+            .all(|s| !s.is_empty() && self.add_ink_stroke(s))
     }
 
     fn remove_ink(&self) {

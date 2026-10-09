@@ -10,6 +10,7 @@ import type { FormField } from "./bindings/FormField";
 import type { Metadata } from "./bindings/Metadata";
 import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageLink } from "./bindings/PageLink";
+import type { PageRect } from "./bindings/PageRect";
 import type { SearchBatch } from "./bindings/SearchBatch";
 import type { SearchQuery } from "./bindings/SearchQuery";
 import type { TextRange } from "./bindings/TextRange";
@@ -108,6 +109,21 @@ export function addImageStamp(docId: number, page: number, annotation: Annotatio
   body.set(header, 4);
   body.set(picture.data, 4 + header.length);
   return invoke("add_image_stamp", body);
+}
+
+/** Brings back a deleted annotation (undo; possible until the document is saved). */
+export function restoreAnnotation(docId: number, page: number, id: string): Promise<void> {
+  return invoke("restore_annotation", { docId, page, id });
+}
+
+/** Hides or shows an annotation while it is dragged (so only its preview shows). */
+export function setAnnotationHidden(docId: number, page: number, id: string, hidden: boolean): Promise<void> {
+  return invoke("set_annotation_hidden", { docId, page, id, hidden });
+}
+
+/** Permanently removes what is under `areas` of a page (redaction). */
+export function redact(docId: number, page: number, areas: PageRect[]): Promise<void> {
+  return invoke("redact", { docId, page, areas });
 }
 
 export function deleteAnnotation(docId: number, page: number, id: string): Promise<void> {

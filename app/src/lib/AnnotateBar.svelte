@@ -2,7 +2,7 @@
 // The Annotate toolbar: a second row under the main toolbar with the
 // annotation tools, the current tool's colour, width and opacity, and undo/redo.
 import type { ComponentProps } from "svelte";
-import { type AnnotTool, annotate, PALETTE, redo, toHex, undo } from "./annotate.svelte";
+import { type AnnotTool, annotate, applyRedactions, PALETTE, redo, toHex, undo } from "./annotate.svelte";
 import type { Color } from "./bindings/Color";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
@@ -36,6 +36,7 @@ const GROUPS: ToolButton[][] = [
     { tool: "note", icon: "note", label: "annot-note" },
     { tool: "eraser", icon: "eraser", label: "annot-eraser" },
   ],
+  [{ tool: "redact", icon: "redact", label: "annot-redact" }],
 ];
 
 function choose(t: AnnotTool | null) {
@@ -86,7 +87,8 @@ function useSignature(sig: Signature) {
 function inkPath(sig: Extract<Signature, { kind: "ink" }>) {
   return sig.strokes.map((s) => `M${s.map((p) => `${p.x} ${p.y}`).join("L")}`).join(" ");
 }
-let style = $derived(current && current !== "eraser" ? annotate.style(current) : null);
+let style = $derived(current && !["eraser", "redact", "signature"].includes(current) ? annotate.style(current) : null);
+let marked = $derived(tab.redactions.length);
 let hasWidth = $derived(current !== null && ["pen", "rectangle", "ellipse", "line", "arrow"].includes(current));
 let hasFill = $derived(current === "rectangle" || current === "ellipse");
 let hasOpacity = $derived(current !== null && current !== "note" && current !== "eraser");
@@ -193,6 +195,15 @@ async function run(action: (t: Tab) => Promise<unknown>) {
             onchange={(e) => current && annotate.setStyle(current, { fill: e.currentTarget.checked })} />
           {i18n.t("annot-fill")}
         </label>
+      {/if}
+    </div>
+  {:else if current === "redact" || marked > 0}
+    <div class="group redact-info">
+      <p class="hint">{i18n.t("redact-hint")}</p>
+      {#if marked > 0}
+        <button class="danger" onclick={() => run(applyRedactions)}>
+          {i18n.t("redact-apply", { count: marked })}
+        </button>
       {/if}
     </div>
   {:else if current === null}
@@ -343,6 +354,16 @@ async function run(action: (t: Tab) => Promise<unknown>) {
     justify-content: center;
     gap: 6px;
     width: 100%;
+  }
+  .redact-info {
+    gap: 10px;
+  }
+  /* Applying redactions can't be undone: the button says so with its colour. */
+  .danger {
+    border-color: #d32f2f;
+    background: #d32f2f;
+    color: #ffffff;
+    white-space: nowrap;
   }
   .hint {
     margin: 0;

@@ -70,6 +70,9 @@ enum Request {
     AddAnnotation(DocId, u32, Box<Annotation>, Reply<String>),
     UpdateAnnotation(DocId, u32, Box<Annotation>, Reply<String>),
     DeleteAnnotation(DocId, u32, String, Reply<()>),
+    RestoreAnnotation(DocId, u32, String, Reply<()>),
+    Redact(DocId, u32, Vec<crate::PageRect>, Reply<()>),
+    SetAnnotationHidden(DocId, u32, String, bool, Reply<()>),
     AddImageStamp(DocId, u32, Box<(Annotation, StampImage)>, Reply<String>),
     ChangeField(DocId, u32, u32, FieldChange, Reply<()>),
     Save(DocId, PathBuf, Reply<()>),
@@ -246,8 +249,30 @@ impl Engine {
         self.call(|reply| Request::AddImageStamp(doc, page, Box::new((annotation, image)), reply))
     }
 
+    /// Deletes an annotation (it can be restored until the document is saved).
     pub fn delete_annotation(&self, doc: DocId, page: u32, id: String) -> Result<()> {
         self.call(|reply| Request::DeleteAnnotation(doc, page, id, reply))
+    }
+
+    /// Permanently removes what is under `areas` of a page (see `redact.rs`).
+    pub fn redact(&self, doc: DocId, page: u32, areas: Vec<crate::PageRect>) -> Result<()> {
+        self.call(|reply| Request::Redact(doc, page, areas, reply))
+    }
+
+    /// Brings back a deleted annotation (undo).
+    pub fn restore_annotation(&self, doc: DocId, page: u32, id: String) -> Result<()> {
+        self.call(|reply| Request::RestoreAnnotation(doc, page, id, reply))
+    }
+
+    /// Hides or shows an annotation while it is dragged; the page's renders are refreshed.
+    pub fn set_annotation_hidden(
+        &self,
+        doc: DocId,
+        page: u32,
+        id: String,
+        hidden: bool,
+    ) -> Result<()> {
+        self.call(|reply| Request::SetAnnotationHidden(doc, page, id, hidden, reply))
     }
 
     /// Changes a form field. Rendered pages of the document are refreshed.
@@ -410,6 +435,25 @@ impl Worker {
                 let result = self
                     .doc(id)
                     .and_then(|d| d.add_image_stamp(page, &annotation, &image));
+                self.page_changed(id, page, result.is_ok());
+                let _ = reply.send(result);
+            }
+            Request::Redact(id, page, areas, reply) => {
+                let result = self.doc(id).and_then(|d| d.redact(page, &areas));
+                self.page_changed(id, page, result.is_ok());
+                let _ = reply.send(result);
+            }
+            Request::RestoreAnnotation(id, page, annotation, reply) => {
+                let result = self
+                    .doc(id)
+                    .and_then(|d| d.restore_annotation(page, &annotation));
+                self.page_changed(id, page, result.is_ok());
+                let _ = reply.send(result);
+            }
+            Request::SetAnnotationHidden(id, page, annotation, hidden, reply) => {
+                let result = self
+                    .doc(id)
+                    .and_then(|d| d.set_annotation_hidden(page, &annotation, hidden));
                 self.page_changed(id, page, result.is_ok());
                 let _ = reply.send(result);
             }

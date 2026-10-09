@@ -867,14 +867,112 @@ fn changes_and_deletes_annotations() {
 
     doc.delete_annotation(0, &square.id).unwrap();
     assert!(doc.annotations(0).unwrap().is_empty());
-    // Adding it again (undo) keeps its id; a second copy gets a new one.
-    assert_eq!(doc.add_annotation(0, &square).unwrap(), square.id);
-    assert_ne!(doc.add_annotation(0, &square).unwrap(), square.id);
-    doc.delete_annotation(0, &square.id).unwrap();
-    doc.delete_annotation(0, &doc.annotations(0).unwrap()[0].id)
-        .unwrap();
     let missing = doc.delete_annotation(0, &square.id).unwrap_err();
     assert_eq!(missing.code, ErrorCode::AnnotationNotFound);
+    // Undo brings it back as it was.
+    doc.restore_annotation(0, &square.id).unwrap();
+    let back = doc.annotations(0).unwrap();
+    assert_eq!(back.len(), 1);
+    assert_eq!(back[0].id, square.id);
+    assert_eq!(back[0].color, BLUE);
+}
+
+#[test]
+fn deleted_annotations_leave_the_file_when_saved() {
+    let _serial = serial();
+    let dir = temp_dir("deleted");
+    let path = dir.join("d.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let keep = annotation(AnnotationKind::Note, rect(0.1, 0.1, 0.13, 0.13));
+    let gone = annotation(
+        AnnotationKind::Square { fill: None },
+        rect(0.3, 0.3, 0.5, 0.5),
+    );
+    doc.add_annotation(0, &keep).unwrap();
+    let id = doc.add_annotation(0, &gone).unwrap();
+    doc.delete_annotation(0, &id).unwrap();
+    let blank = doc.render_page(0, 0.5, Rotation::None).unwrap();
+    doc.save(&path).unwrap();
+    let saved = lopdf::Document::load(&path).unwrap();
+    let squares = saved
+        .objects
+        .values()
+        .filter_map(|o| o.as_dict().ok())
+        .filter(|d| {
+            d.get(b"Subtype")
+                .and_then(|s| s.as_name())
+                .is_ok_and(|n| n == b"Square")
+        })
+        .count();
+    assert_eq!(squares, 0, "removed from the saved file");
+    // Undo still works after saving (it was only left out of the file).
+    doc.restore_annotation(0, &id).unwrap();
+    assert_eq!(doc.annotations(0).unwrap().len(), 2);
+    doc.delete_annotation(0, &id).unwrap();
+    // And it wasn't drawn while waiting to be saved either.
+    let reopened = pdf().open(&path, None).unwrap();
+    assert_eq!(reopened.annotations(0).unwrap().len(), 1);
+    let after = reopened.render_page(0, 0.5, Rotation::None).unwrap();
+    assert_eq!(non_white_pixels(&blank.rgba), non_white_pixels(&after.rgba));
+}
+
+#[test]
+fn moving_keeps_the_original_appearance() {
+    let _serial = serial();
+    let dir = temp_dir("keep-ap");
+    let path = dir.join("k.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let mut ink = annotation(
+        AnnotationKind::Ink {
+            strokes: vec![vec![point(0.1, 0.5), point(0.3, 0.52), point(0.4, 0.5)]],
+        },
+        rect(0.0, 0.0, 0.0, 0.0),
+    );
+    ink.opacity = 0.5;
+    ink.width = 10.0;
+    ink.id = doc.add_annotation(0, &ink).unwrap();
+    let appearance = |doc: &mut rivet_core::Document, path: &std::path::Path| {
+        doc.save(path).unwrap();
+        let saved = lopdf::Document::load(path).unwrap();
+        saved
+            .objects
+            .values()
+            .filter_map(|o| o.as_stream().ok())
+            .filter(|s| s.dict.get(b"BBox").is_ok())
+            .map(|s| s.decompressed_content().unwrap_or(s.content.clone()))
+            .next()
+            .unwrap()
+    };
+    let before = appearance(&mut doc, &path);
+    let text = String::from_utf8_lossy(&before);
+    assert!(text.contains("1 J 1 j"), "round ends: {text}");
+    assert!(text.contains("/GS gs"), "half transparent: {text}");
+
+    // Moved down: same appearance (fitted into the new Rect), new place on the page.
+    let mut read = doc.annotations(0).unwrap()[0].clone();
+    let dy = 0.2;
+    read.rect = PageRect {
+        top: read.rect.top + dy,
+        bottom: read.rect.bottom + dy,
+        ..read.rect
+    };
+    if let AnnotationKind::Ink { strokes } = &mut read.kind {
+        for p in strokes.iter_mut().flatten() {
+            p.y += dy;
+        }
+    }
+    doc.update_annotation(0, &read).unwrap();
+    assert_eq!(appearance(&mut doc, &path), before, "appearance kept");
+    let page = doc.render_page(0, 1.0, Rotation::None).unwrap();
+    assert!(
+        pixel_at(&page, 0.3, 0.72) != [255, 255, 255],
+        "drawn at the new place"
+    );
+    assert_eq!(
+        pixel_at(&page, 0.3, 0.52),
+        [255, 255, 255],
+        "not at the old one"
+    );
 }
 
 #[test]
@@ -977,4 +1075,140 @@ fn places_signature_pictures_with_transparency() {
         "saved with its picture"
     );
     assert_eq!(pixel_at(&page, 0.55, 0.85), [255, 255, 255]);
+}
+
+/// All stream contents of a PDF file, decompressed, as one string.
+fn all_stream_text(path: &std::path::Path) -> String {
+    let doc = lopdf::Document::load(path).unwrap();
+    doc.objects
+        .values()
+        .filter_map(|o| o.as_stream().ok())
+        .map(|s| {
+            String::from_utf8_lossy(&s.decompressed_content().unwrap_or(s.content.clone()))
+                .into_owned()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// How PDFium writes a Latin string in a content stream (hex, upper case).
+fn hex(text: &str) -> String {
+    text.bytes().map(|b| format!("{b:02X}")).collect()
+}
+
+#[test]
+fn redaction_removes_text_from_the_file() {
+    let _serial = serial();
+    let dir = temp_dir("redact");
+    let source = dir.join("source.pdf");
+    let saved = dir.join("redacted.pdf");
+    // Helvetica text is stored as plain characters, so the file can be searched.
+    pdf().write_test_document(&source, 2).unwrap();
+    assert!(all_stream_text(&source).contains(&hex("Rivet test page 1 of 2")));
+
+    let mut doc = pdf().open(&source, None).unwrap();
+    let text = doc.page_text(0).unwrap();
+    let line = text
+        .chars
+        .iter()
+        .find(|c| c.flags & CHAR_NO_BOX == 0)
+        .unwrap();
+    let area = rect(0.0, line.top - 0.01, 1.0, line.bottom + 0.01);
+    doc.redact(0, &[area]).unwrap();
+
+    // Gone from the page's text, and drawn black.
+    assert!(page_string(&doc.page_text(0).unwrap()).trim().is_empty());
+    let page = doc.render_page(0, 1.0, Rotation::None).unwrap();
+    assert_eq!(
+        pixel_at(&page, 0.3, (area.top + area.bottom) / 2.0),
+        [0, 0, 0]
+    );
+
+    doc.save(&saved).unwrap();
+    let streams = all_stream_text(&saved);
+    assert!(
+        !streams.contains(&hex("test page 1 of 2")),
+        "redacted text is not in the file"
+    );
+    assert!(
+        streams.contains(&hex("Rivet test page 2 of 2")),
+        "other pages keep their text"
+    );
+    let reopened = pdf().open(&saved, None).unwrap();
+    assert!(
+        reopened
+            .search(&search_query("page 1 of"), 0)
+            .hits
+            .is_empty()
+    );
+    assert_eq!(reopened.search(&search_query("page 2 of"), 0).hits.len(), 1);
+}
+
+#[test]
+fn redaction_keeps_what_is_outside_the_area() {
+    let _serial = serial();
+    let dir = temp_dir("redact-keep");
+    let saved = dir.join("redacted.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let before = doc.render_page(1, 1.0, Rotation::None).unwrap();
+    let text = doc.page_text(1).unwrap();
+    let all = page_string(&text);
+    let start = all.find("rivet-needle").unwrap();
+    let needle = &text.chars[start..start + 12];
+    let area = rect(
+        needle[0].left,
+        needle[0].top,
+        needle[11].right,
+        needle[0].bottom,
+    );
+    doc.redact(1, &[area]).unwrap();
+
+    // The page looks the same outside the area (it's now a picture, so letter
+    // edges are anti-aliased a little differently).
+    let after = doc.render_page(1, 1.0, Rotation::None).unwrap();
+    let heading = text
+        .chars
+        .iter()
+        .find(|c| c.flags & CHAR_NO_BOX == 0)
+        .unwrap();
+    let y = (heading.top + heading.bottom) / 2.0;
+    let differing = (0..100)
+        .map(|i| heading.left + i as f32 * 0.003)
+        .filter(|&x| {
+            let (a, b) = (pixel_at(&before, x, y), pixel_at(&after, x, y));
+            a.iter().zip(b).any(|(p, q)| p.abs_diff(q) > 100)
+        })
+        .count();
+    assert!(differing < 10, "heading changed in {differing} places");
+    // Text clear of the area can still be found; the redacted text can't.
+    let page = page_string(&doc.page_text(1).unwrap());
+    assert!(page.contains("Page two"), "{page}");
+    assert!(!page.contains("needle"), "{page}");
+
+    doc.save(&saved).unwrap();
+    let reopened = pdf().open(&saved, None).unwrap();
+    assert_eq!(reopened.search(&search_query("Page two"), 0).hits.len(), 1);
+    assert!(reopened.search(&search_query("needle"), 0).hits.is_empty());
+    // Only the new picture of the page is in the file as an image.
+    let file = lopdf::Document::load(&saved).unwrap();
+    let images = file
+        .objects
+        .values()
+        .filter_map(|o| o.as_stream().ok())
+        .filter(|s| {
+            s.dict
+                .get(b"Subtype")
+                .and_then(|t| t.as_name())
+                .is_ok_and(|n| n == b"Image")
+        })
+        .count();
+    assert_eq!(images, 1);
+}
+
+#[test]
+fn redaction_refuses_password_protected_files() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("password.pdf"), Some("rivet")).unwrap();
+    let err = doc.redact(0, &[rect(0.1, 0.1, 0.2, 0.2)]).unwrap_err();
+    assert_eq!(err.code, ErrorCode::RedactProtected);
 }

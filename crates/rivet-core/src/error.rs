@@ -29,6 +29,8 @@ pub enum ErrorCode {
     AnnotationNotFound,
     /// The annotation can't be changed (another app's kind, or locked).
     ReadOnlyAnnotation,
+    /// Redaction isn't possible in password-protected PDFs yet.
+    RedactProtected,
     DocumentNotOpen,
     EngineStopped,
     /// A render was skipped because the page is no longer near the screen.

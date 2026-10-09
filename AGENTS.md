@@ -98,6 +98,13 @@ CI (`.github/workflows/ci.yml`) runs them on Linux and Windows on every push to 
   appearance (clear it first, read colours from the drawing); `FPDFAnnot_SetRect` doesn't update
   the appearance's BBox; there is no API to write a Line's end points or delete a key.
   `annotations.rs` documents the workarounds.
+- **PDFium writes pages lossily:** `FPDFPage_GenerateContent` re-serializes every object and drops
+  colours set through colour spaces. Don't regenerate a page whose look must stay (redaction keeps
+  pages as a rendered picture plus invisible text instead).
+- **PDFium's save keeps orphans:** removed objects and unused resources stay in the file. Anything
+  that must really leave the file (deleted annotations, redactions) goes through `prune.rs`.
+- **Text boxes don't inherit fonts:** `input`/`textarea` need `font: inherit` (set in `app.css`), or
+  they use the system font, which may lack Arabic (Linux).
 - **Right-click menus:** on Linux/macOS `contextmenu` fires on button down, so menus opened from it
   must be `popover="manual"` (an automatic popover closes on button up).
 - **Windows-only Rust can't be checked from Linux** (ring needs `lib.exe`); rely on CI's Windows job.

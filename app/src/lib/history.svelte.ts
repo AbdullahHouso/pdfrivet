@@ -1,6 +1,8 @@
 // Undo and redo for annotation changes, per tab. Each step remembers the
 // annotation before and after the change: added (before = null), deleted
 // (after = null) or changed (both). Undoing applies the step backwards.
+// Changes made in one gesture (everything one eraser stroke touched) form a
+// group that is undone and redone together.
 
 import type { Annotation } from "./bindings/Annotation";
 
@@ -15,8 +17,11 @@ const LIMIT = 200;
 
 export class History {
   // Replaced (not changed in place), so the Undo and Redo buttons follow them.
-  #done = $state.raw<Step[]>([]);
-  #undone = $state.raw<Step[]>([]);
+  #done = $state.raw<Step[][]>([]);
+  #undone = $state.raw<Step[][]>([]);
+  /** While a group is open, changes join its last entry. */
+  #grouping = false;
+  #groupHasEntry = false;
 
   get canUndo(): boolean {
     return this.#done.length > 0;
@@ -28,12 +33,28 @@ export class History {
 
   /** Records a change that was just made (and forgets what was undone). */
   record(step: Step) {
-    this.#done = [...this.#done, step].slice(-LIMIT);
+    if (this.#grouping && this.#groupHasEntry) {
+      const last = this.#done.at(-1) ?? [];
+      this.#done = [...this.#done.slice(0, -1), [...last, step]];
+    } else {
+      this.#done = [...this.#done, [step]].slice(-LIMIT);
+      this.#groupHasEntry = this.#grouping;
+    }
     this.#undone = [];
   }
 
-  /** The step to undo, moved to the redo list. Apply it backwards. */
-  undo(): Step | undefined {
+  /** Changes recorded until `endGroup` are undone and redone together. */
+  beginGroup() {
+    this.#grouping = true;
+    this.#groupHasEntry = false;
+  }
+
+  endGroup() {
+    this.#grouping = false;
+  }
+
+  /** The steps to undo (in the order they were made), moved to the redo list. Apply them backwards, last first. */
+  undo(): Step[] | undefined {
     const step = this.#done.at(-1);
     if (step) {
       this.#done = this.#done.slice(0, -1);
@@ -42,8 +63,8 @@ export class History {
     return step;
   }
 
-  /** The step to redo, moved back to the undo list. Apply it forwards. */
-  redo(): Step | undefined {
+  /** The steps to redo, moved back to the undo list. Apply them forwards, in order. */
+  redo(): Step[] | undefined {
     const step = this.#undone.at(-1);
     if (step) {
       this.#undone = this.#undone.slice(0, -1);
@@ -58,7 +79,7 @@ export class History {
    */
   rename(oldId: string, newId: string) {
     if (oldId === newId) return;
-    for (const step of [...this.#done, ...this.#undone]) {
+    for (const step of [...this.#done, ...this.#undone].flat()) {
       if (step.before?.id === oldId) step.before = { ...step.before, id: newId };
       if (step.after?.id === oldId) step.after = { ...step.after, id: newId };
     }

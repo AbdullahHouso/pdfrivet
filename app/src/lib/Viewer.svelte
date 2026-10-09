@@ -3,7 +3,15 @@
 // at a time, with one or two pages per row. Only pages near the viewport are
 // mounted; everything else is just empty space.
 import { tick, untrack } from "svelte";
-import { annotate, isMarkupTool, markSelection } from "./annotate.svelte";
+import {
+  annotate,
+  isMarkupTool,
+  markArea,
+  markForRedaction,
+  markSelection,
+  markSelectionForRedaction,
+  worksOnText,
+} from "./annotate.svelte";
 import { topmostAt } from "./annotGeometry";
 import type { SearchHit } from "./bindings/SearchHit";
 import {
@@ -13,6 +21,7 @@ import {
   computeLayout,
   currentPage,
   type Degrees,
+  type FractionPoint,
   fitPageZoom,
   fitWidthZoom,
   type Layout,
@@ -323,6 +332,13 @@ function startSelection(e: PointerEvent) {
   const text = hit && peekPageText(tab.docId, hit.page);
   tab.selectedAnnotation = null;
   clickStart = { x: e.clientX, y: e.clientY };
+  // Highlight, underline, strike out or redact where there's no text (pictures,
+  // scans): drag out an area instead of selecting text.
+  const tool = annotate.open ? annotate.tool : null;
+  if (worksOnText(tool) && hit && (!text || !isOverText(text, hit.point.x, hit.point.y))) {
+    startArea(e, hit.page);
+    return;
+  }
   if (!hit || !text) {
     tab.selection = null;
     if (hit) selectAnnotationAt(e);
@@ -365,9 +381,54 @@ function endSelection(e: PointerEvent) {
     if (Math.hypot(e.clientX - clickStart.x, e.clientY - clickStart.y) < 4) selectAnnotationAt(e);
     return;
   }
-  // With a text markup tool, selecting text marks it right away.
+  // With a text markup tool, selecting text marks it right away; with Redact, marks it for redaction.
   const tool = annotate.open ? annotate.tool : null;
   if (isMarkupTool(tool)) markSelection(tab, tool).catch((err) => onerror?.(toRivetError(err)));
+  else if (tool === "redact") markSelectionForRedaction(tab).catch((err) => onerror?.(toRivetError(err)));
+}
+
+// Dragging out an area (see startSelection), in fractions of the page as shown.
+let area = $state<{ pointerId: number; page: number; from: FractionPoint; to: FractionPoint } | null>(null);
+
+/** Where the pointer is on `page` as shown (fractions, kept inside the page). */
+function shownPoint(e: MouseEvent, page: number): FractionPoint {
+  const box = content.getBoundingClientRect();
+  const x = (e.clientX - box.left - offsetX - layout.lefts[page]) / layout.widths[page];
+  const y = (e.clientY - box.top - layout.tops[page]) / layout.heights[page];
+  return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+}
+
+function startArea(e: PointerEvent, page: number) {
+  e.preventDefault();
+  scroller.focus({ preventScroll: true });
+  tab.selection = null;
+  const p = shownPoint(e, page);
+  area = { pointerId: e.pointerId, page, from: p, to: p };
+  scroller.setPointerCapture(e.pointerId);
+}
+
+function endArea(e: PointerEvent) {
+  if (!area || area.pointerId !== e.pointerId) return;
+  if (scroller.hasPointerCapture(e.pointerId)) scroller.releasePointerCapture(e.pointerId);
+  const { page, from, to } = area;
+  area = null;
+  const w = Math.abs(to.x - from.x) * layout.widths[page];
+  const h = Math.abs(to.y - from.y) * layout.heights[page];
+  if (w < 4 || h < 4) {
+    selectAnnotationAt(e);
+    return;
+  }
+  const a = unrotatePoint(from, tab.rotation);
+  const b = unrotatePoint(to, tab.rotation);
+  const rect = {
+    left: Math.min(a.x, b.x),
+    top: Math.min(a.y, b.y),
+    right: Math.max(a.x, b.x),
+    bottom: Math.max(a.y, b.y),
+  };
+  const tool = annotate.tool;
+  if (tool === "redact") markForRedaction(tab, page, [rect]);
+  else if (isMarkupTool(tool)) markArea(tab, page, tool, rect).catch((err) => onerror?.(toRivetError(err)));
 }
 
 let clickStart = { x: 0, y: 0 };
@@ -387,12 +448,17 @@ function selectAnnotationAt(e: MouseEvent) {
 function updateCursor(e: PointerEvent) {
   if (settings.tool !== "select" || e.buttons !== 0 || isControl(e.target)) {
     overText = false;
+    areaCursor = false;
     return;
   }
   const hit = pointOnPage(e);
   const text = hit && peekPageText(tab.docId, hit.page);
   overText = !!hit && !!text && isOverText(text, hit.point.x, hit.point.y);
+  areaCursor = !overText && !!hit && worksOnText(annotate.open ? annotate.tool : null);
 }
+
+/** The pointer is where a markup or redact tool would drag out an area. */
+let areaCursor = $state(false);
 
 function onPointerDown(e: PointerEvent) {
   if (e.button === 0 && settings.tool === "select" && !isControl(e.target)) {
@@ -415,6 +481,10 @@ function onPointerDown(e: PointerEvent) {
 }
 
 function onPointerMove(e: PointerEvent) {
+  if (area && area.pointerId === e.pointerId) {
+    area = { ...area, to: shownPoint(e, area.page) };
+    return;
+  }
   if (selectingPointer === e.pointerId) {
     extendSelection(e);
     return;
@@ -433,6 +503,10 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function onPointerUp(e: PointerEvent) {
+  if (area && area.pointerId === e.pointerId) {
+    endArea(e);
+    return;
+  }
   if (selectingPointer === e.pointerId) {
     endSelection(e);
     return;
@@ -475,10 +549,23 @@ function onFieldChange() {
   }}
   class:panning={pan?.active}
   class:text-cursor={overText}
+  class:area-cursor={areaCursor}
   class:hand={settings.tool === "hand"}
   data-tone={tab.pageTone}
 >
   <div class="content" bind:this={content} style:height="{layout.totalHeight}px" style:width="{contentWidth}px">
+    {#if area}
+      {@const left = offsetX + layout.lefts[area.page] + Math.min(area.from.x, area.to.x) * layout.widths[area.page]}
+      {@const top = layout.tops[area.page] + Math.min(area.from.y, area.to.y) * layout.heights[area.page]}
+      <div
+        class="area"
+        class:redact={annotate.tool === "redact"}
+        style:left="{left}px"
+        style:top="{top}px"
+        style:width="{Math.abs(area.to.x - area.from.x) * layout.widths[area.page]}px"
+        style:height="{Math.abs(area.to.y - area.from.y) * layout.heights[area.page]}px"
+      ></div>
+    {/if}
     {#each mounted as index (index)}
       <div class="slot" style:top="{layout.tops[index]}px" style:left="{offsetX + layout.lefts[index]}px">
         <PageView
@@ -515,6 +602,9 @@ function onFieldChange() {
   }
   .scroller.text-cursor {
     cursor: text;
+  }
+  .scroller.area-cursor {
+    cursor: crosshair;
   }
   /* Text is selected by our own code (see textSelect.ts), never by the browser. */
   .scroller :global(.page) {
@@ -561,5 +651,17 @@ function onFieldChange() {
   }
   .slot {
     position: absolute;
+  }
+  /* An area being dragged out with a markup or redact tool, above the pages. */
+  .area {
+    position: absolute;
+    z-index: 3;
+    border: 1.5px dashed var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    pointer-events: none;
+  }
+  .area.redact {
+    border: 2px solid #d32f2f;
+    background: rgb(211 47 47 / 0.14);
   }
 </style>

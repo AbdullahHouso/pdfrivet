@@ -51,6 +51,7 @@ const paths = {
   redo: "M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3",
   comment: "M4 5h16v11H9l-5 4z",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
+  redact: "M4 5h16v14H4zM7 10h10v4H7z",
   signature: "M3 17c3-1 5-9 7-9s-1 9 1 9 3-4 4-4 1 3 3 3 2-1 3-1M3 21h18",
   book: "M3 5h6a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H3zM21 5h-6a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h7z",
 } as const;

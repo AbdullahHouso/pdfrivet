@@ -20,6 +20,8 @@ mod links;
 pub mod metadata;
 mod outline;
 pub mod print;
+mod prune;
+mod redact;
 mod search;
 mod text;
 

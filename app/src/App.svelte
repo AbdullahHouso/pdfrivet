@@ -7,7 +7,14 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { onMount, untrack } from "svelte";
 import AboutDialog from "./lib/AboutDialog.svelte";
 import AnnotateBar from "./lib/AnnotateBar.svelte";
-import { annotate, markSelection, redo, remove as removeAnnotation, undo } from "./lib/annotate.svelte";
+import {
+  annotate,
+  applyRedactions,
+  markSelection,
+  redo,
+  remove as removeAnnotation,
+  undo,
+} from "./lib/annotate.svelte";
 import type { Metadata } from "./lib/bindings/Metadata";
 import type { PrintSettings } from "./lib/bindings/PrintSettings";
 import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
@@ -321,6 +328,19 @@ async function saveTab(tab: Tab, saveAs = false): Promise<boolean> {
     if (!path.toLowerCase().endsWith(".pdf")) path += ".pdf";
   }
   try {
+    // Marked redactions are applied now: their content is removed for good.
+    if (tab.redactions.length > 0) {
+      const answer = await ask(
+        i18n.t("redact-confirm-title"),
+        i18n.t("redact-confirm", { count: tab.redactions.length }),
+        [
+          { id: "apply", label: i18n.t("redact-confirm-apply"), primary: true },
+          { id: "cancel", label: i18n.t("cancel") },
+        ],
+      );
+      if (answer !== "apply") return false;
+      await applyRedactions(tab);
+    }
     await saveDocument(tab.docId, path);
     tab.path = path;
     tab.dirty = false;

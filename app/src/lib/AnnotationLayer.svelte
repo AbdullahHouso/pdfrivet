@@ -8,13 +8,14 @@ import {
   type AnnotTool,
   add,
   annotate,
-  isMarkupTool,
   lighter,
   PALETTE,
   placeSignature,
   remove,
   toHex,
+  unmarkRedaction,
   update,
+  worksOnText,
 } from "./annotate.svelte";
 import {
   canMove,
@@ -39,7 +40,7 @@ import type { PagePoint } from "./bindings/PagePoint";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
 import type { Degrees } from "./layout";
-import { getAnnotations, type RivetError, toRivetError } from "./pdf";
+import { getAnnotations, type RivetError, setAnnotationHidden, toRivetError } from "./pdf";
 import { settings } from "./settings.svelte";
 import type { Tab } from "./tabs.svelte";
 
@@ -76,8 +77,8 @@ $effect(() => () => untrack(() => tab.annotations.delete(index)));
 
 let list = $derived(tab.annotations.get(index) ?? []);
 let tool = $derived<AnnotTool | null>(annotate.open && settings.tool === "select" ? annotate.tool : null);
-/** The layer takes the pointer for drawing tools (text markup works through text selection). */
-let drawingTool = $derived(tool !== null && !isMarkupTool(tool));
+/** The layer takes the pointer for drawing tools (markup and redaction work through the Viewer: text or areas). */
+let drawingTool = $derived(tool !== null && !worksOnText(tool));
 let selected = $derived(
   tab.selectedAnnotation?.page === index ? (list.find((a) => a.id === tab.selectedAnnotation?.id) ?? null) : null,
 );
@@ -133,6 +134,9 @@ function onLayerDown(e: PointerEvent) {
   layer.setPointerCapture(e.pointerId);
   if (tool === "eraser") {
     erased = new Set();
+    erasing = [];
+    // Everything one eraser stroke removes is undone in one go.
+    tab.history.beginGroup();
     erase(p);
   } else if (tool === "pen") {
     draft = { tool, points: [p] };
@@ -166,6 +170,11 @@ function constrain(from: { x: number; y: number }, p: { x: number; y: number }, 
 async function onLayerUp(e: PointerEvent) {
   if (!layer.hasPointerCapture(e.pointerId)) return;
   layer.releasePointerCapture(e.pointerId);
+  if (tool === "eraser") {
+    const pending = erasing;
+    Promise.allSettled(pending).then(() => tab.history.endGroup());
+    return;
+  }
   const d = draft;
   draft = null;
   if (!d || !tool) return;
@@ -210,8 +219,11 @@ function erase(p: { x: number; y: number }) {
     );
   if (!target) return;
   erased.add(target.id);
-  remove(tab, index, target).catch(fail);
+  erasing.push(remove(tab, index, target).catch(fail));
 }
+
+/** Deletions of the current eraser stroke still on their way. */
+let erasing: Promise<unknown>[] = [];
 
 /** Size of a note's icon, in PDF points. */
 const NOTE_SIZE = 22;
@@ -272,6 +284,8 @@ type Drag = {
   handle: Handle | "move" | "from" | "to";
   preview: Annotation;
   movedEnough: boolean;
+  /** The original is hidden while dragging, so only the preview shows. */
+  hidden: boolean;
 };
 let drag = $state<Drag | null>(null);
 
@@ -290,7 +304,15 @@ function startDrag(e: PointerEvent, a: Annotation, handle: Drag["handle"]) {
   e.preventDefault();
   e.stopPropagation();
   layer.setPointerCapture(e.pointerId);
-  drag = { pointerId: e.pointerId, start: pointer(e), original: a, handle, preview: a, movedEnough: false };
+  drag = {
+    pointerId: e.pointerId,
+    start: pointer(e),
+    original: a,
+    handle,
+    preview: a,
+    movedEnough: false,
+    hidden: false,
+  };
 }
 
 function onDragMove(e: PointerEvent) {
@@ -300,6 +322,10 @@ function onDragMove(e: PointerEvent) {
   const dy = p.y - drag.start.y;
   if (!drag.movedEnough && Math.hypot(dx, dy) < 3) return;
   drag.movedEnough = true;
+  if (!drag.hidden) {
+    drag.hidden = true;
+    hide(drag.original, true);
+  }
   const a = drag.original;
   if (drag.handle === "move") {
     const from = fromPx(drag.start.x, drag.start.y, box);
@@ -315,17 +341,44 @@ function onDragMove(e: PointerEvent) {
   }
 }
 
-async function onDragUp(e: PointerEvent) {
-  if (!drag || e.pointerId !== drag.pointerId) return;
-  layer.releasePointerCapture(e.pointerId);
-  const { original, preview, movedEnough } = drag;
-  drag = null;
-  if (!movedEnough) return;
+/** Hides or shows an annotation in the page image (not a change to the document). */
+async function hide(a: Annotation, hidden: boolean) {
   try {
-    await update(tab, index, original, preview);
+    await setAnnotationHidden(tab.docId, index, a.id, hidden);
+    tab.bumpPage(index);
   } catch (err) {
     fail(err);
   }
+}
+
+async function onDragUp(e: PointerEvent) {
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  layer.releasePointerCapture(e.pointerId);
+  const { original, preview, movedEnough, hidden } = drag;
+  // Keep showing the preview where it was dropped until the page has the change.
+  dropped = movedEnough ? preview : null;
+  drag = null;
+  // An annotation without a name gets one when it's first changed: show it again by that.
+  let shown = original;
+  try {
+    if (movedEnough) shown = await update(tab, index, original, preview);
+  } catch (err) {
+    fail(err);
+  } finally {
+    if (hidden) await hide(shown, false);
+    // The page re-renders shortly; until then the preview stands in for it.
+    setTimeout(() => (dropped = null), 400);
+  }
+}
+
+/** The annotation just dropped, shown until the page has re-rendered with it. */
+let dropped = $state<Annotation | null>(null);
+
+/** Line width of a preview: stretched along with the annotation when resized. */
+function previewWidth(p: Annotation, original: Annotation) {
+  const sx = (p.rect.right - p.rect.left) / Math.max(1e-6, original.rect.right - original.rect.left);
+  const sy = (p.rect.bottom - p.rect.top) / Math.max(1e-6, original.rect.bottom - original.rect.top);
+  return Math.max(1, p.width * scale * Math.sqrt(Math.abs(sx * sy)));
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -514,25 +567,34 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
       {/if}
     {/if}
 
-    <!-- Where a dragged annotation will go. -->
-    {#if drag?.movedEnough}
-      {@const p = drag.preview}
+    <!-- Where a dragged annotation will go (the original is hidden meanwhile). -->
+    {#if (drag?.movedEnough ? drag.preview : dropped) && (drag?.original ?? dropped)}
+      {@const p = (drag?.movedEnough ? drag.preview : dropped) as Annotation}
       {@const color = rgb(p.color)}
-      {@const w = Math.max(1, p.width * scale)}
+      {@const w = previewWidth(p, drag?.original ?? p)}
       {#if p.kind.kind === "ink"}
         {#each p.kind.strokes as stroke, i (i)}
-          <polyline class="preview" points={strokePoints(stroke)} stroke={color} stroke-width={w} />
+          <polyline class="preview" points={strokePoints(stroke)} stroke={color} stroke-width={w}
+            stroke-opacity={p.opacity} />
         {/each}
       {:else if p.kind.kind === "line"}
-        <polyline class="preview" points={strokePoints([p.kind.from, p.kind.to])} stroke={color} stroke-width={w} />
+        <polyline class="preview" points={strokePoints([p.kind.from, p.kind.to])} stroke={color} stroke-width={w}
+          stroke-opacity={p.opacity} />
       {:else}
         {@const r = rectToPx(p.rect, box)}
         {#if p.kind.kind === "circle"}
           <ellipse class="preview" cx={r.left + r.width / 2} cy={r.top + r.height / 2} rx={r.width / 2}
-            ry={r.height / 2} stroke={color} stroke-width={w} fill={p.kind.fill ? rgb(p.kind.fill) : "none"} />
-        {:else}
+            ry={r.height / 2} stroke={color} stroke-width={w} fill={p.kind.fill ? rgb(p.kind.fill) : "none"}
+            opacity={p.opacity} />
+        {:else if p.kind.kind === "square"}
           <rect class="preview" x={r.left} y={r.top} width={r.width} height={r.height} stroke={color}
-            stroke-width={w} fill={p.kind.kind === "square" && p.kind.fill ? rgb(p.kind.fill) : "none"} />
+            stroke-width={w} fill={p.kind.fill ? rgb(p.kind.fill) : "none"} opacity={p.opacity} />
+        {:else if p.kind.kind === "note"}
+          <rect class="preview" x={r.left} y={r.top} width={r.width} height={r.height} rx="2" stroke={rgb(p.color)}
+            stroke-width="1.5" fill={rgb(lighter(p.color, 0.3))} />
+        {:else}
+          <!-- A signature or another app's stamp: its outline. -->
+          <rect class="preview placeholder" x={r.left} y={r.top} width={r.width} height={r.height} />
         {/if}
       {/if}
     {/if}
@@ -557,6 +619,18 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
       {/if}
     {/if}
   </svg>
+
+  <!-- Areas marked for redaction (applied when the document is saved). -->
+  {#each tab.redactions.filter((m) => m.page === index) as mark (mark.id)}
+    {@const r = rectToPx(mark.rect, box)}
+    <div class="redaction" style:left="{r.left}px" style:top="{r.top}px" style:width="{r.width}px"
+      style:height="{r.height}px">
+      <button class="unmark" title={i18n.t("redact-unmark")} aria-label={i18n.t("redact-unmark")}
+        onclick={() => unmarkRedaction(tab, mark.id)}>
+        <Icon name="close" />
+      </button>
+    </div>
+  {/each}
 
   {#if selected && menuPos && !drag}
     {@const a = selected}
@@ -646,6 +720,38 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
     stroke-linecap: round;
     stroke-linejoin: round;
     pointer-events: none;
+  }
+  .preview.placeholder {
+    fill: color-mix(in srgb, var(--accent) 12%, transparent);
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 3;
+  }
+  /* Marked for redaction: red outline with a light red tint (document colours, not themed). */
+  .redaction {
+    position: absolute;
+    border: 2px solid #d32f2f;
+    background: rgb(211 47 47 / 0.14);
+    pointer-events: none;
+  }
+  .unmark {
+    position: absolute;
+    inset-block-start: -10px;
+    inset-inline-end: -10px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border-radius: 50%;
+    border: none;
+    background: #d32f2f;
+    color: #ffffff;
+    pointer-events: auto;
+  }
+  .unmark :global(.icon) {
+    width: 12px;
+    height: 12px;
   }
   .frame {
     fill: none;

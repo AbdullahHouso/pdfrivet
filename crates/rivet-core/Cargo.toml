@@ -8,8 +8,9 @@ repository.workspace = true
 description = "PDF engine for Rivet: open, render and edit PDFs (built on PDFium)."
 
 [dependencies]
-# Only the image types, no decoders: signature pictures arrive as raw RGBA pixels.
-image = { version = "0.25.10", default-features = false }
+# Image types (signature pictures arrive as raw RGBA pixels) and the JPEG
+# encoder for redacted areas (the app already builds it for printing).
+image = { version = "0.25.10", default-features = false, features = ["jpeg"] }
 lopdf = { version = "0.45.0", default-features = false }
 lru = "0.18.5"
 pdfium-render = "0.9.4"

@@ -236,7 +236,7 @@ annotate = Annotate
 annotate-tools = Annotation tools
 annotate-close = Close annotation tools
 annot-select = Select and move annotations
-annot-hint = Pick a tool. Highlight, underline and strikeout work on text you select.
+annot-hint = Pick a tool. Highlight, underline, strikeout and redact work on text you select, or on an area you drag over (for scans and pictures).
 annot-highlight = Highlight
 annot-underline = Underline
 annot-strikeout = Strikeout
@@ -275,6 +275,19 @@ signature-background-hint = Move the slider until the paper is gone and the sign
 signature-keep = Save this signature for next time
 signature-use = Use signature
 signature-delete = Delete this signature
+annot-redact = Redact
+redact-hint = Select text, or drag over an area. Marked areas are removed for good when you save.
+redact-apply = { $count ->
+    [one] Apply 1 redaction
+   *[other] Apply { $count } redactions
+}
+redact-unmark = Remove this mark
+redact-confirm-title = Apply redactions?
+redact-confirm = { $count ->
+    [one] The marked area will be blacked out and what’s under it removed from the file for good. This can’t be undone.
+   *[other] The { $count } marked areas will be blacked out and what’s under them removed from the file for good. This can’t be undone.
+}
+redact-confirm-apply = Redact and save
 undo = Undo
 redo = Redo
 
@@ -295,6 +308,7 @@ error-copy-not-allowed = The author of this PDF doesn’t allow copying its text
 error-annotate-not-allowed = The author of this PDF doesn’t allow adding comments or drawings.
 error-annotation-not-found = That annotation no longer exists.
 error-read-only-annotation = This annotation can’t be changed, only deleted.
+error-redact-protected = Redaction isn’t possible in password-protected PDFs yet.
 error-io = The file could not be read.
 error-internal = Something went wrong.
 dismiss = Dismiss

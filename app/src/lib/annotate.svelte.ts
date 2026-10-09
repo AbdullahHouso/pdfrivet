@@ -4,8 +4,18 @@
 
 import type { Annotation } from "./bindings/Annotation";
 import type { Color } from "./bindings/Color";
-import { loadPageText } from "./pageText";
-import { addAnnotation, addImageStamp, deleteAnnotation, type Picture, updateAnnotation, userName } from "./pdf";
+import type { PageRect } from "./bindings/PageRect";
+import { forgetPageText, loadPageText } from "./pageText";
+import {
+  addAnnotation,
+  addImageStamp,
+  deleteAnnotation,
+  type Picture,
+  redact,
+  restoreAnnotation,
+  updateAnnotation,
+  userName,
+} from "./pdf";
 import { settings, type ToolStyle } from "./settings.svelte";
 import { type Signature, signaturePixels } from "./signatures.svelte";
 import type { Tab } from "./tabs.svelte";
@@ -22,7 +32,8 @@ export type AnnotTool =
   | "arrow"
   | "note"
   | "eraser"
-  | "signature";
+  | "signature"
+  | "redact";
 
 /** Tools that mark selected text. */
 export const MARKUP_TOOLS = ["highlight", "underline", "strikeout"] as const;
@@ -30,6 +41,11 @@ export type MarkupTool = (typeof MARKUP_TOOLS)[number];
 
 export function isMarkupTool(tool: AnnotTool | null): tool is MarkupTool {
   return MARKUP_TOOLS.includes(tool as MarkupTool);
+}
+
+/** Tools used on text you select, or on an area you drag out where there's no text (scans). */
+export function worksOnText(tool: AnnotTool | null): tool is MarkupTool | "redact" {
+  return isMarkupTool(tool) || tool === "redact";
 }
 
 const hex = (h: string): Color => ({
@@ -66,6 +82,7 @@ const DEFAULTS: Record<AnnotTool, ToolStyle> = {
   note: { color: hex("#ffd400"), width: 1, opacity: 1, fill: false },
   eraser: { color: hex("#1b1c20"), width: 1, opacity: 1, fill: false },
   signature: { color: hex("#1b1c20"), width: 1, opacity: 1, fill: false },
+  redact: { color: hex("#1b1c20"), width: 1, opacity: 1, fill: false },
 };
 
 /** A fill that keeps the outline visible: the colour mixed with white. */
@@ -162,8 +179,6 @@ export async function addStamp(tab: Tab, page: number, a: Annotation, picture: P
   const draft = { ...a, author: a.author || (await annotate.author()) };
   const id = await addImageStamp(tab.docId, page, draft, picture);
   const added = { ...draft, id };
-  // Kept so undoing a delete can put the picture back.
-  tab.stampPictures.set(id, picture);
   tab.history.record({ page, before: null, after: added });
   changed(tab, page);
   return added;
@@ -212,11 +227,9 @@ export async function placeSignature(
 }
 
 export async function remove(tab: Tab, page: number, a: Annotation) {
+  // Deleted annotations stay in the document, hidden, so undo restores them exactly.
   await deleteAnnotation(tab.docId, page, a.id);
-  // Other apps' kinds can't be added back, and a signature picture only while
-  // its pixels are known, so deleting those can't be undone.
-  const restorable = a.editable && (a.kind.kind !== "stamp" || tab.stampPictures.has(a.id));
-  if (restorable) tab.history.record({ page, before: a, after: null });
+  tab.history.record({ page, before: a, after: null });
   if (tab.selectedAnnotation?.id === a.id) tab.selectedAnnotation = null;
   changed(tab, page);
 }
@@ -226,10 +239,8 @@ async function apply(tab: Tab, page: number, from: Annotation | null, to: Annota
   if (from && to) {
     await updateAnnotation(tab.docId, page, to);
   } else if (to) {
-    const picture = to.kind.kind === "stamp" ? tab.stampPictures.get(to.id) : undefined;
-    const id = picture ? await addImageStamp(tab.docId, page, to, picture) : await addAnnotation(tab.docId, page, to);
-    if (picture) tab.stampPictures.set(id, picture);
-    tab.history.rename(to.id, id);
+    // Undoing a delete or redoing an add: the annotation is still there, hidden.
+    await restoreAnnotation(tab.docId, page, to.id);
   } else if (from) {
     await deleteAnnotation(tab.docId, page, from.id);
   }
@@ -238,17 +249,17 @@ async function apply(tab: Tab, page: number, from: Annotation | null, to: Annota
 }
 
 export async function undo(tab: Tab): Promise<number | null> {
-  const step = tab.history.undo();
-  if (!step) return null;
-  await apply(tab, step.page, step.after, step.before);
-  return step.page;
+  const steps = tab.history.undo();
+  if (!steps) return null;
+  for (const step of [...steps].reverse()) await apply(tab, step.page, step.after, step.before);
+  return steps[0].page;
 }
 
 export async function redo(tab: Tab): Promise<number | null> {
-  const step = tab.history.redo();
-  if (!step) return null;
-  await apply(tab, step.page, step.before, step.after);
-  return step.page;
+  const steps = tab.history.redo();
+  if (!steps) return null;
+  for (const step of steps) await apply(tab, step.page, step.before, step.after);
+  return steps[0].page;
 }
 
 const MARKUP_STYLE = { highlight: "highlight", underline: "underline", strikeout: "strikeout" } as const;
@@ -285,4 +296,67 @@ export async function markSelection(tab: Tab, tool: MarkupTool) {
     });
   }
   tab.selection = null;
+}
+
+/** Highlights, underlines or strikes out an area of a page (pictures and scans have no text to select). */
+export async function markArea(tab: Tab, page: number, tool: MarkupTool, rect: PageRect) {
+  const style = annotate.style(tool);
+  await add(tab, page, {
+    id: "",
+    kind: { kind: "markup", style: MARKUP_STYLE[tool], quads: [rect] },
+    rect,
+    color: style.color,
+    opacity: style.opacity,
+    width: 1,
+    contents: "",
+    author: "",
+    modified: null,
+    editable: true,
+  });
+}
+
+// --- Redaction ----------------------------------------------------------------
+// Areas are only marked at first (shown outlined, and can be removed again);
+// they are applied, permanently, when the document is saved or with "Apply".
+
+let nextMark = 1;
+
+/** Marks areas of a page for redaction. */
+export function markForRedaction(tab: Tab, page: number, rects: PageRect[]) {
+  if (rects.length === 0) return;
+  tab.redactions = [...tab.redactions, ...rects.map((rect) => ({ id: nextMark++, page, rect }))];
+  tab.dirty = true;
+}
+
+/** Marks the selected text for redaction. */
+export async function markSelectionForRedaction(tab: Tab) {
+  const sel = tab.selection;
+  if (!sel || isEmpty(sel)) return;
+  const [start, end] = ordered(sel);
+  for (let page = start.page; page <= end.page; page++) {
+    const range = rangeOnPage(sel, page);
+    if (!range) continue;
+    const text = await loadPageText(tab.docId, page);
+    markForRedaction(tab, page, selectionRects(text, range[0], range[1]));
+  }
+  tab.selection = null;
+}
+
+export function unmarkRedaction(tab: Tab, id: number) {
+  tab.redactions = tab.redactions.filter((r) => r.id !== id);
+}
+
+/** Applies every marked redaction, permanently. Undo can't bring the content back. */
+export async function applyRedactions(tab: Tab) {
+  const byPage = new Map<number, PageRect[]>();
+  for (const r of tab.redactions) byPage.set(r.page, [...(byPage.get(r.page) ?? []), r.rect]);
+  for (const [page, rects] of byPage) {
+    await redact(tab.docId, page, rects);
+    tab.redactions = tab.redactions.filter((r) => r.page !== page);
+    changed(tab, page);
+  }
+  // The pages' text changed: search and selection read it again.
+  forgetPageText(tab.docId);
+  tab.selection = null;
+  tab.search.clear();
 }

@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Arabic words with the lam-alef ligature (لا) are copied and found correctly.
 
 ### Search
+- Text boxes (search, page number, comments) use PDFRivet's fonts, so Arabic shows properly there too.
 - Find in document with Ctrl+F: results are highlighted on the pages as you type; Enter / Shift+Enter or F3 / Shift+F3 step through them.
 - Arabic is found with or without diacritics, with any form of alef (أ إ آ ا), with ى or ي, and in old PDFs that store letters in their joined forms. Digits match in any script (١٢٣ finds 123).
 - Match case and whole-word options.
@@ -23,8 +24,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Highlight, underline or strike out selected text from the right-click menu too.
 - Pick each tool's colour, line width and opacity; rectangles and ellipses can be filled. Your choices are remembered.
 - Click an annotation to select it: move it, resize it, change its colour, add a comment or delete it (Delete key).
-- Undo and redo with Ctrl+Z and Ctrl+Y.
+- Undo and redo with Ctrl+Z and Ctrl+Y. Undoing a delete brings an annotation back exactly as it was, even one made in another app, and even after saving.
+- Moving or resizing an annotation keeps its look (for example highlighter strokes made on an iPad keep their rounded, see-through style); while you drag, only the moved copy shows.
+- Highlight, underline and strike out on scanned pages and pictures: where there's no text, drag over the area.
 - Annotations are saved the standard way, so other PDF readers show them too. Settings → General has the name shown as their author.
+
+### Redaction
+- Redact text or areas (Annotate → Redact): select text or drag over an area. Marked areas are shown outlined and can be unmarked; when you save (or choose Apply), they are blacked out and what was under them is removed from the file for good.
+- A redacted page keeps its exact look, and its text outside the redacted areas can still be selected and searched. Its images and drawings become one picture of the page.
+- Not available yet in password-protected PDFs.
 
 ### Signatures
 - Sign documents: draw your signature with a mouse, pen or finger, or take it from a photo or scan of your signature on paper. The paper is removed automatically, with a slider to fine-tune it.

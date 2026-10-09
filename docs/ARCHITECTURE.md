@@ -171,7 +171,17 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   removes its appearance first (PDFium also refuses to recolour one that has an appearance).
   Exceptions: notes get our own icon in their colour (PDFium always draws notes yellow).
 - **Reading colours:** once drawn, PDFium no longer reports `C`/`IC`, so colours are read from
-  the appearance's path objects (what you actually see).
+  the appearance's path objects (what you actually see). Opacity is `CA`, or `ca` when an app
+  stores only that (Apple's highlighter).
+- **Keeping the look:** a move or resize that only shifts/stretches the shape keeps the existing
+  appearance and changes the Rect (readers fit the appearance's BBox into it), so other apps'
+  drawings keep their style. Only a change of colour, width, opacity or fill redraws it.
+  Ink and lines are redrawn by us (`ink_appearance`: round ends and joins, opacity through the
+  `GS` state PDFium adds), not by PDFium (square ends, no `ca`).
+- **Deleting** hides the annotation and marks it (`PDFRivetDeleted`); undo restores it exactly.
+  Saving leaves marked annotations out of the *written file* (lopdf, `prune.rs`), so undo still
+  works afterwards. While an annotation is dragged it's hidden the same way (flag only), so only
+  the preview shows.
 - Removing a square's fill writes an empty string for `IC` (PDFium has no call to delete a key);
   readers treat it as "no fill".
 - **UI:** `annotate.svelte.ts` holds the Annotate toolbar's state (tool, per-tool styles saved in
@@ -195,6 +205,25 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
 - Annotation edits mark the document as having unsaved changes (`unsaved_changes`), so the engine
   never reopens it to free memory before they're saved, and only the changed page's renders are
   dropped from the cache.
+
+## Redaction
+
+- Marks live in the tab (`tab.redactions`) until they're applied, on save (after a confirmation)
+  or with Apply. Then `rivet-core/src/redact.rs`, per page:
+  1. renders the page's content (no annotations) and paints the areas black (JPEG, ≤ 216 DPI);
+  2. removes every page object except text clear of the areas, which is kept **invisible**
+     (render mode 3), like OCR text over a scan: still selectable and searchable;
+  3. puts the picture at the bottom, black boxes on top, removes annotations touching the areas,
+     and has PDFium write the page's content.
+- Why a picture: PDFium's content writer re-serializes every object and drops colours set
+  through colour spaces (`/Cs1 cs 1 1 1 sc`), so editing objects in place changed pages that
+  weren't otherwise touched. Invisible text doesn't care about colour.
+- PDFium's save keeps every object it ever had, and the page's `/Resources` still name removed
+  images. So the save rewrites the file (`prune.rs`): redacted pages get their own resources with
+  only the names their content uses, then lopdf drops everything unreferenced. Tests check the
+  redacted text and images are really gone from the file. Password-protected files can't be
+  rewritten by lopdf, so redaction refuses them (`RedactProtected`).
+- Area marks also work for highlight/underline/strikeout (one quad = the area), for scans.
 
 ## Page display and printing
 

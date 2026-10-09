@@ -16,7 +16,7 @@ use std::{
 
 use rivet_core::{
     Annotation, DocId, DocInfo, Engine, Error, ErrorCode, FieldChange, FormField, OutlineItem,
-    PageLink, Rotation, SearchBatch, SearchQuery, StampImage, TextRange,
+    PageLink, PageRect, Rotation, SearchBatch, SearchQuery, StampImage, TextRange,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State, http};
@@ -177,6 +177,41 @@ async fn update_annotation(
 ) -> Result<String, Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.update_annotation(doc_id, page, annotation)).await
+}
+
+/// Permanently removes what is under `areas` of a page.
+#[tauri::command]
+async fn redact(
+    doc_id: DocId,
+    page: u32,
+    areas: Vec<PageRect>,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.redact(doc_id, page, areas)).await
+}
+
+#[tauri::command]
+async fn restore_annotation(
+    doc_id: DocId,
+    page: u32,
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.restore_annotation(doc_id, page, id)).await
+}
+
+#[tauri::command]
+async fn set_annotation_hidden(
+    doc_id: DocId,
+    page: u32,
+    id: String,
+    hidden: bool,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.set_annotation_hidden(doc_id, page, id, hidden)).await
 }
 
 /// What comes before the pixels in `add_image_stamp`'s body.
@@ -666,6 +701,9 @@ pub fn run() {
             update_annotation,
             delete_annotation,
             add_image_stamp,
+            restore_annotation,
+            redact,
+            set_annotation_hidden,
             save_document,
             list_printers,
             document_properties,
