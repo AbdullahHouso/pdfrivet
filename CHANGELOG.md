@@ -47,6 +47,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Highlight, underline and strike out on scanned pages and pictures: where there's no text, drag over the area.
 - Annotations are saved the standard way, so other PDF readers show them too. Settings → General has the name shown as their author.
 
+### Text boxes
+- Write on any page with the Text tool (T): click and type. The box grows with your text; drag its side to set a width and lines wrap, drag its bottom to make room and place the text at the top, middle or bottom. Double-click a box (or select it and press Enter) to edit it later.
+- Arabic is written properly: joined letters, لا ligatures, right-to-left lines, and Arabic and English mixed on one line in the right order.
+- Choose the font (PDFRivet's own Rubik and Amiri, or any font installed on your computer), size (Ctrl+[ and Ctrl+] while typing), bold, colour, where the text sits across and down the box, and its direction (from the text, right to left, or left to right).
+- Text boxes are saved the standard way, so other readers show them as they look in PDFRivet, and Acrobat can edit them.
+- Text boxes written by other apps can be edited too. Ones whose Arabic came out broken (letters apart or reversed) look right once edited in PDFRivet.
+
 ### Redaction
 - Redact text or areas (Annotate → Redact): select text or drag over an area. Marked areas are shown outlined and can be unmarked; when you save (or choose Apply), they are blacked out and what was under them is removed from the file for good.
 - A redacted page keeps its exact look, and its text outside the redacted areas can still be selected and searched. Its images and drawings become one picture of the page.

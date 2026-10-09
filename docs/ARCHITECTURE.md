@@ -257,6 +257,35 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
 - Thumbnails are laid out by `thumbnailGrid` (`layout.ts`): a chosen number of columns that fill the
   sidebar's width, rows lined up at the bottom, virtualized by row like the viewer.
 
+## Text boxes
+
+- A text box is a FreeText annotation. PDFium can't shape text (Arabic would come out unjoined
+  and reversed, as in some other apps), so `rivet-core/src/textlayout.rs` lays it out:
+  bidi per paragraph (`unicode-bidi`, or a forced direction), a font per character (the chosen
+  one, else a bundled one that has it), shaping with `rustybuzz`, line breaks at Unicode break
+  opportunities (`unicode-linebreak`) when the box has a width, then each line shaped again on
+  its own and put in visual order.
+- The glyphs are drawn as **outlines** in the appearance stream (`FPDFAnnot_SetAP` takes only a
+  content string, so a font can't be attached; outlines look the same everywhere and raise no
+  embedding questions for system fonts).
+- The text and style are also stored the standard ways: `/Contents`, `/DA`, `/DS` (CSS), and
+  `/RC` (XHTML with a `<p dir>` per paragraph), so Acrobat can edit the box. A private
+  `PDFRivetText` key keeps the exact style (JSON). `/IT /FreeTextTypeWriter` (a box that grows
+  with its text) is a name PDFium can't write; the save pass adds it from a private marker.
+- A box that grows with right-to-left text keeps its right edge (`growsLeft` in the UI, `rtl` in
+  the layout); otherwise its left edge. Its Rect is computed by the engine from the layout.
+- Fonts (`fonts.rs`): Rubik (variable weight) and Amiri are compiled in and also served to the
+  webview at `rivet://…/font/<name>`; the UI loads them with `FontFace` from fetched bytes (CSS
+  `@font-face` URLs on the custom protocol are blocked by the CSP's `font-src`). Installed
+  fonts come from `fontdb`, scanned once on first use.
+- UI: `TextBoxEditor.svelte` is a textarea styled with the same font, size, `LINE_HEIGHT`,
+  `TEXT_PADDING`, direction (`unicode-bidi: plaintext` for "from the text") and positions, so
+  typing looks like the result; it also previews boxes while they're moved or resized. State and
+  saving are in `annotate.svelte.ts` (`startText`, `editText`, `finishText`); style controls in
+  `AnnotateBar.svelte`, `FontPicker.svelte`.
+- Limits: one style per box; boxes on pages with a `/Rotate` or in a rotated view are drawn in
+  the page's own orientation.
+
 ## Redaction
 
 - Marks live in the tab (`tab.redactions`) until they're applied, on save (after a confirmation)

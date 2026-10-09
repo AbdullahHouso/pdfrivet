@@ -119,6 +119,10 @@ CI (`.github/workflows/ci.yml`) runs them on Linux and Windows on every push to 
   inside a button with `button :global(svg)`, not `:global(.icon)` (that also hits the button).
 - **Vite doesn't reload `locales/*.ftl`** (outside the app folder): restart the dev server after
   adding strings.
+- **Fonts from the `rivet:` protocol:** the CSP's `font-src` blocks `@font-face` URLs on it; load
+  them with `fetch` + `new FontFace(name, bytes)` (see `textBox.ts`).
+- **Pointer capture swallows double-clicks** on the element under the pointer: a drag that
+  captures on the layer means `dblclick` must be handled on the layer too.
 - **Windows-only Rust can't be checked from Linux** (ring needs `lib.exe`); rely on CI's Windows job.
 
 ## Dependencies to know
