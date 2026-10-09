@@ -769,6 +769,45 @@ impl Document {
         })
     }
 
+    /// Renders one area of a page (pixels `x, y, width, height` of the page
+    /// rendered at `scale` and `rotation`), exactly as that area looks in the
+    /// whole render. Used to update a small part of a page at once (an
+    /// annotation picked up to move) without waiting for the whole page.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_region(
+        &self,
+        index: u32,
+        scale: f32,
+        rotation: Rotation,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> Result<RenderedPage> {
+        let page = self.load_page(index)?;
+        let (width, height) = (width.clamp(1, 8192), height.clamp(1, 8192));
+        let config = PdfRenderConfig::new()
+            .scale_page_by_factor(scale.clamp(0.05, 16.0))
+            .rotate(rotation.to_pdfium(), true)
+            .set_format(PdfBitmapFormat::BGRA)
+            .set_reverse_byte_order(true)
+            .set_clear_color(PdfColor::WHITE)
+            .render_annotations(true)
+            .render_form_data(true)
+            // The page is drawn shifted so the area lands in the small bitmap.
+            .set_origin(
+                -(x.min(i32::MAX as u32) as i32),
+                -(y.min(i32::MAX as u32) as i32),
+            );
+        let mut bitmap = PdfBitmap::empty(width as i32, height as i32, PdfBitmapFormat::BGRA)?;
+        page.render_into_bitmap_with_config(&mut bitmap, &config)?;
+        Ok(RenderedPage {
+            width,
+            height,
+            rgba: bitmap.as_rgba_bytes().into(),
+        })
+    }
+
     // `'static` like the document itself (pdfium-render hands pages out that way);
     // pages are only used within one call, never kept.
     fn load_page(&self, index: u32) -> Result<PdfPage<'static>> {

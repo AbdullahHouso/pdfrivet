@@ -62,6 +62,7 @@ enum Request {
     Info(DocId, Reply<DocInfo>),
     Outline(DocId, Reply<Vec<OutlineItem>>),
     SetOutline(DocId, Vec<OutlineItem>, Reply<()>),
+    RenderRegion(DocId, u32, f32, Rotation, [u32; 4], Reply<RenderedPage>),
     Links(DocId, u32, Reply<Vec<PageLink>>),
     FormFields(DocId, u32, Reply<Vec<FormField>>),
     PageText(DocId, u32, Reply<PageText>),
@@ -166,6 +167,19 @@ impl Engine {
         rotation: Rotation,
     ) -> Result<RenderedPage> {
         self.render_request(doc, page, scale, rotation, Purpose::Cached)
+    }
+
+    /// Renders one area of a page (`[x, y, width, height]` in pixels of the
+    /// page at `scale`), without the cache: a part of the page that just changed.
+    pub fn render_region(
+        &self,
+        doc: DocId,
+        page: u32,
+        scale: f32,
+        rotation: Rotation,
+        area: [u32; 4],
+    ) -> Result<RenderedPage> {
+        self.call(|reply| Request::RenderRegion(doc, page, scale, rotation, area, reply))
     }
 
     /// Renders a page regardless of what is visible (used for thumbnails).
@@ -409,6 +423,12 @@ impl Worker {
             }
             Request::Outline(id, reply) => {
                 let _ = reply.send(self.doc(id).map(Document::outline));
+            }
+            Request::RenderRegion(id, page, scale, rotation, [x, y, w, h], reply) => {
+                let _ = reply.send(
+                    self.doc(id)
+                        .and_then(|d| d.render_region(page, scale, rotation, x, y, w, h)),
+                );
             }
             Request::SetOutline(id, items, reply) => {
                 let result = match self.docs.get_mut(&id) {

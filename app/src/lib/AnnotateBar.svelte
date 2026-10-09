@@ -11,10 +11,10 @@ import { i18n } from "./i18n.svelte";
 import { fade, out } from "./motion";
 import { type RivetError, toRivetError } from "./pdf";
 import SignatureDialog from "./SignatureDialog.svelte";
+import SizeField from "./SizeField.svelte";
 import { settings } from "./settings.svelte";
 import { type Signature, signatures } from "./signatures.svelte";
 import type { Tab } from "./tabs.svelte";
-import { clampSize, FONT_SIZES } from "./textBox";
 
 interface Props {
   tab: Tab;
@@ -228,14 +228,7 @@ async function run(action: (t: Tab) => Promise<unknown>) {
     {@const ts = textTarget.style}
     <div class="group style text-style" aria-label={i18n.t("annot-style")}>
       <FontPicker value={ts.font} onchange={(font) => applyText({ font })} />
-      <input class="size" type="number" min="4" max="200" step="1" value={ts.size} list="text-sizes"
-        title={i18n.t("text-size")} aria-label={i18n.t("text-size")}
-        onchange={(e) => applyText({ size: clampSize(Number(e.currentTarget.value) || ts.size) })} />
-      <datalist id="text-sizes">
-        {#each FONT_SIZES as size (size)}
-          <option value={size}></option>
-        {/each}
-      </datalist>
+      <SizeField value={ts.size} onchange={(size) => applyText({ size })} />
       <button class="icon" aria-pressed={ts.bold} onclick={() => applyText({ bold: !ts.bold })}
         title={i18n.t("text-bold")} aria-label={i18n.t("text-bold")}>
         <Icon name="bold" />
@@ -360,11 +353,6 @@ async function run(action: (t: Tab) => Promise<unknown>) {
     border-block-end: 1px solid var(--border);
     /* Long rows (a text box's controls) continue on a second line. */
     flex-wrap: wrap;
-  }
-  .size {
-    width: 58px;
-    padding-block: 3px;
-    padding-inline: 6px;
   }
   .segmented {
     display: flex;

@@ -49,7 +49,7 @@ import { fade, out, pop, rise } from "./motion";
 import { getAnnotations, type RivetError, setAnnotationHidden, toRivetError } from "./pdf";
 import { settings, type ToolStyle } from "./settings.svelte";
 import TextBoxEditor from "./TextBoxEditor.svelte";
-import type { Tab } from "./tabs.svelte";
+import type { Lifted, Tab } from "./tabs.svelte";
 import { stepSize, TEXT_PADDING } from "./textBox";
 
 interface Props {
@@ -324,8 +324,14 @@ type Drag = {
   handle: Handle | "move" | "from" | "to";
   preview: Annotation;
   movedEnough: boolean;
-  /** The original is hidden while dragging, so only the preview shows. */
-  hidden: boolean;
+  /**
+   * The original lifted off the page, prepared as soon as the pointer goes
+   * down: hidden in the document, its area rendered without it, its pixels
+   * kept. The page only loses it once a drag really starts.
+   */
+  lift: Promise<Lifted | null>;
+  /** Taken off the page (the drag started); its pixels move with the pointer. */
+  lifted: Lifted | null;
 };
 let drag = $state<Drag | null>(null);
 
@@ -344,6 +350,12 @@ function startDrag(e: PointerEvent, a: Annotation, handle: Drag["handle"]) {
   e.preventDefault();
   e.stopPropagation();
   layer.setPointerCapture(e.pointerId);
+  const lift = tab
+    .liftArea(index, a.rect, () => setAnnotationHidden(tab.docId, index, a.id, true))
+    .catch((err) => {
+      fail(err);
+      return null;
+    });
   drag = {
     pointerId: e.pointerId,
     start: pointer(e),
@@ -351,8 +363,19 @@ function startDrag(e: PointerEvent, a: Annotation, handle: Drag["handle"]) {
     handle,
     preview: a,
     movedEnough: false,
-    hidden: false,
+    lift,
+    lifted: null,
   };
+}
+
+/** The drag started: the original leaves the page at once (only its area is drawn again). */
+async function takeOff(d: Drag) {
+  const lifted = await d.lift;
+  if (drag?.pointerId !== d.pointerId || drag.original.id !== d.original.id) return;
+  lifted?.apply();
+  drag.lifted = lifted;
+  // The whole page follows (it looks the same).
+  tab.bumpPage(index);
 }
 
 function onDragMove(e: PointerEvent) {
@@ -361,10 +384,9 @@ function onDragMove(e: PointerEvent) {
   const dx = p.x - drag.start.x;
   const dy = p.y - drag.start.y;
   if (!drag.movedEnough && Math.hypot(dx, dy) < 3) return;
-  drag.movedEnough = true;
-  if (!drag.hidden) {
-    drag.hidden = true;
-    hide(drag.original, true);
+  if (!drag.movedEnough) {
+    drag.movedEnough = true;
+    takeOff(drag);
   }
   const a = drag.original;
   if (drag.handle === "move") {
@@ -392,40 +414,60 @@ function onDragMove(e: PointerEvent) {
   }
 }
 
-/** Hides or shows an annotation in the page image (not a change to the document). */
-async function hide(a: Annotation, hidden: boolean) {
-  try {
-    await setAnnotationHidden(tab.docId, index, a.id, hidden);
-    tab.bumpPage(index);
-  } catch (err) {
-    fail(err);
-  }
-}
-
 async function onDragUp(e: PointerEvent) {
   if (!drag || e.pointerId !== drag.pointerId) return;
   layer.releasePointerCapture(e.pointerId);
-  const { original, preview, movedEnough, hidden } = drag;
+  const { original, preview, movedEnough, lift } = drag;
   // Keep showing the preview where it was dropped until the page has the change.
   dropped = movedEnough ? preview : null;
+  droppedFrom = movedEnough ? original : null;
+  droppedLift = movedEnough ? drag.lifted : null;
   drag = null;
   try {
-    // Shown again and moved before the page renders once more, so no
-    // in-between image (hidden, or back at the old place) can flash.
-    if (hidden) await setAnnotationHidden(tab.docId, index, original.id, false);
-    if (movedEnough) await update(tab, index, original, preview);
-    else if (hidden) tab.bumpPage(index);
-    await tab.whenPainted(index);
+    // Hidden while the pointer was down; shown again and moved before the page
+    // renders once more, so no in-between image (hidden, or back at the old
+    // place) can flash. A plain click never changed the page's image.
+    await lift;
+    await setAnnotationHidden(tab.docId, index, original.id, false);
+    if (movedEnough) {
+      await update(tab, index, original, preview);
+      await tab.whenPainted(index);
+    }
   } catch (err) {
     fail(err);
     tab.bumpPage(index);
   } finally {
     dropped = null;
+    droppedFrom = null;
+    droppedLift = null;
   }
 }
 
 /** The annotation just dropped, shown until the page has re-rendered with it. */
 let dropped = $state<Annotation | null>(null);
+let droppedFrom: Annotation | null = null;
+let droppedLift = $state<Lifted | null>(null);
+
+/** Text boxes and pictures move as their own pixels, so they look exactly as on the page. */
+const MOVES_AS_PIXELS = ["freeText", "stamp"];
+
+/** Where the lifted pixels go: their place on the page, shifted as the annotation moved. */
+let movingPixels = $derived.by(() => {
+  const lifted = drag?.movedEnough ? drag.lifted : droppedLift;
+  const from = drag?.movedEnough ? drag.original : droppedFrom;
+  const to = drag?.movedEnough ? drag.preview : dropped;
+  if (!lifted || !from || !to || !MOVES_AS_PIXELS.includes(from.kind.kind)) return null;
+  if (drag?.movedEnough && drag.handle !== "move") return null;
+  const a = rectToPx(from.rect, box);
+  const b = rectToPx(to.rect, box);
+  return {
+    image: lifted.image,
+    left: lifted.box.left * width + (b.left - a.left),
+    top: lifted.box.top * height + (b.top - a.top),
+    width: lifted.box.width * width,
+    height: lifted.box.height * height,
+  };
+});
 
 /** Line width of a preview: stretched along with the annotation when resized. */
 function previewWidth(p: Annotation, original: Annotation) {
@@ -526,7 +568,7 @@ $effect(() => {
   if (!textEdit) return;
   const outside = (e: PointerEvent) => {
     const target = e.target as HTMLElement | null;
-    if (target?.closest(".text-box, .annotate-bar, .font-menu")) return;
+    if (target?.closest(".text-box, .annotate-bar, .font-menu, .size-menu")) return;
     finishText().catch(fail);
   };
   window.addEventListener("pointerdown", outside, true);
@@ -724,8 +766,8 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
             stroke-width="1.5" fill={rgb(lighter(p.color, 0.3))} />
         {:else if p.kind.kind === "freeText"}
           <!-- Drawn as text below. -->
-        {:else}
-          <!-- A signature or another app's stamp: its outline. -->
+        {:else if !movingPixels && !drag?.lift}
+          <!-- A signature or another app's stamp, if its pixels aren't there: its outline. -->
           <rect class="preview placeholder" x={r.left} y={r.top} width={r.width} height={r.height} />
         {/if}
       {/if}
@@ -752,8 +794,18 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
     {/if}
   </svg>
 
-  <!-- A text box being moved or resized, as it will look. -->
-  {#if (drag?.movedEnough ? drag.preview : dropped)?.kind.kind === "freeText"}
+  <!-- A text box or picture being moved: its own pixels, lifted off the page. -->
+  {#if movingPixels}
+    {@const m = movingPixels}
+    <div class="lifted" style:left="{m.left}px" style:top="{m.top}px" style:width="{m.width}px"
+      style:height="{m.height}px" {@attach (el) => {
+        el.append(m.image);
+        return () => m.image.remove();
+      }}></div>
+  {/if}
+
+  <!-- A text box being resized: laid out again, as it will look. -->
+  {#if !movingPixels && (drag?.movedEnough ? drag.handle !== "move" : !!dropped) && (drag?.movedEnough ? drag.preview : dropped)?.kind.kind === "freeText"}
     {@const p = (drag?.movedEnough ? drag.preview : dropped) as Annotation}
     {#if p.kind.kind === "freeText"}
       {@const r = rectToPx(p.rect, box)}
@@ -867,6 +919,15 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
   }
   .hit.text {
     cursor: move;
+  }
+  .lifted {
+    position: absolute;
+    pointer-events: none;
+  }
+  .lifted :global(canvas) {
+    display: block;
+    width: 100%;
+    height: 100%;
   }
   .ghost {
     opacity: 0.7;

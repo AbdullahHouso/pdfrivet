@@ -52,6 +52,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Arabic is written properly: joined letters, لا ligatures, right-to-left lines, and Arabic and English mixed on one line in the right order.
 - Choose the font (PDFRivet's own Rubik and Amiri, or any font installed on your computer), size (Ctrl+[ and Ctrl+] while typing), bold, colour, where the text sits across and down the box, and its direction (from the text, right to left, or left to right).
 - Text boxes are saved the standard way, so other readers show them as they look in PDFRivet, and Acrobat can edit them.
+- Moving a text box or a signature shows it exactly as it looks on the page, and it leaves its old place at once.
 - Text boxes written by other apps can be edited too. Ones whose Arabic came out broken (letters apart or reversed) look right once edited in PDFRivet.
 
 ### Redaction

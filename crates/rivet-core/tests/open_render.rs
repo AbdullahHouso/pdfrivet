@@ -1690,3 +1690,24 @@ fn reads_text_boxes_from_other_apps_and_redraws_them() {
     assert!(ink_in(&after, r) > ink_in(&before, r));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn renders_one_area_like_the_whole_page() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("forms.pdf"), None).unwrap();
+    for rotation in [Rotation::None, Rotation::Cw90] {
+        let full = doc.render_page(0, 1.5, rotation).unwrap();
+        let (x, y, w, h) = (40, 60, 120, 50);
+        let part = doc.render_region(0, 1.5, rotation, x, y, w, h).unwrap();
+        assert_eq!((part.width, part.height), (w, h));
+        for row in 0..h {
+            let from = (((y + row) * full.width + x) * 4) as usize;
+            let to = ((row * w) * 4) as usize;
+            assert_eq!(
+                full.rgba[from..from + (w * 4) as usize],
+                part.rgba[to..to + (w * 4) as usize],
+                "row {row} ({rotation:?})"
+            );
+        }
+    }
+}

@@ -489,7 +489,10 @@ export async function editText(tab: Tab, page: number, a: Annotation) {
     saving: false,
   };
   tab.selectedAnnotation = null;
-  await setAnnotationHidden(tab.docId, page, a.id, true);
+  // The box leaves the page at once (only its area is drawn again), so its
+  // text doesn't show twice under the editor.
+  const lifted = await tab.liftArea(page, a.rect, () => setAnnotationHidden(tab.docId, page, a.id, true));
+  lifted?.apply();
   tab.bumpPage(page);
 }
 

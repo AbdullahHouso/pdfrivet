@@ -189,6 +189,13 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   wait for it with `tab.whenPainted(page)`. Edits re-render the page at once (only zooming waits
   for the size to settle). On drop, the dragged annotation is shown again and moved *before* the
   page renders, so no in-between image can appear.
+- **Lifting** (moving an annotation, editing a text box): on pointer down the annotation is
+  hidden in the document and only its area is rendered again (`render_region`, a small bitmap
+  identical to that area of a full render). Nothing on screen changes until a drag really starts;
+  then that area is painted over at once (no waiting for the whole page), and the pixels that
+  differ between before and after are the annotation as drawn (`lift.ts`). Text boxes and pictures
+  move as those pixels, so they keep their exact look (another app's font included). A plain
+  click leaves the page's image as it was.
 - **Deleting** hides the annotation and marks it (`PDFRivetDeleted`); undo restores it exactly.
   Saving leaves marked annotations out of the *written file* (lopdf, `prune.rs`), so undo still
   works afterwards. While an annotation is dragged it's hidden the same way (flag only), so only

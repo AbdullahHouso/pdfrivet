@@ -10,8 +10,9 @@ import type { PageLink } from "./bindings/PageLink";
 import FormLayer from "./FormLayer.svelte";
 import { i18n } from "./i18n.svelte";
 import { type Degrees, rotateRect } from "./layout";
+import { liftedPixels } from "./lift";
 import { keep, take } from "./pageCanvasCache";
-import { getLinks, type PagePixels, type RivetError, renderPage, toRivetError } from "./pdf";
+import { getLinks, type PagePixels, type RivetError, renderPage, renderRegion, toRivetError } from "./pdf";
 import type { SearchMark } from "./search.svelte";
 import TextLayer from "./TextLayer.svelte";
 import type { Tab } from "./tabs.svelte";
@@ -94,6 +95,54 @@ onDestroy(() => {
 let paintedScale = 0;
 let paintedRotation: Degrees | null = null;
 let paintedRevision = -1;
+
+// Lifting an annotation off the page (to move it, or to edit a text box):
+// its area is rendered again without it, so the page can lose it at once
+// (`apply`), and the pixels that differ are the annotation itself, exactly as
+// drawn, to move around (`image`). See Tab.liftArea.
+$effect(() => {
+  if (thumbnail || !tab) return;
+  return tab.registerLifter(index, async (rect, hide) => {
+    if (!rendered || paintedRotation === null || paintedScale <= 0) {
+      await hide();
+      return null;
+    }
+    const scale = paintedScale;
+    const rot = paintedRotation;
+    const r = rotateRect(rect, rot);
+    // A few pixels more on each side, for anti-aliased edges.
+    const x = Math.max(0, Math.floor(r.left * canvas.width) - 3);
+    const y = Math.max(0, Math.floor(r.top * canvas.height) - 3);
+    const w = Math.min(canvas.width, Math.ceil(r.right * canvas.width) + 3) - x;
+    const h = Math.min(canvas.height, Math.ceil(r.bottom * canvas.height) + 3) - y;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (w <= 0 || h <= 0 || !ctx) {
+      await hide();
+      return null;
+    }
+    const before = ctx.getImageData(x, y, w, h);
+    await hide();
+    let after: ImageData;
+    try {
+      after = (await renderRegion(docId, index, scale, rot, { x, y, w, h })).data;
+    } catch {
+      return null;
+    }
+    const image = document.createElement("canvas");
+    image.width = w;
+    image.height = h;
+    image.getContext("2d")?.putImageData(new ImageData(liftedPixels(before.data, after.data), w, h), 0, 0);
+    const box = { left: x / canvas.width, top: y / canvas.height, width: w / canvas.width, height: h / canvas.height };
+    return {
+      image,
+      box,
+      apply: () => {
+        // Only if the page still shows the same render.
+        if (paintedScale === scale && paintedRotation === rot) ctx.putImageData(after, x, y);
+      },
+    };
+  });
+});
 
 function paint(pixels: { width: number; height: number; data: ImageData }) {
   canvas.width = pixels.width;

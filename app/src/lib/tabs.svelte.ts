@@ -6,6 +6,18 @@ import { SvelteMap } from "svelte/reactivity";
 import type { Annotation } from "./bindings/Annotation";
 import type { DocInfo } from "./bindings/DocInfo";
 import type { PageRect } from "./bindings/PageRect";
+
+/** An annotation lifted off a page's image (see Tab.liftArea). */
+export interface Lifted {
+  /** Its pixels as drawn on the page (the rest transparent). */
+  image: HTMLCanvasElement;
+  /** Where `image` sits, as fractions of the page as shown (after view rotation). */
+  box: { left: number; top: number; width: number; height: number };
+  /** Paints the area without it onto the page. */
+  apply: () => void;
+}
+export type Lifter = (rect: PageRect, hide: () => Promise<void>) => Promise<Lifted | null>;
+
 import { History } from "./history.svelte";
 import type { Degrees } from "./layout";
 import type { Bookmark } from "./outlineTree";
@@ -118,6 +130,33 @@ export class Tab {
         resolve();
       }, timeout);
     });
+  }
+
+  /** Pages on screen that can lift an annotation off their image (see PageView). */
+  readonly #lifters = new Map<number, Lifter>();
+
+  /** Called by a page on screen: how to lift an annotation off its image. */
+  registerLifter(page: number, lift: Lifter) {
+    this.#lifters.set(page, lift);
+    return () => {
+      if (this.#lifters.get(page) === lift) this.#lifters.delete(page);
+    };
+  }
+
+  /**
+   * Lifts an annotation off a page's image: `hide` hides it in the document,
+   * then its area is rendered again without it. The result can take it off
+   * the page at once (`apply`, no waiting for the whole page) and holds its
+   * pixels as drawn (`image`), to show while it moves. Null if the page isn't
+   * on screen (it was still hidden).
+   */
+  async liftArea(page: number, rect: PageRect, hide: () => Promise<void>): Promise<Lifted | null> {
+    const lift = this.#lifters.get(page);
+    if (!lift) {
+      await hide();
+      return null;
+    }
+    return lift(rect, hide);
   }
 
   /** Marks a page as changed, so it and its thumbnail render again. */

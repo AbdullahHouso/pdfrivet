@@ -243,13 +243,35 @@ export async function renderPage(docId: number, page: number, opts: RenderOption
   if (!response.ok) {
     throw await response.json().catch(() => ({ code: "internal", detail: response.statusText }));
   }
-  const buffer = await response.arrayBuffer();
-  // Body = width (u32 LE) + height (u32 LE) + RGBA pixels.
+  return readPixels(await response.arrayBuffer());
+}
+
+/** Body = width (u32 LE) + height (u32 LE) + RGBA pixels. */
+function readPixels(buffer: ArrayBuffer): PagePixels {
   const header = new DataView(buffer, 0, 8);
   const width = header.getUint32(0, true);
   const height = header.getUint32(4, true);
   const data = new ImageData(new Uint8ClampedArray(buffer, 8), width, height);
   return { width, height, data };
+}
+
+/**
+ * Renders one area of a page: pixels `area` of the page rendered at `scale`
+ * and `rotation`, exactly as they look in the whole render (not cached).
+ */
+export async function renderRegion(
+  docId: number,
+  page: number,
+  scale: number,
+  rotation: number,
+  area: { x: number; y: number; w: number; h: number },
+): Promise<PagePixels> {
+  const url =
+    `${PROTOCOL_BASE}/region/${docId}/${page}?scale=${scale.toFixed(3)}&rot=${rotation}` +
+    `&x=${area.x}&y=${area.y}&w=${area.w}&h=${area.h}`;
+  const response = await fetch(url);
+  if (!response.ok) throw await response.json().catch(() => ({ code: "internal", detail: response.statusText }));
+  return readPixels(await response.arrayBuffer());
 }
 
 /** Every character of a page with its box, in the engine's binary form (see textSelect.ts). */

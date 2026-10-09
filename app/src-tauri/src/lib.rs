@@ -561,7 +561,22 @@ fn page_protocol(engine: &Engine, uri: &http::Uri) -> http::Response<Vec<u8>> {
         return print_page(engine, doc, page, dpi);
     }
 
+    let area = || -> Option<[u32; 4]> {
+        Some([
+            query("x")?.parse().ok()?,
+            query("y")?.parse().ok()?,
+            query("w")?.parse().ok()?,
+            query("h")?.parse().ok()?,
+        ])
+    };
     let result = match parts.as_slice() {
+        // One area of a page: /region/<doc>/<page>?scale&rot&x&y&w&h.
+        ["region", doc, page] => match (doc.parse(), page.parse(), area()) {
+            (Ok(doc), Ok(page), Some(area)) => {
+                engine.render_region(doc, page, scale, rotation, area)
+            }
+            _ => Err(Error::new(ErrorCode::Internal, "bad region URL")),
+        },
         ["page", doc, page] => match (doc.parse(), page.parse()) {
             (Ok(doc), Ok(page)) if query("cached").is_some() => {
                 engine.cached(doc, page, scale, rotation)
