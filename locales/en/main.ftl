@@ -137,6 +137,10 @@ close-tab = Close { $name }
 ## Sidebar
 
 thumbnails = Pages
+thumbnail-size = Thumbnail size
+thumbnails-smaller = Smaller thumbnails
+thumbnails-bigger = Bigger thumbnails
+resize-sidebar = Resize the sidebar
 outline = Outline
 outline-empty = This document has no outline.
 go-to-page-n = Go to page { $page }

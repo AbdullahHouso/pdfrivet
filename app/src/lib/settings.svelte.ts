@@ -68,6 +68,10 @@ let author = $state("");
 const lessMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 let animations = $state(!lessMotion);
 let toolStyles = $state<Record<string, ToolStyle>>({});
+// Panel widths in px (clamped to the window when shown) and thumbnails per row.
+let sidebarWidth = $state(200);
+let commentsWidth = $state(300);
+let thumbnailColumns = $state(1);
 
 /** Turns animations on or off for the whole window (see app.css and motion.ts). */
 function applyMotion(on: boolean) {
@@ -142,6 +146,15 @@ function apply(key: string, value: unknown) {
     case "toolStyles":
       toolStyles = value as Record<string, ToolStyle>;
       break;
+    case "sidebarWidth":
+      sidebarWidth = value as number;
+      break;
+    case "commentsWidth":
+      commentsWidth = value as number;
+      break;
+    case "thumbnailColumns":
+      thumbnailColumns = value as number;
+      break;
   }
 }
 
@@ -168,6 +181,9 @@ export const settings = {
       author = (await store.get<string>("author")) ?? "";
       animations = (await store.get<boolean>("animations")) ?? animations;
       toolStyles = (await store.get<Record<string, ToolStyle>>("toolStyles")) ?? {};
+      sidebarWidth = (await store.get<number>("sidebarWidth")) ?? sidebarWidth;
+      commentsWidth = (await store.get<number>("commentsWidth")) ?? commentsWidth;
+      thumbnailColumns = (await store.get<number>("thumbnailColumns")) ?? thumbnailColumns;
     } catch (e) {
       console.warn("[settings] using defaults", e);
     }
@@ -297,6 +313,31 @@ export const settings = {
   setToolStyle(tool: string, style: ToolStyle) {
     toolStyles = { ...toolStyles, [tool]: style };
     save("toolStyles", toolStyles);
+  },
+
+  /** Width of the sidebar (thumbnails, bookmarks, search), in px. */
+  get sidebarWidth() {
+    return sidebarWidth;
+  },
+  set sidebarWidth(value: number) {
+    sidebarWidth = value;
+    save("sidebarWidth", value);
+  },
+  /** Width of the comments panel, in px. */
+  get commentsWidth() {
+    return commentsWidth;
+  },
+  set commentsWidth(value: number) {
+    commentsWidth = value;
+    save("commentsWidth", value);
+  },
+  /** Thumbnails per row (fewer than fit when the sidebar is narrow). */
+  get thumbnailColumns() {
+    return thumbnailColumns;
+  },
+  set thumbnailColumns(value: number) {
+    thumbnailColumns = value;
+    save("thumbnailColumns", value);
   },
 
   get recent() {

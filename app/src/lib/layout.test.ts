@@ -1,16 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorAt,
+  clampSidebar,
   computeLayout,
   currentPage,
   fitPageZoom,
   fitWidthZoom,
+  maxThumbnailColumns,
   PAGE_GAP,
   PX_PER_PT,
   pageAtPoint,
   rotateRect,
+  SIDEBAR_MIN,
   scrollTopFor,
   stepZoom,
+  THUMB_GAP,
+  THUMB_LABEL,
+  thumbnailGrid,
   unrotatePoint,
   visibleRange,
 } from "./layout";
@@ -160,5 +166,48 @@ describe("points on rotated pages", () => {
     const gap = pageAtPoint(l, [0, 1], l.lefts[1] + 10, l.tops[1] - 2);
     expect(gap?.page).toBe(1);
     expect(gap?.point.y).toBeLessThan(0);
+  });
+});
+
+describe("thumbnailGrid", () => {
+  const sizes = [A4, A4, A4, LANDSCAPE, A4];
+
+  it("fills the pane with one column", () => {
+    const g = thumbnailGrid(sizes, 0, 200, 1);
+    expect(g.rows).toHaveLength(5);
+    expect(g.widths[0]).toBe(200 - 2 * THUMB_GAP);
+    expect(g.lefts[0]).toBe(THUMB_GAP);
+  });
+
+  it("puts several pages in a row and lines them up at the bottom", () => {
+    const g = thumbnailGrid(sizes, 0, 400, 3);
+    expect(g.rows.map((r) => [r.first, r.last])).toEqual([
+      [0, 2],
+      [3, 4],
+    ]);
+    // The landscape page is shorter: it sits lower, on the same bottom line.
+    expect(g.tops[3] + g.heights[3]).toBe(g.tops[4] + g.heights[4]);
+    expect(g.lefts[1]).toBeGreaterThan(g.lefts[0] + g.widths[0]);
+    expect(g.rows[0].height).toBe(g.heights[0] + THUMB_LABEL);
+  });
+
+  it("never fits more columns than the minimum width allows", () => {
+    expect(maxThumbnailColumns(160)).toBe(1);
+    expect(maxThumbnailColumns(480)).toBe(5);
+    expect(thumbnailGrid(sizes, 0, 160, 4).rows[0].last).toBe(0);
+  });
+
+  it("finds visible thumbnails by row", () => {
+    const g = thumbnailGrid(sizes, 0, 400, 3);
+    expect(visibleRange(g, 0, 50)).toEqual([0, 2]);
+  });
+});
+
+describe("sidebar width", () => {
+  it("stays between the minimum and a quarter of the window", () => {
+    expect(clampSidebar(100, 1600)).toBe(SIDEBAR_MIN);
+    expect(clampSidebar(900, 1600)).toBe(400);
+    // Small windows still allow 240 px.
+    expect(clampSidebar(300, 800)).toBe(240);
   });
 });

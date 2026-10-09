@@ -16,8 +16,10 @@ interface Props {
   /** Opens the find bar. */
   onfind: () => void;
   pane?: SidebarPane;
+  /** Width in px (the splitter next to it changes it). */
+  width: number;
 }
-let { tab, ongoto, onfind, pane = $bindable("thumbnails") }: Props = $props();
+let { tab, ongoto, onfind, pane = $bindable("thumbnails"), width }: Props = $props();
 
 // Load the outline the first time it is shown.
 $effect(() => {
@@ -29,7 +31,7 @@ $effect(() => {
 });
 </script>
 
-<aside class="sidebar" class:wide={pane === "search"}>
+<aside class="sidebar" style:width="{width}px">
   <div class="switcher" role="tablist">
     <button role="tab" aria-selected={pane === "thumbnails"} onclick={() => (pane = "thumbnails")}>
       {i18n.t("thumbnails")}
@@ -67,7 +69,6 @@ $effect(() => {
 <style>
   .sidebar {
     flex: none;
-    width: 200px;
     display: flex;
     flex-direction: column;
     background: var(--surface);
@@ -91,10 +92,6 @@ $effect(() => {
     background: var(--hover);
     border-color: var(--border);
     font-weight: 600;
-  }
-  /* Room for the text around search results. */
-  .sidebar.wide {
-    width: 280px;
   }
   .pane {
     flex: 1;

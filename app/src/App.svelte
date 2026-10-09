@@ -24,7 +24,7 @@ import { hasOtherWindows, moveToNewWindow, openInNewWindow, tabsWindowLabel, win
 import FindBar from "./lib/FindBar.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { shortcutKey } from "./lib/keys";
-import { type Degrees, rotatedSize, stepZoom } from "./lib/layout";
+import { type Degrees, rotatedSize, SIDEBAR_DEFAULT, SIDEBAR_MIN, sidebarMax, stepZoom } from "./lib/layout";
 import { fade, out, rise } from "./lib/motion";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
@@ -48,6 +48,7 @@ import { printDocument } from "./lib/printing";
 import type { ZoomMode } from "./lib/recent";
 import SettingsDialog from "./lib/SettingsDialog.svelte";
 import Sidebar, { type SidebarPane } from "./lib/Sidebar.svelte";
+import Splitter from "./lib/Splitter.svelte";
 import StartScreen from "./lib/StartScreen.svelte";
 import { type DocumentWindows, settings } from "./lib/settings.svelte";
 import TabBar from "./lib/TabBar.svelte";
@@ -61,6 +62,14 @@ import Viewer from "./lib/Viewer.svelte";
 let error = $state<RivetError | null>(null);
 let sidebarOpen = $state(true);
 let sidebarPane = $state<SidebarPane>("thumbnails");
+// The sidebar's width: up to a quarter of the window, and wide enough for
+// search results' text while they are shown.
+let windowWidth = $state(window.innerWidth);
+let sidebarMin = $derived(sidebarPane === "search" ? Math.min(280, sidebarMax(windowWidth)) : SIDEBAR_MIN);
+let sidebarDrag = $state<number | null>(null);
+let sidebarWidth = $derived(
+  Math.round(Math.min(Math.max(sidebarDrag ?? settings.sidebarWidth, sidebarMin), sidebarMax(windowWidth))),
+);
 let findBar: FindBar | undefined = $state();
 let showAbout = $state(false);
 let showSettings = $state(false);
@@ -659,7 +668,7 @@ onMount(() => {
 });
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} bind:innerWidth={windowWidth} />
 
 <!-- With a window per document the tab bar is hidden, unless this window
      still has several tabs from before the setting changed. -->
@@ -725,7 +734,19 @@ onMount(() => {
     {#key active.id}
       {#if sidebarOpen}
         <div class="sidebar-wrap" in:fade out:out>
-        <Sidebar tab={active} ongoto={goTo} bind:pane={sidebarPane} onfind={() => active && openFind(active)} />
+          <Sidebar tab={active} width={sidebarWidth} ongoto={goTo} bind:pane={sidebarPane} onfind={() => active && openFind(active)} />
+          <Splitter
+            bind:value={() => sidebarWidth, (w) => (sidebarDrag = w)}
+            min={sidebarMin}
+            max={sidebarMax(windowWidth)}
+            defaultValue={SIDEBAR_DEFAULT}
+            edge="end"
+            label={i18n.t("resize-sidebar")}
+            oncommit={(w) => {
+              sidebarDrag = null;
+              settings.sidebarWidth = w;
+            }}
+          />
         </div>
       {/if}
       {@const tab = active}
@@ -868,6 +889,7 @@ onMount(() => {
   }
   /* Holds the sidebar so it can fade in and out when shown or hidden. */
   .sidebar-wrap {
+    position: relative;
     display: flex;
     flex: none;
     min-height: 0;

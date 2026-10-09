@@ -135,6 +135,10 @@ close-tab = إغلاق { $name }
 ## Sidebar
 
 thumbnails = الصفحات
+thumbnail-size = حجم المصغّرات
+thumbnails-smaller = تصغير المصغّرات
+thumbnails-bigger = تكبير المصغّرات
+resize-sidebar = تغيير عرض الشريط الجانبي
 outline = الفهرس
 outline-empty = لا يحتوي هذا المستند على فهرس.
 go-to-page-n = الانتقال إلى الصفحة { $page }

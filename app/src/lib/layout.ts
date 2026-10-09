@@ -297,3 +297,68 @@ export function pageAtPoint(
     },
   };
 }
+
+/** Thumbnails: space between them and around them, height of the page number under each, smallest width. */
+export const THUMB_GAP = 12;
+export const THUMB_LABEL = 24;
+export const THUMB_MIN_WIDTH = 72;
+
+/** How many thumbnail columns fit in a pane `paneWidth` px wide (at least 1). */
+export function maxThumbnailColumns(paneWidth: number): number {
+  const inner = paneWidth - 2 * THUMB_GAP;
+  return Math.max(1, Math.floor((inner + THUMB_GAP) / (THUMB_MIN_WIDTH + THUMB_GAP)));
+}
+
+/**
+ * Thumbnails in a grid of `columns` per row, filling the pane's width (so a
+ * wider pane gives bigger thumbnails). Each page fits in a square-ish cell of
+ * the column width; rows are as tall as their tallest page plus its number.
+ * `lefts` are measured from the pane's start edge (the right in RTL), so page
+ * one comes first in reading order. `heights` are the pages alone.
+ */
+export function thumbnailGrid(sizes: PageSize[], rotation: Degrees, paneWidth: number, columns: number): Layout {
+  const cols = Math.min(Math.max(1, Math.round(columns)), maxThumbnailColumns(paneWidth));
+  const inner = Math.max(0, paneWidth - 2 * THUMB_GAP);
+  const cell = Math.max(1, (inner - (cols - 1) * THUMB_GAP) / cols);
+  const tops: number[] = [];
+  const lefts: number[] = [];
+  const widths: number[] = [];
+  const heights: number[] = [];
+  const rowOf: number[] = [];
+  const rows: Row[] = [];
+  let y = THUMB_GAP;
+  for (let first = 0; first < sizes.length; first += cols) {
+    const last = Math.min(first + cols, sizes.length) - 1;
+    let tallest = 0;
+    for (let i = first; i <= last; i++) {
+      const r = rotatedSize(sizes[i], rotation);
+      // Wide pages take the cell's width; tall ones are kept from getting
+      // much taller than a portrait page would be.
+      const scale = Math.min(cell / r.width, (cell * 1.5) / r.height);
+      widths[i] = Math.round(r.width * scale);
+      heights[i] = Math.round(r.height * scale);
+      tallest = Math.max(tallest, heights[i]);
+    }
+    for (let i = first; i <= last; i++) {
+      const column = i - first;
+      lefts[i] = THUMB_GAP + column * (cell + THUMB_GAP) + (cell - widths[i]) / 2;
+      // Pages sit on the row's bottom line, so the numbers under them line up.
+      tops[i] = y + tallest - heights[i];
+      rowOf[i] = rows.length;
+    }
+    const height = tallest + THUMB_LABEL;
+    rows.push({ first, last, top: y, height });
+    y += height + THUMB_GAP;
+  }
+  return { tops, lefts, widths, heights, rowOf, rows, totalHeight: y, totalWidth: paneWidth };
+}
+
+/** Sidebar widths: the narrowest, the default, and the widest (a quarter of the window, at least 240 px). */
+export const SIDEBAR_MIN = 160;
+export const SIDEBAR_DEFAULT = 200;
+export function sidebarMax(windowWidth: number): number {
+  return Math.max(240, Math.round(windowWidth / 4));
+}
+export function clampSidebar(width: number, windowWidth: number): number {
+  return Math.min(Math.max(width, SIDEBAR_MIN), sidebarMax(windowWidth));
+}
