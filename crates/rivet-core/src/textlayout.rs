@@ -6,7 +6,7 @@
 //!    its first strong letter, unless the box forces right-to-left or
 //!    left-to-right (Unicode bidi algorithm, `unicode-bidi`).
 //! 2. **Fonts.** Each letter uses the chosen font, or a bundled one that has it.
-//! 3. **Shaping** (`rustybuzz`, a port of HarfBuzz): Arabic letters take their
+//! 3. **Shaping** (HarfRust, the HarfBuzz project's Rust port): Arabic letters take their
 //!    joined forms, لا becomes one ligature, marks sit on their letters.
 //! 4. **Line breaks** at Unicode break opportunities (`unicode-linebreak`) when
 //!    the box has a width; a word longer than the box is split.
@@ -19,9 +19,11 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use rustybuzz::ttf_parser::{GlyphId, OutlineBuilder};
-use rustybuzz::{Direction, UnicodeBuffer};
+use harfrust::{Buffer, Direction, ShapeOptions};
 use serde::{Deserialize, Serialize};
+use skrifa::instance::Size;
+use skrifa::outline::OutlinePen;
+use skrifa::{GlyphId, MetadataProvider};
 use ts_rs::TS;
 use unicode_bidi::{BidiInfo, Level};
 
@@ -116,7 +118,7 @@ pub struct TextStyle {
 pub(crate) struct PlacedGlyph {
     /// Index into [`Layout::fonts`].
     pub font: usize,
-    pub glyph: u16,
+    pub glyph: u32,
     /// Left edge of the glyph's origin and its baseline, in points from the
     /// box's top-left corner (y downwards).
     pub x: f32,
@@ -147,7 +149,7 @@ struct Piece {
 }
 
 struct Shaped {
-    glyph: u16,
+    glyph: u32,
     cluster: usize,
     advance: f32,
     dx: f32,
@@ -168,10 +170,11 @@ pub(crate) fn layout(text: &str, style: &TextStyle) -> Layout {
     };
     // Baseline inside a line: centred like CSS does, from the main font's metrics.
     let baseline = {
-        let face = all[0].face();
-        let s = size / face.units_per_em().max(1) as f32;
-        let ascent = f32::from(face.ascender()) * s;
-        let descent = -f32::from(face.descender()) * s;
+        let font = &all[0];
+        let metrics = font.font_ref().metrics(Size::unscaled(), &font.location());
+        let s = size / font.units_per_em();
+        let ascent = metrics.ascent * s;
+        let descent = -metrics.descent * s;
         (line_height - (ascent + descent)) / 2.0 + ascent
     };
 
@@ -299,9 +302,8 @@ fn shape(
     font: &LoadedFont,
     size: f32,
 ) -> Vec<Shaped> {
-    let face = font.face();
-    let scale = size / face.units_per_em().max(1) as f32;
-    let mut buffer = UnicodeBuffer::new();
+    let scale = size / font.units_per_em();
+    let mut buffer = Buffer::new();
     buffer.push_str(&text[range.clone()]);
     buffer.set_pre_context(&text[context.start..range.start]);
     buffer.set_post_context(&text[range.end..context.end]);
@@ -311,13 +313,15 @@ fn shape(
     } else {
         Direction::LeftToRight
     });
-    let shaped = rustybuzz::shape(&face, &[], buffer);
-    shaped
+    if harfrust::shape(&font.shaper(), &mut buffer, ShapeOptions::new()).is_err() {
+        return Vec::new();
+    }
+    buffer
         .glyph_infos()
         .iter()
-        .zip(shaped.glyph_positions())
+        .zip(buffer.glyph_positions())
         .map(|(info, pos)| Shaped {
-            glyph: info.glyph_id as u16,
+            glyph: info.glyph_id,
             cluster: range.start + info.cluster as usize,
             advance: pos.x_advance as f32 * scale,
             dx: pos.x_offset as f32 * scale,
@@ -465,17 +469,31 @@ impl Layout {
     /// at (`left`, `top`) in PDF points (y upwards). Fill it with `f`.
     pub(crate) fn to_pdf_path(&self, left: f32, top: f32) -> String {
         let mut out = String::new();
+        // Each font's outlines and weight, read once.
+        let fonts: Vec<_> = self
+            .fonts
+            .iter()
+            .map(|f| {
+                (
+                    f.font_ref().outline_glyphs(),
+                    f.location(),
+                    f.units_per_em(),
+                )
+            })
+            .collect();
         for g in &self.glyphs {
-            let face = self.fonts[g.font].face();
-            let scale = self.size / face.units_per_em().max(1) as f32;
+            let (outlines, location, upem) = &fonts[g.font];
+            let Some(glyph) = outlines.get(GlyphId::new(g.glyph)) else {
+                continue;
+            };
             let mut pen = PathWriter {
                 out: &mut out,
                 x: left + g.x,
                 y: top - g.y,
-                scale,
+                scale: self.size / upem,
                 last: (0.0, 0.0),
             };
-            face.outline_glyph(GlyphId(g.glyph), &mut pen);
+            let _ = glyph.draw((Size::unscaled(), location), &mut pen);
         }
         out
     }
@@ -508,7 +526,7 @@ impl PathWriter<'_> {
     }
 }
 
-impl OutlineBuilder for PathWriter<'_> {
+impl OutlinePen for PathWriter<'_> {
     fn move_to(&mut self, x: f32, y: f32) {
         self.point(x, y);
         self.out.push_str("m ");
@@ -562,12 +580,12 @@ mod tests {
         }
     }
 
-    fn ids(l: &Layout) -> Vec<u16> {
+    fn ids(l: &Layout) -> Vec<u32> {
         l.glyphs.iter().map(|g| g.glyph).collect()
     }
 
-    fn glyph_of(l: &Layout, c: char) -> u16 {
-        l.fonts[0].face().glyph_index(c).unwrap().0
+    fn glyph_of(l: &Layout, c: char) -> u32 {
+        l.fonts[0].font_ref().charmap().map(c).unwrap().to_u32()
     }
 
     #[test]
@@ -603,7 +621,7 @@ mod tests {
         let auto = layout(text, &s);
         assert!(auto.rtl);
         let p = glyph_of(&auto, 'P');
-        let x_of = |l: &Layout, g: u16| l.glyphs.iter().find(|x| x.glyph == g).unwrap().x;
+        let x_of = |l: &Layout, g: u32| l.glyphs.iter().find(|x| x.glyph == g).unwrap().x;
         let arabic_min = |l: &Layout| {
             l.glyphs
                 .iter()

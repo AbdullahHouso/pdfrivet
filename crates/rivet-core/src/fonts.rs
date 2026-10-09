@@ -3,14 +3,22 @@
 //!
 //! Bundled: Rubik (a modern sans, variable weight) and Amiri (a classic
 //! naskh, regular and bold). Both cover Arabic and Latin, so they're also the
-//! fallback for letters a chosen font doesn't have. System fonts are found
-//! with `fontdb` the first time they're needed.
+//! fallback for letters a chosen font doesn't have. Installed fonts are found
+//! by scanning the system's font folders the first time they're needed.
+//!
+//! Fonts are read with skrifa (names, character coverage, outlines) and
+//! shaped with HarfRust; both come from the same font-reading crate.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use rustybuzz::ttf_parser::Tag;
+use harfrust::font::{Blob, Variation};
 use serde::{Deserialize, Serialize};
+use skrifa::instance::Location;
+use skrifa::raw::FileRef;
+use skrifa::string::StringId;
+use skrifa::{FontRef, MetadataProvider, Tag};
 use ts_rs::TS;
 
 static RUBIK: &[u8] = include_bytes!("../fonts/Rubik-Variable.ttf");
@@ -59,14 +67,42 @@ pub(crate) struct LoadedFont {
     weight: Option<f32>,
     /// Bold was asked for but the family has no bold face: thicken the outlines.
     pub(crate) fake_bold: bool,
+    /// The face at its chosen weight, for shaping.
+    shaping: harfrust::Font,
 }
 
+#[derive(Clone)]
 enum FontData {
     Static(&'static [u8]),
     Owned(Arc<Vec<u8>>),
 }
 
 impl LoadedFont {
+    fn new(data: FontData, index: u32, weight: Option<f32>, fake_bold: bool) -> Option<Self> {
+        let blob: Blob = match &data {
+            FontData::Static(b) => (*b).into(),
+            FontData::Owned(b) => Blob::from(b.clone() as Arc<dyn AsRef<[u8]> + Send + Sync>),
+        };
+        let base = harfrust::Font::new(blob, index)?;
+        let shaping = match weight {
+            Some(w) => base
+                .instance_builder()
+                .variations([Variation::new(Tag::new(b"wght"), w)])
+                .build(),
+            None => base,
+        };
+        let font = Self {
+            data,
+            index,
+            weight,
+            fake_bold,
+            shaping,
+        };
+        // Skrifa must read it too (for outlines).
+        font.try_font_ref()?;
+        Some(font)
+    }
+
     fn bytes(&self) -> &[u8] {
         match &self.data {
             FontData::Static(b) => b,
@@ -74,22 +110,35 @@ impl LoadedFont {
         }
     }
 
-    /// The face to shape and draw with (cheap: tables are read on demand).
-    pub(crate) fn face(&self) -> rustybuzz::Face<'_> {
-        let mut face = rustybuzz::Face::from_slice(self.bytes(), self.index)
-            .or_else(|| rustybuzz::Face::from_slice(RUBIK, 0))
-            .expect("the bundled font parses");
-        if let Some(weight) = self.weight {
-            face.set_variations(&[rustybuzz::Variation {
-                tag: Tag::from_bytes(b"wght"),
-                value: weight,
-            }]);
+    fn try_font_ref(&self) -> Option<FontRef<'_>> {
+        FontRef::from_index(self.bytes(), self.index).ok()
+    }
+
+    /// The face, to read names, coverage, metrics and outlines.
+    pub(crate) fn font_ref(&self) -> FontRef<'_> {
+        self.try_font_ref().expect("checked when loaded")
+    }
+
+    /// Where on its variation axes the face is drawn (its weight).
+    pub(crate) fn location(&self) -> Location {
+        let font = self.font_ref();
+        match self.weight {
+            Some(w) => font.axes().location([("wght", w)]),
+            None => Location::default(),
         }
-        face
+    }
+
+    /// The face prepared for HarfRust.
+    pub(crate) fn shaper(&self) -> harfrust::ShaperFont<'_, '_> {
+        harfrust::ShaperFont::new(&self.shaping)
+    }
+
+    pub(crate) fn units_per_em(&self) -> f32 {
+        f32::from(self.shaping.units_per_em().max(1))
     }
 
     pub(crate) fn has_char(&self, c: char) -> bool {
-        self.face().glyph_index(c).is_some()
+        self.font_ref().charmap().map(c).is_some()
     }
 }
 
@@ -109,24 +158,126 @@ fn bundled(family: &str, bold: bool) -> Option<LoadedFont> {
         "Amiri" => (if bold { AMIRI_BOLD } else { AMIRI }, None),
         _ => return None,
     };
-    Some(LoadedFont {
-        data: FontData::Static(data),
-        index: 0,
-        weight,
-        fake_bold: false,
-    })
+    LoadedFont::new(FontData::Static(data), 0, weight, false)
 }
 
 const BUNDLED: [&str; 2] = ["Rubik", "Amiri"];
 
+/// One face of an installed font.
+struct SystemFace {
+    family: String,
+    path: PathBuf,
+    index: u32,
+    weight: f32,
+    italic: bool,
+    arabic: bool,
+}
+
 /// The installed fonts, found the first time they're needed.
-fn system() -> &'static fontdb::Database {
-    static DB: OnceLock<fontdb::Database> = OnceLock::new();
-    DB.get_or_init(|| {
-        let mut db = fontdb::Database::new();
-        db.load_system_fonts();
-        db
+fn system() -> &'static [SystemFace] {
+    static FACES: OnceLock<Vec<SystemFace>> = OnceLock::new();
+    FACES.get_or_init(|| {
+        let mut faces = Vec::new();
+        for dir in font_dirs() {
+            scan_dir(&dir, 0, &mut faces);
+        }
+        faces
     })
+}
+
+/// Where each OS keeps fonts (for everyone, and for the user).
+fn font_dirs() -> Vec<PathBuf> {
+    let home = |p: &str| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(p));
+    let mut dirs: Vec<Option<PathBuf>> = Vec::new();
+    if cfg!(windows) {
+        dirs.push(
+            std::env::var_os("WINDIR")
+                .map(|w| PathBuf::from(w).join("Fonts"))
+                .or_else(|| Some(PathBuf::from(r"C:\Windows\Fonts"))),
+        );
+        dirs.push(
+            std::env::var_os("LOCALAPPDATA")
+                .map(|l| PathBuf::from(l).join(r"Microsoft\Windows\Fonts")),
+        );
+    } else if cfg!(target_os = "macos") {
+        dirs.push(Some("/System/Library/Fonts".into()));
+        dirs.push(Some("/Library/Fonts".into()));
+        dirs.push(home("Library/Fonts"));
+    } else {
+        dirs.push(Some("/usr/share/fonts".into()));
+        dirs.push(Some("/usr/local/share/fonts".into()));
+        dirs.push(home(".local/share/fonts"));
+        dirs.push(home(".fonts"));
+    }
+    dirs.into_iter().flatten().collect()
+}
+
+fn scan_dir(dir: &std::path::Path, depth: usize, out: &mut Vec<SystemFace>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if depth < 4 {
+                scan_dir(&path, depth + 1, out);
+            }
+            continue;
+        }
+        let ext = path
+            .extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+        if matches!(ext.as_str(), "ttf" | "otf" | "ttc" | "otc") {
+            scan_file(&path, out);
+        }
+    }
+}
+
+/// Reads the faces of one font file: names, weight, style and Arabic coverage.
+fn scan_file(path: &std::path::Path, out: &mut Vec<SystemFace>) {
+    let Ok(file) = std::fs::File::open(path) else {
+        return;
+    };
+    // SAFETY: the file is only read, for the length of this call. If another
+    // program changed it meanwhile, parsing would see odd bytes (and reject
+    // them), not crash: skrifa checks every offset it reads.
+    #[allow(unsafe_code)]
+    let Ok(map) = (unsafe { memmap2::Mmap::map(&file) }) else {
+        return;
+    };
+    let faces: Vec<(u32, FontRef)> = match FileRef::new(&map) {
+        Ok(FileRef::Font(f)) => vec![(0, f)],
+        Ok(FileRef::Collection(c)) => (0..c.len())
+            .filter_map(|i| c.get(i).ok().map(|f| (i, f)))
+            .collect(),
+        Err(_) => return,
+    };
+    for (index, font) in faces {
+        let name = |id| {
+            font.localized_strings(id)
+                .english_or_first()
+                .map(|s| s.to_string())
+                .filter(|s| !s.trim().is_empty())
+        };
+        let Some(family) =
+            name(StringId::TYPOGRAPHIC_FAMILY_NAME).or_else(|| name(StringId::FAMILY_NAME))
+        else {
+            continue;
+        };
+        if family.starts_with('.') {
+            continue;
+        }
+        let attributes = font.attributes();
+        out.push(SystemFace {
+            family,
+            path: path.to_owned(),
+            index,
+            weight: attributes.weight.value(),
+            italic: attributes.style != skrifa::attribute::Style::Normal,
+            arabic: font.charmap().map('\u{0628}').is_some(),
+        });
+    }
 }
 
 type Key = (TextFont, bool);
@@ -158,24 +309,22 @@ pub(crate) fn load(font: &TextFont, bold: bool) -> Arc<LoadedFont> {
 }
 
 fn load_system(family: &str, bold: bool) -> Option<LoadedFont> {
-    let db = system();
-    let id = db.query(&fontdb::Query {
-        families: &[fontdb::Family::Name(family)],
-        weight: if bold {
-            fontdb::Weight::BOLD
-        } else {
-            fontdb::Weight::NORMAL
-        },
-        ..Default::default()
-    })?;
-    let info = db.face(id)?;
-    let data = db.with_face_data(id, |data, _| data.to_vec())?;
-    Some(LoadedFont {
-        data: FontData::Owned(Arc::new(data)),
-        index: info.index,
-        weight: None,
-        fake_bold: bold && info.weight.0 < 600,
-    })
+    let target = if bold { 700.0 } else { 400.0 };
+    let face = system()
+        .iter()
+        .filter(|f| f.family.eq_ignore_ascii_case(family))
+        .min_by(|a, b| {
+            let score =
+                |f: &SystemFace| (f.weight - target).abs() + if f.italic { 1000.0 } else { 0.0 };
+            score(a).total_cmp(&score(b))
+        })?;
+    let data = std::fs::read(&face.path).ok()?;
+    LoadedFont::new(
+        FontData::Owned(Arc::new(data)),
+        face.index,
+        None,
+        bold && face.weight < 600.0,
+    )
 }
 
 /// Fonts to fall back on for letters the chosen one lacks.
@@ -209,33 +358,17 @@ pub fn list() -> Vec<FontInfo> {
     fonts.extend(
         SYSTEM_LIST
             .get_or_init(|| {
-                let db = system();
-                let mut families: HashMap<String, fontdb::ID> = HashMap::new();
-                for face in db.faces() {
-                    let Some((name, _)) = face.families.first() else {
-                        continue;
-                    };
-                    if name.is_empty() || name.starts_with('.') {
-                        continue;
-                    }
-                    // Prefer the regular face to check what the family covers.
-                    let regular = face.weight == fontdb::Weight::NORMAL
-                        && face.style == fontdb::Style::Normal;
-                    if regular || !families.contains_key(name) {
-                        families.insert(name.clone(), face.id);
-                    }
+                // One entry per family; it has Arabic if its regular face (or any face) does.
+                let mut families: HashMap<String, bool> = HashMap::new();
+                for face in system() {
+                    *families.entry(face.family.clone()).or_default() |= face.arabic;
                 }
                 let mut list: Vec<FontInfo> = families
                     .into_iter()
-                    .map(|(family, id)| FontInfo {
-                        arabic: db
-                            .with_face_data(id, |data, index| {
-                                rustybuzz::ttf_parser::Face::parse(data, index)
-                                    .is_ok_and(|f| f.glyph_index('\u{0628}').is_some())
-                            })
-                            .unwrap_or(false),
+                    .map(|(family, arabic)| FontInfo {
                         family,
                         bundled: false,
+                        arabic,
                     })
                     .collect();
                 list.sort_by_key(|f| f.family.to_lowercase());

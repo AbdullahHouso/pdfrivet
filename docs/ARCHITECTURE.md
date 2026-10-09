@@ -262,7 +262,7 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
 - A text box is a FreeText annotation. PDFium can't shape text (Arabic would come out unjoined
   and reversed, as in some other apps), so `rivet-core/src/textlayout.rs` lays it out:
   bidi per paragraph (`unicode-bidi`, or a forced direction), a font per character (the chosen
-  one, else a bundled one that has it), shaping with `rustybuzz`, line breaks at Unicode break
+  one, else a bundled one that has it), shaping with HarfRust (the HarfBuzz project's Rust port), line breaks at Unicode break
   opportunities (`unicode-linebreak`) when the box has a width, then each line shaped again on
   its own and put in visual order.
 - The glyphs are drawn as **outlines** in the appearance stream (`FPDFAnnot_SetAP` takes only a
@@ -277,7 +277,9 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
 - Fonts (`fonts.rs`): Rubik (variable weight) and Amiri are compiled in and also served to the
   webview at `rivet://…/font/<name>`; the UI loads them with `FontFace` from fetched bytes (CSS
   `@font-face` URLs on the custom protocol are blocked by the CSP's `font-src`). Installed
-  fonts come from `fontdb`, scanned once on first use.
+  fonts are found by scanning the OS font folders once, on first use, reading each face's
+  name, weight and Arabic coverage with skrifa (files are memory-mapped, so only those tables
+  are read).
 - UI: `TextBoxEditor.svelte` is a textarea styled with the same font, size, `LINE_HEIGHT`,
   `TEXT_PADDING`, direction (`unicode-bidi: plaintext` for "from the text") and positions, so
   typing looks like the result; it also previews boxes while they're moved or resized. State and
