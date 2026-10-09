@@ -362,3 +362,10 @@ export function sidebarMax(windowWidth: number): number {
 export function clampSidebar(width: number, windowWidth: number): number {
   return Math.min(Math.max(width, SIDEBAR_MIN), sidebarMax(windowWidth));
 }
+
+/** Comments panel widths: like the sidebar's, but a little wider by default. */
+export const COMMENTS_MIN = 220;
+export const COMMENTS_DEFAULT = 300;
+export function commentsMax(windowWidth: number): number {
+  return Math.max(320, Math.round(windowWidth / 4));
+}

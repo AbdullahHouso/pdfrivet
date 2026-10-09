@@ -24,4 +24,8 @@ canAnnotate: boolean,
 /**
  * Bookmarks can be added and changed (not in password-protected files yet).
  */
-canEditOutline: boolean, };
+canEditOutline: boolean, 
+/**
+ * Comments can be answered (replies need the same rewrite as bookmarks).
+ */
+canReply: boolean, };

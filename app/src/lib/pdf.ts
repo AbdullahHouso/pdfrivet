@@ -2,6 +2,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { Annotation } from "./bindings/Annotation";
+import type { AnnotationBatch } from "./bindings/AnnotationBatch";
 import type { DocInfo } from "./bindings/DocInfo";
 import type { DocProperties } from "./bindings/DocProperties";
 import type { ErrorCode } from "./bindings/ErrorCode";
@@ -46,6 +47,11 @@ export function documentInfo(docId: number): Promise<DocInfo> {
 
 export function getOutline(docId: number): Promise<OutlineItem[]> {
   return invoke("get_outline", { docId });
+}
+
+/** Annotations of the pages from `first` on, a batch of pages at a time. */
+export function getAnnotationsFrom(docId: number, first: number): Promise<AnnotationBatch> {
+  return invoke("get_annotations_from", { docId, first });
 }
 
 /** Replaces the bookmarks (written into the file on the next save). */

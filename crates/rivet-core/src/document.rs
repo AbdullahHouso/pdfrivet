@@ -96,6 +96,7 @@ impl Pdf {
             needs_prune: Cell::new(false),
             redacted: RefCell::new(BTreeSet::new()),
             edited_outline: None,
+            has_replies: Cell::new(false),
         })
     }
 
@@ -189,6 +190,8 @@ pub struct DocInfo {
     pub can_annotate: bool,
     /// Bookmarks can be added and changed (not in password-protected files yet).
     pub can_edit_outline: bool,
+    /// Comments can be answered (replies need the same rewrite as bookmarks).
+    pub can_reply: bool,
 }
 
 /// Clockwise view rotation. Only affects rendering; the file is never changed.
@@ -255,6 +258,8 @@ pub struct Document {
     redacted: RefCell<BTreeSet<u32>>,
     /// Bookmarks as edited in PDFRivet (PDFium can't change them); written on save.
     edited_outline: Option<Vec<OutlineItem>>,
+    /// Replies were added: saving links them to the annotations they answer.
+    has_replies: Cell<bool>,
 }
 
 impl Document {
@@ -294,6 +299,7 @@ impl Document {
             can_copy: self.can_copy(),
             can_annotate: self.can_annotate(),
             can_edit_outline: self.can_edit_outline(),
+            can_reply: self.can_annotate() && self.can_edit_outline(),
         })
     }
 
@@ -310,12 +316,44 @@ impl Document {
         Ok(crate::annotations::read(self.pdfium, &page))
     }
 
+    /// The annotations of the pages from `first` on, a batch at a time (so
+    /// rendering isn't held up), leaving out pages without any.
+    pub fn annotations_from(&self, first: u32) -> crate::AnnotationBatch {
+        let started = std::time::Instant::now();
+        let count = self.page_count();
+        let mut pages = Vec::new();
+        let mut index = first;
+        while index < count {
+            if let Ok(annotations) = self.annotations(index)
+                && !annotations.is_empty()
+            {
+                pages.push(crate::PageAnnotations {
+                    page: index,
+                    annotations,
+                });
+            }
+            index += 1;
+            if index - first >= crate::search::BATCH_PAGES
+                || started.elapsed() >= crate::search::BATCH_TIME
+            {
+                break;
+            }
+        }
+        crate::AnnotationBatch {
+            pages,
+            next_page: (index < count).then_some(index),
+        }
+    }
+
     /// Adds an annotation; returns its id.
     pub fn add_annotation(&self, index: u32, annotation: &crate::Annotation) -> Result<String> {
         self.check_can_annotate()?;
         let page = self.load_page(index)?;
         let id = crate::annotations::add(self.pdfium, &page, annotation)?;
         self.unsaved_changes.set(true);
+        if annotation.reply_to.is_some() {
+            self.has_replies.set(true);
+        }
         Ok(id)
     }
 
@@ -590,10 +628,16 @@ impl Document {
             .save_to_bytes()
             .map_err(|e| failed(&format!("{e:?}")))?;
         let outline = self.edited_outline.as_deref();
-        if has_deleted || self.needs_prune.get() || outline.is_some() {
+        let replies = self.has_replies.get();
+        if has_deleted || self.needs_prune.get() || outline.is_some() || replies {
             let redacted: Vec<u32> = self.redacted.borrow().iter().copied().collect();
-            match crate::prune::prune(&bytes, crate::annotations::DELETED_KEY, &redacted, outline)?
-            {
+            match crate::prune::prune(
+                &bytes,
+                crate::annotations::DELETED_KEY,
+                &redacted,
+                outline,
+                replies,
+            )? {
                 Some(pruned) => bytes = pruned,
                 // Password-protected: deleted annotations can't be left out of the
                 // written file, so they are removed from the document for good.

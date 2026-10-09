@@ -18,12 +18,14 @@ use crate::{Error, ErrorCode, OutlineItem, Result};
 /// Rewrites a PDF without deleted annotations and unreferenced objects.
 /// Returns `None` for password-protected files (lopdf can't write them).
 /// `redacted` pages (0-based) also lose every resource their content no longer uses.
-/// An edited `outline` replaces the file's bookmarks.
+/// An edited `outline` replaces the file's bookmarks. With `replies`, replies
+/// added in PDFRivet are linked to the annotations they answer.
 pub(crate) fn prune(
     bytes: &[u8],
     deleted_key: &str,
     redacted: &[u32],
     outline: Option<&[OutlineItem]>,
+    replies: bool,
 ) -> Result<Option<Vec<u8>>> {
     let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
     let mut doc = Document::load_mem(bytes).map_err(|e| failed(&e))?;
@@ -31,6 +33,9 @@ pub(crate) fn prune(
         return Ok(None);
     }
     strip_deleted_annotations(&mut doc, deleted_key.as_bytes());
+    if replies {
+        link_replies(&mut doc, crate::annotations::REPLY_KEY.as_bytes());
+    }
     let pages = doc.get_pages();
     for index in redacted {
         if let Some(&page) = pages.get(&(index + 1)) {
@@ -40,7 +45,7 @@ pub(crate) fn prune(
     if let Some(items) = outline {
         crate::outline::write(&mut doc, items).map_err(|e| failed(&e))?;
     }
-    if doc.prune_objects().is_empty() && outline.is_none() {
+    if doc.prune_objects().is_empty() && outline.is_none() && !replies {
         return Ok(Some(bytes.to_vec()));
     }
     doc.renumber_objects();
@@ -49,53 +54,148 @@ pub(crate) fn prune(
     Ok(Some(out))
 }
 
+/// A page's `/Annots` array, and the object holding it if it isn't inline.
+fn page_annots(doc: &Document, page_id: ObjectId) -> Option<(Vec<Object>, Option<ObjectId>)> {
+    let annots = doc
+        .get_dictionary(page_id)
+        .and_then(|p| p.get(b"Annots"))
+        .ok()?;
+    match annots {
+        Object::Array(a) => Some((a.clone(), None)),
+        Object::Reference(id) => doc
+            .get_object(*id)
+            .and_then(Object::as_array)
+            .ok()
+            .map(|a| (a.clone(), Some(*id))),
+        _ => None,
+    }
+}
+
+fn set_page_annots(
+    doc: &mut Document,
+    page_id: ObjectId,
+    holder: Option<ObjectId>,
+    annots: Vec<Object>,
+) {
+    match holder {
+        Some(id) => {
+            doc.objects.insert(id, Object::Array(annots));
+        }
+        None => {
+            if let Ok(page) = doc.get_dictionary_mut(page_id) {
+                page.set("Annots", Object::Array(annots));
+            }
+        }
+    }
+}
+
+fn annot_dict<'a>(doc: &'a Document, item: &'a Object) -> Option<&'a Dictionary> {
+    match item {
+        Object::Reference(id) => doc.get_dictionary(*id).ok(),
+        Object::Dictionary(d) => Some(d),
+        _ => None,
+    }
+}
+
 /// Takes annotations marked as deleted out of every page's `/Annots`.
 fn strip_deleted_annotations(doc: &mut Document, key: &[u8]) {
     let is_deleted = |doc: &Document, item: &Object| {
-        let dict = match item {
-            Object::Reference(id) => doc.get_dictionary(*id).ok(),
-            Object::Dictionary(d) => Some(d),
-            _ => None,
-        };
-        dict.and_then(|d| d.get(key).ok())
+        annot_dict(doc, item)
+            .and_then(|d| d.get(key).ok())
             .is_some_and(|v| matches!(v, Object::String(s, _) if s.as_slice() == b"1"))
     };
     let pages: Vec<_> = doc.get_pages().into_values().collect();
     for page_id in pages {
-        let Ok(annots) = doc
-            .get_dictionary(page_id)
-            .and_then(|p| p.get(b"Annots"))
-            .cloned()
-        else {
+        let Some((array, holder)) = page_annots(doc, page_id) else {
             continue;
-        };
-        // `/Annots` is an array, either in the page or an object of its own.
-        let (array, holder) = match &annots {
-            Object::Array(a) => (a.clone(), None),
-            Object::Reference(id) => match doc.get_object(*id).and_then(Object::as_array) {
-                Ok(a) => (a.clone(), Some(*id)),
-                Err(_) => continue,
-            },
-            _ => continue,
         };
         let kept: Vec<Object> = array
             .iter()
             .filter(|a| !is_deleted(doc, a))
             .cloned()
             .collect();
-        if kept.len() == array.len() {
-            continue;
+        if kept.len() != array.len() {
+            set_page_annots(doc, page_id, holder, kept);
         }
-        match holder {
-            Some(id) => {
-                doc.objects.insert(id, Object::Array(kept));
-            }
-            None => {
-                if let Ok(page) = doc.get_dictionary_mut(page_id) {
-                    page.set("Annots", Object::Array(kept));
+    }
+}
+
+/// Turns PDFRivet's replies into standard ones: the private key naming the
+/// annotation a reply answers becomes an `/IRT` reference to it. A reply whose
+/// annotation is gone is left out.
+fn link_replies(doc: &mut Document, key: &[u8]) {
+    let pages: Vec<_> = doc.get_pages().into_values().collect();
+    for page_id in pages {
+        let Some((mut array, holder)) = page_annots(doc, page_id) else {
+            continue;
+        };
+        // A reply can only point to an annotation that is an object of its own;
+        // annotations written inside the array become objects.
+        if array.iter().any(|a| matches!(a, Object::Dictionary(_))) {
+            for item in &mut array {
+                if let Object::Dictionary(d) = item {
+                    *item = Object::Reference(doc.add_object(d.clone()));
                 }
             }
+            set_page_annots(doc, page_id, holder, array.clone());
         }
+        let name_of = |dict: &Dictionary, k: &[u8]| {
+            dict.get(k)
+                .ok()
+                .and_then(|v| v.as_str().ok())
+                .map(decode_text)
+                .filter(|n| !n.is_empty())
+        };
+        let mut named = std::collections::HashMap::new();
+        let mut replies = Vec::new();
+        for item in &array {
+            let (Object::Reference(id), Some(dict)) = (item, annot_dict(doc, item)) else {
+                continue;
+            };
+            if let Some(name) = name_of(dict, b"NM") {
+                named.insert(name, *id);
+            }
+            if let Some(parent) = name_of(dict, key) {
+                replies.push((*id, parent));
+            }
+        }
+        let mut orphans = Vec::new();
+        for (id, parent) in replies {
+            let Ok(dict) = doc.get_dictionary_mut(id) else {
+                continue;
+            };
+            dict.remove(key);
+            match named.get(&parent) {
+                Some(parent) => {
+                    dict.set("IRT", Object::Reference(*parent));
+                    dict.set("RT", Object::Name(b"R".to_vec()));
+                }
+                None => orphans.push(id),
+            }
+        }
+        if !orphans.is_empty() {
+            let kept = array
+                .into_iter()
+                .filter(|a| !matches!(a, Object::Reference(id) if orphans.contains(id)))
+                .collect();
+            set_page_annots(doc, page_id, holder, kept);
+        }
+    }
+}
+
+/// A PDF text string as text: UTF-16 with a byte order mark, or single bytes.
+fn decode_text(bytes: &[u8]) -> String {
+    match bytes.strip_prefix(&[0xFE, 0xFF]) {
+        Some(utf16) => {
+            let units: Vec<u16> = utf16
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_be_bytes(*c))
+                .collect();
+            String::from_utf16_lossy(&units)
+        }
+        None => bytes.iter().map(|&b| char::from(b)).collect(),
     }
 }
 

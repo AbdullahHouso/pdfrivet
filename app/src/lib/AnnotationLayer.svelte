@@ -67,7 +67,12 @@ $effect(() => {
   let cancelled = false;
   getAnnotations(tab.docId, index)
     .then((list) => {
-      if (!cancelled) tab.annotations.set(index, list);
+      // Replies aren't on the page; they show under their comment in the comments panel.
+      if (!cancelled)
+        tab.annotations.set(
+          index,
+          list.filter((a) => !a.replyTo),
+        );
     })
     .catch(() => {});
   return () => {
@@ -107,6 +112,7 @@ function newAnnotation(t: AnnotTool, kind: Annotation["kind"], rect: Annotation[
     author: "",
     modified: null,
     editable: true,
+    replyTo: null,
   };
 }
 

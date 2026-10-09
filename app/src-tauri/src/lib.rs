@@ -82,6 +82,16 @@ async fn get_outline(doc_id: DocId, state: State<'_, AppState>) -> Result<Vec<Ou
 }
 
 #[tauri::command]
+async fn get_annotations_from(
+    doc_id: DocId,
+    first: u32,
+    state: State<'_, AppState>,
+) -> Result<rivet_core::AnnotationBatch, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.annotations_from(doc_id, first)).await
+}
+
+#[tauri::command]
 async fn set_outline(
     doc_id: DocId,
     items: Vec<OutlineItem>,
@@ -719,6 +729,7 @@ pub fn run() {
             document_properties,
             set_metadata,
             set_outline,
+            get_annotations_from,
             print_placement,
             printer_properties,
             print_document,

@@ -17,6 +17,7 @@ import {
 } from "./lib/annotate.svelte";
 import type { Metadata } from "./lib/bindings/Metadata";
 import type { PrintSettings } from "./lib/bindings/PrintSettings";
+import CommentsPanel from "./lib/CommentsPanel.svelte";
 import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
 import ContextMenu, { type MenuItem } from "./lib/ContextMenu.svelte";
 import { writeClipboard } from "./lib/clipboard";
@@ -24,7 +25,17 @@ import { hasOtherWindows, moveToNewWindow, openInNewWindow, tabsWindowLabel, win
 import FindBar from "./lib/FindBar.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { shortcutKey } from "./lib/keys";
-import { type Degrees, rotatedSize, SIDEBAR_DEFAULT, SIDEBAR_MIN, sidebarMax, stepZoom } from "./lib/layout";
+import {
+  COMMENTS_DEFAULT,
+  COMMENTS_MIN,
+  commentsMax,
+  type Degrees,
+  rotatedSize,
+  SIDEBAR_DEFAULT,
+  SIDEBAR_MIN,
+  sidebarMax,
+  stepZoom,
+} from "./lib/layout";
 import { fade, out, rise } from "./lib/motion";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
@@ -67,6 +78,12 @@ let sidebarPane = $state<SidebarPane>("thumbnails");
 let windowWidth = $state(window.innerWidth);
 let sidebarMin = $derived(sidebarPane === "search" ? Math.min(280, sidebarMax(windowWidth)) : SIDEBAR_MIN);
 let sidebarDrag = $state<number | null>(null);
+// The comments panel on the end side, resizable the same way.
+let commentsOpen = $state(false);
+let commentsDrag = $state<number | null>(null);
+let commentsWidth = $derived(
+  Math.round(Math.min(Math.max(commentsDrag ?? settings.commentsWidth, COMMENTS_MIN), commentsMax(windowWidth))),
+);
 let sidebarWidth = $derived(
   Math.round(Math.min(Math.max(sidebarDrag ?? settings.sidebarWidth, sidebarMin), sidebarMax(windowWidth))),
 );
@@ -583,6 +600,7 @@ function onKey(e: KeyboardEvent) {
     [!!tab && mod && (key === "=" || key === "+"), () => zoomStep(1)],
     [!!tab && mod && key === "-", () => zoomStep(-1)],
     [!!tab && !typing && mod && !e.shiftKey && key === "b", () => tab && bookmarkPage(tab)],
+    [!!tab && mod && e.shiftKey && key === "c", () => (commentsOpen = !commentsOpen)],
     [!!tab && mod && key === "0", () => setZoomMode("fit-width")],
     [!!tab && ((mod && key === "g") || e.key === "F6"), () => toolbar?.focusPageInput()],
     [!!tab && !typing && !mod && e.key === "Home", () => goTo(0)],
@@ -700,6 +718,8 @@ onMount(() => {
   {sidebarOpen}
   onopen={pickFiles}
   ontogglesidebar={() => (sidebarOpen = !sidebarOpen)}
+  {commentsOpen}
+  ontogglecomments={() => (commentsOpen = !commentsOpen)}
   ongoto={goTo}
   onzoomstep={zoomStep}
   onzoom={(z) => viewer?.zoomTo(z)}
@@ -777,6 +797,29 @@ onMount(() => {
       {/if}
       {@const tab = active}
       <Viewer bind:this={viewer} {tab} onerror={(e) => (error = e)} oncontextmenu={(e) => showPageMenu(tab, e)} />
+      {#if commentsOpen}
+        <div class="comments-wrap" in:fade out:out>
+          <Splitter
+            bind:value={() => commentsWidth, (w) => (commentsDrag = w)}
+            min={COMMENTS_MIN}
+            max={commentsMax(windowWidth)}
+            defaultValue={COMMENTS_DEFAULT}
+            edge="start"
+            label={i18n.t("resize-comments")}
+            oncommit={(w) => {
+              commentsDrag = null;
+              settings.commentsWidth = w;
+            }}
+          />
+          <CommentsPanel
+            {tab}
+            width={commentsWidth}
+            onreveal={(page, rect) => viewer?.revealRect(page, rect)}
+            onclose={() => (commentsOpen = false)}
+            onerror={(e) => (error = e)}
+          />
+        </div>
+      {/if}
       {#if tab.findOpen}
         <FindBar
           bind:this={findBar}
@@ -912,6 +955,13 @@ onMount(() => {
   .print-progress progress {
     width: 160px;
     accent-color: var(--accent);
+  }
+  /* Holds the comments panel (and its splitter) so it can fade in and out. */
+  .comments-wrap {
+    position: relative;
+    display: flex;
+    flex: none;
+    min-height: 0;
   }
   /* Holds the sidebar so it can fade in and out when shown or hidden. */
   .sidebar-wrap {

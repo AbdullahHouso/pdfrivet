@@ -22,6 +22,7 @@ import {
   currentPage,
   type Degrees,
   type FractionPoint,
+  type FractionRect,
   fitPageZoom,
   fitWidthZoom,
   type Layout,
@@ -189,22 +190,30 @@ $effect.pre(() => {
 async function revealHit(hit: SearchHit) {
   const text = await loadPageText(tab.docId, hit.page).catch(() => null);
   const rects = text ? selectionRects(text, hit.start, hit.end) : [];
-  if (!tab.continuous && fullLayout.rowOf[hit.page] !== fullLayout.rowOf[tab.page]) {
-    goToPage(hit.page);
+  await revealRect(hit.page, rects[0] ?? null);
+}
+
+/**
+ * Scrolls so an area of a page (fractions, before view rotation) is in view,
+ * or just shows the page without one. Leaves the view alone if it's already in view.
+ */
+export async function revealRect(page: number, rect: FractionRect | null) {
+  if (!tab.continuous && fullLayout.rowOf[page] !== fullLayout.rowOf[tab.page]) {
+    goToPage(page);
     await tick();
   }
-  if (rects.length === 0) {
-    goToPage(hit.page);
+  if (!rect) {
+    goToPage(page);
     return;
   }
-  const r = rotateRect(rects[0], tab.rotation);
-  const top = layout.tops[hit.page] + r.top * layout.heights[hit.page];
-  const bottom = layout.tops[hit.page] + r.bottom * layout.heights[hit.page];
+  const r = rotateRect(rect, tab.rotation);
+  const top = layout.tops[page] + r.top * layout.heights[page];
+  const bottom = layout.tops[page] + r.bottom * layout.heights[page];
   if (top < scroller.scrollTop || bottom > scroller.scrollTop + viewportHeight) {
     scroller.scrollTop = top - viewportHeight / 3;
   }
-  const left = offsetX + layout.lefts[hit.page] + r.left * layout.widths[hit.page];
-  const right = offsetX + layout.lefts[hit.page] + r.right * layout.widths[hit.page];
+  const left = offsetX + layout.lefts[page] + r.left * layout.widths[page];
+  const right = offsetX + layout.lefts[page] + r.right * layout.widths[page];
   if (left < scroller.scrollLeft || right > scroller.scrollLeft + viewportWidth) {
     scroller.scrollLeft = left - viewportWidth / 3;
   }

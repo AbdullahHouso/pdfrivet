@@ -13,6 +13,7 @@ const note = (id: string, contents = ""): Annotation => ({
   author: "",
   modified: null,
   editable: true,
+  replyTo: null,
 });
 
 describe("History", () => {

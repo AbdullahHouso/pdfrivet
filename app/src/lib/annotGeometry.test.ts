@@ -31,6 +31,7 @@ function annotation(kind: Annotation["kind"], rect = { left: 0.1, top: 0.1, righ
     author: "",
     modified: null,
     editable: true,
+    replyTo: null,
   };
 }
 

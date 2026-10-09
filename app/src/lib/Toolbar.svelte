@@ -13,8 +13,10 @@ import { formatShortcut } from "./tooltip";
 interface Props {
   tab: Tab | null;
   sidebarOpen: boolean;
+  commentsOpen: boolean;
   onopen: () => void;
   ontogglesidebar: () => void;
+  ontogglecomments: () => void;
   ongoto: (page: number) => void;
   /** Next (+1) or previous (-1) page, or spread in two-page view. */
   onstep: (direction: 1 | -1) => void;
@@ -234,6 +236,10 @@ function run(command: () => void) {
 
   <!-- End (right in English, left in Arabic): app menu -->
   <div class="zone end">
+  <button class="icon" onclick={props.ontogglecomments} disabled={!tab} aria-pressed={props.commentsOpen}
+    aria-label={i18n.t("toggle-comments")} title={i18n.t("toggle-comments")} data-shortcut="Ctrl+Shift+C">
+    <Icon name="comment" />
+  </button>
   <button class="icon" popovertarget="app-menu" aria-label={i18n.t("menu")} title={i18n.t("menu")}>
     <Icon name="menu" />
   </button>

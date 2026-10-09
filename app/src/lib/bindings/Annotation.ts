@@ -35,4 +35,9 @@ modified: string | null,
 /**
  * PDFRivet can change it (otherwise it can only be deleted).
  */
-editable: boolean, };
+editable: boolean, 
+/**
+ * A reply: the id of the annotation it answers. Replies are notes that
+ * aren't drawn; readers show them under the comment they answer.
+ */
+replyTo: string | null, };

@@ -76,7 +76,7 @@ export class Tab {
   readonly history = new History();
   /** Goes up per page when its annotations change, so only that page re-renders. */
   readonly pageRevisions = new SvelteMap<number, number>();
-  /** Annotations of the pages on screen (loaded by AnnotationLayer, used to click them). */
+  /** Annotations of the pages on screen, without replies (loaded by AnnotationLayer, used to click them). */
   readonly annotations = new SvelteMap<number, Annotation[]>();
   /** Areas marked for redaction, applied when the document is saved. */
   redactions = $state.raw<{ id: number; page: number; rect: PageRect }[]>([]);

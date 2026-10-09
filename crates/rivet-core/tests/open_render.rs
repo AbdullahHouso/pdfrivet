@@ -686,6 +686,7 @@ fn annotation(kind: AnnotationKind, rect: PageRect) -> Annotation {
         author: "Tester".into(),
         modified: None,
         editable: true,
+        reply_to: None,
     }
 }
 
@@ -1364,4 +1365,109 @@ fn password_protected_files_cant_edit_bookmarks_yet() {
     let mut doc = pdf().open(&fixture("password.pdf"), Some("rivet")).unwrap();
     assert!(!doc.info().unwrap().can_edit_outline);
     assert!(doc.set_outline(Vec::new()).is_err());
+}
+
+#[test]
+fn replies_are_linked_to_their_comment_when_saved() {
+    let _serial = serial();
+    let dir = temp_dir("replies");
+    let path = dir.join("r.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    assert!(doc.info().unwrap().can_reply);
+    let mut square = annotation(
+        AnnotationKind::Square { fill: None },
+        rect(0.3, 0.3, 0.5, 0.5),
+    );
+    square.contents = "Is this right?".into();
+    square.id = doc.add_annotation(0, &square).unwrap();
+    let before = doc.render_page(0, 0.5, Rotation::None).unwrap();
+
+    let mut reply = annotation(AnnotationKind::Note, square.rect);
+    reply.contents = "نعم، صحيح".into();
+    reply.reply_to = Some(square.id.clone());
+    let reply_id = doc.add_annotation(0, &reply).unwrap();
+    // A reply to something that isn't there is refused.
+    let mut stray = reply.clone();
+    stray.reply_to = Some("nothing".into());
+    assert!(doc.add_annotation(0, &stray).is_err());
+
+    // Listed, pointing to the square, and not drawn.
+    let listed = doc.annotations(0).unwrap();
+    let found = listed.iter().find(|a| a.id == reply_id).unwrap();
+    assert_eq!(found.reply_to.as_deref(), Some(square.id.as_str()));
+    let after = doc.render_page(0, 0.5, Rotation::None).unwrap();
+    assert_eq!(before.rgba, after.rgba, "replies draw nothing");
+
+    doc.save(&path).unwrap();
+    // A standard reply in the file: /IRT to the square, no private key.
+    let file = lopdf::Document::load(&path).unwrap();
+    let dicts: Vec<&lopdf::Dictionary> = file
+        .objects
+        .values()
+        .filter_map(|o| o.as_dict().ok())
+        .collect();
+    let square_ref = file
+        .objects
+        .iter()
+        .find(|(_, o)| {
+            o.as_dict().is_ok_and(|d| {
+                d.get(b"Subtype")
+                    .and_then(|s| s.as_name())
+                    .is_ok_and(|n| n == b"Square")
+            })
+        })
+        .map(|(id, _)| *id)
+        .unwrap();
+    let saved_reply = dicts
+        .iter()
+        .find(|d| d.has(b"IRT"))
+        .expect("a reply with /IRT");
+    assert_eq!(
+        saved_reply.get(b"IRT").unwrap().as_reference().unwrap(),
+        square_ref
+    );
+    assert!(!dicts.iter().any(|d| d.has(b"PDFRivetReplyTo")));
+
+    // Read back from the saved file as a reply.
+    let reopened = pdf().open(&path, None).unwrap();
+    let back = reopened.annotations(0).unwrap();
+    let square_back = back.iter().find(|a| a.reply_to.is_none()).unwrap();
+    let reply_back = back.iter().find(|a| a.reply_to.is_some()).unwrap();
+    assert_eq!(reply_back.reply_to.as_ref(), Some(&square_back.id));
+    assert_eq!(reply_back.contents, "نعم، صحيح");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn replies_to_a_deleted_comment_are_left_out() {
+    let _serial = serial();
+    let dir = temp_dir("orphan-replies");
+    let path = dir.join("o.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let mut note = annotation(AnnotationKind::Note, rect(0.1, 0.1, 0.13, 0.13));
+    note.id = doc.add_annotation(0, &note).unwrap();
+    let mut reply = annotation(AnnotationKind::Note, note.rect);
+    reply.reply_to = Some(note.id.clone());
+    doc.add_annotation(0, &reply).unwrap();
+    doc.delete_annotation(0, &note.id).unwrap();
+    doc.save(&path).unwrap();
+    let left = pdf().open(&path, None).unwrap().annotations(0).unwrap();
+    assert!(left.is_empty(), "{left:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn reads_every_pages_annotations_in_batches() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    doc.add_annotation(
+        2,
+        &annotation(AnnotationKind::Note, rect(0.1, 0.1, 0.13, 0.13)),
+    )
+    .unwrap();
+    let batch = doc.annotations_from(0);
+    assert_eq!(batch.next_page, None);
+    assert_eq!(batch.pages.len(), 1);
+    assert_eq!(batch.pages[0].page, 2);
+    assert!(doc.annotations_from(3).pages.is_empty());
 }

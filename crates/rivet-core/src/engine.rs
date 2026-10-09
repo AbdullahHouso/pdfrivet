@@ -68,6 +68,7 @@ enum Request {
     Text(DocId, TextRange, Reply<String>),
     Search(DocId, SearchQuery, u32, Reply<SearchBatch>),
     Annotations(DocId, u32, Reply<Vec<Annotation>>),
+    AnnotationsFrom(DocId, u32, Reply<crate::AnnotationBatch>),
     AddAnnotation(DocId, u32, Box<Annotation>, Reply<String>),
     UpdateAnnotation(DocId, u32, Box<Annotation>, Reply<String>),
     DeleteAnnotation(DocId, u32, String, Reply<()>),
@@ -227,6 +228,11 @@ impl Engine {
     /// The annotations on a page.
     pub fn annotations(&self, doc: DocId, page: u32) -> Result<Vec<Annotation>> {
         self.call(|reply| Request::Annotations(doc, page, reply))
+    }
+
+    /// Annotations of every page from `first` on, a batch of pages at a time.
+    pub fn annotations_from(&self, doc: DocId, first: u32) -> Result<crate::AnnotationBatch> {
+        self.call(|reply| Request::AnnotationsFrom(doc, first, reply))
     }
 
     /// Adds an annotation; returns its id. The page's renders are refreshed.
@@ -431,6 +437,9 @@ impl Worker {
             }
             Request::Annotations(id, page, reply) => {
                 let _ = reply.send(self.doc(id).and_then(|d| d.annotations(page)));
+            }
+            Request::AnnotationsFrom(id, first, reply) => {
+                let _ = reply.send(self.doc(id).map(|d| d.annotations_from(first)));
             }
             Request::AddAnnotation(id, page, annotation, reply) => {
                 let result = self

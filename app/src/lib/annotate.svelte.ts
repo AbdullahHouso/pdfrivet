@@ -11,6 +11,7 @@ import {
   addAnnotation,
   addImageStamp,
   deleteAnnotation,
+  getAnnotations,
   type Picture,
   redact,
   restoreAnnotation,
@@ -211,6 +212,7 @@ export async function placeSignature(
     author: "",
     modified: null,
     editable: true,
+    replyTo: null,
   };
   if (sig.kind === "image") {
     const pixels = await signaturePixels(sig);
@@ -229,11 +231,47 @@ export async function placeSignature(
 }
 
 export async function remove(tab: Tab, page: number, a: Annotation) {
+  // Its replies go with it (one undo step brings them all back).
+  const replies = a.replyTo ? [] : (await getAnnotations(tab.docId, page)).filter((r) => r.replyTo === a.id);
+  tab.history.beginGroup();
+  try {
+    for (const reply of replies) await removeOne(tab, page, reply);
+    await removeOne(tab, page, a);
+  } finally {
+    tab.history.endGroup();
+  }
+}
+
+async function removeOne(tab: Tab, page: number, a: Annotation) {
   // Deleted annotations stay in the document, hidden, so undo restores them exactly.
   await deleteAnnotation(tab.docId, page, a.id);
   tab.history.record({ page, before: a, after: null });
   if (tab.selectedAnnotation?.id === a.id) tab.selectedAnnotation = null;
   changed(tab, page);
+}
+
+/** Changes an annotation's comment. */
+export function setComment(tab: Tab, page: number, a: Annotation, text: string): Promise<Annotation> {
+  return update(tab, page, a, { ...a, contents: text });
+}
+
+/** Answers an annotation's comment; returns the reply. */
+export async function reply(tab: Tab, page: number, parent: Annotation, text: string): Promise<Annotation> {
+  // Replies point to their annotation by name; one from another app may not have one yet.
+  const named = parent.id.startsWith("#") ? await update(tab, page, parent, parent) : parent;
+  return add(tab, page, {
+    id: "",
+    kind: { kind: "note" },
+    rect: named.rect,
+    color: named.color,
+    opacity: 1,
+    width: 1,
+    contents: text,
+    author: "",
+    modified: null,
+    editable: true,
+    replyTo: named.id,
+  });
 }
 
 async function applyOutline(tab: Tab, items: Bookmark[]) {
@@ -310,6 +348,7 @@ export async function markSelection(tab: Tab, tool: MarkupTool) {
       author: "",
       modified: null,
       editable: true,
+      replyTo: null,
     });
     marked.push(page);
   }
@@ -332,6 +371,7 @@ export async function markArea(tab: Tab, page: number, tool: MarkupTool, rect: P
     author: "",
     modified: null,
     editable: true,
+    replyTo: null,
   });
   await added;
   await tab.whenPainted(page);

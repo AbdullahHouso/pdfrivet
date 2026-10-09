@@ -33,6 +33,7 @@ export class History {
   /** While a group is open, changes join its last entry. */
   #grouping = false;
   #groupHasEntry = false;
+  #depth = 0;
 
   get canUndo(): boolean {
     return this.#done.length > 0;
@@ -54,14 +55,20 @@ export class History {
     this.#undone = [];
   }
 
-  /** Changes recorded until `endGroup` are undone and redone together. */
+  /**
+   * Changes recorded until `endGroup` are undone and redone together. Groups
+   * can be nested (deleting a comment with its replies during an eraser stroke):
+   * everything joins the outermost one.
+   */
   beginGroup() {
-    this.#grouping = true;
-    this.#groupHasEntry = false;
+    if (this.#depth++ === 0) {
+      this.#grouping = true;
+      this.#groupHasEntry = false;
+    }
   }
 
   endGroup() {
-    this.#grouping = false;
+    if (this.#depth > 0 && --this.#depth === 0) this.#grouping = false;
   }
 
   /** The steps to undo (in the order they were made), moved to the redo list. Apply them backwards, last first. */

@@ -12,6 +12,10 @@
 //!   knows them as lines. PDFium can't write a Line annotation's end points,
 //!   and ink looks the same in every reader.
 //! - Sticky notes: Text annotations.
+//! - Replies to an annotation's comment: Text annotations with an empty
+//!   appearance (so nothing is drawn), pointing to the annotation they answer.
+//!   PDFium can't write that reference (`/IRT`), so they carry the parent's
+//!   name in a private key until the file is saved (see `prune.rs`).
 //! - Signatures: drawn ones are Ink; pictures are Stamp annotations holding
 //!   the image, marked with the private key so they can be moved and resized.
 //!
@@ -131,6 +135,29 @@ pub struct Annotation {
     /// PDFRivet can change it (otherwise it can only be deleted).
     #[serde(default)]
     pub editable: bool,
+    /// A reply: the id of the annotation it answers. Replies are notes that
+    /// aren't drawn; readers show them under the comment they answer.
+    #[serde(default)]
+    pub reply_to: Option<String>,
+}
+
+/// The annotations of one page (pages without any are left out of a batch).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename_all = "camelCase")]
+pub struct PageAnnotations {
+    pub page: u32,
+    pub annotations: Vec<Annotation>,
+}
+
+/// Annotations of several pages, read a batch at a time (see [`crate::Document::annotations_from`]).
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename_all = "camelCase")]
+pub struct AnnotationBatch {
+    pub pages: Vec<PageAnnotations>,
+    /// Where to continue, or `None` after the last page.
+    pub next_page: Option<u32>,
 }
 
 // Values from PDFium's public headers (fpdf_annot.h), which pdfium-render
@@ -164,6 +191,10 @@ pub(crate) const DELETED_KEY: &str = "PDFRivetDeleted";
 /// Private key marking an Ink annotation that PDFRivet drew as a line or arrow.
 const SHAPE_KEY: &str = "PDFRivetShape";
 
+/// Private key holding the name of the annotation a reply answers, until the
+/// file is saved and it becomes a real `/IRT` reference (see `prune.rs`).
+pub(crate) const REPLY_KEY: &str = "PDFRivetReplyTo";
+
 /// Reads the annotations of a page, in the order they are drawn. Links, form
 /// fields and pop-up windows are left out (they're handled elsewhere).
 pub(crate) fn read(pdfium: &Pdfium, page: &PdfPage) -> Vec<Annotation> {
@@ -177,7 +208,9 @@ pub(crate) fn read(pdfium: &Pdfium, page: &PdfPage) -> Vec<Annotation> {
             if annot.is_deleted() {
                 return None;
             }
-            annot_to_model(&annot, index, &map)
+            let mut model = annot_to_model(&annot, index, &map)?;
+            model.reply_to = annots.reply_target(&annot);
+            Some(model)
         })
         .collect()
 }
@@ -201,6 +234,15 @@ pub(crate) fn add(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -> R
             return Err(internal("this kind of annotation can't be added"));
         }
     };
+    // A reply answers a named annotation that is still there.
+    if let Some(parent) = &annotation.reply_to {
+        let found = annots
+            .find(parent)
+            .is_some_and(|(_, a)| !a.is_deleted() && !parent.starts_with('#'));
+        if !found || annotation.kind != AnnotationKind::Note {
+            return Err(Error::new(ErrorCode::AnnotationNotFound, parent.clone()));
+        }
+    }
     let annot = annots
         .create(subtype as i32)
         .ok_or_else(|| internal("PDFium couldn't create the annotation"))?;
@@ -211,6 +253,9 @@ pub(crate) fn add(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -> R
     annot.set_flags(FPDF_ANNOT_FLAG_PRINT);
     write_shape(&annot, annotation, &map)?;
     write_style(&annot, annotation, &now);
+    if let Some(parent) = &annotation.reply_to {
+        annot.set_string(REPLY_KEY, parent);
+    }
     write_appearance(&annot, annotation, &map);
     Ok(id)
 }
@@ -681,6 +726,7 @@ fn annot_to_model(annot: &Annot, index: i32, map: &Mapping) -> Option<Annotation
             .and_then(|m| crate::metadata::pdf_date_to_iso(&m)),
         // Locked annotations stay as they are.
         editable: editable && annot.flags() & FPDF_ANNOT_FLAG_LOCKED == 0,
+        reply_to: None,
     })
 }
 
@@ -868,6 +914,11 @@ fn write_style(annot: &Annot, annotation: &Annotation, now: &str) {
 /// Draws the appearance of kinds PDFium would draw differently from what was
 /// chosen. Everything else is drawn by PDFium the first time the page renders.
 fn write_appearance(annot: &Annot, annotation: &Annotation, map: &Mapping) {
+    if annotation.reply_to.is_some() {
+        // Replies aren't drawn: they show under the comment they answer.
+        annot.set_appearance("");
+        return;
+    }
     match &annotation.kind {
         // PDFium always draws notes yellow; this draws them in their colour.
         AnnotationKind::Note => annot.set_appearance(&note_appearance(
@@ -995,6 +1046,27 @@ impl<'a> PageAnnots<'a> {
     fn remove(&self, index: i32) -> bool {
         // SAFETY: as above. No handle to this annotation is open (callers drop theirs first).
         unsafe { self.bindings.FPDFPage_RemoveAnnot(self.page, index) != 0 }
+    }
+
+    /// The id of the annotation `annot` replies to, if it is a reply: PDFRivet's
+    /// own (not saved yet), or one from the file (`/IRT`).
+    fn reply_target(&self, annot: &Annot<'a>) -> Option<String> {
+        if let Some(parent) = annot.string(REPLY_KEY).filter(|s| !s.is_empty()) {
+            return Some(parent);
+        }
+        // SAFETY: `annot` is a live handle on this page; the linked annotation's
+        // handle is wrapped at once, so it is closed exactly once.
+        let linked = unsafe { self.bindings.FPDFAnnot_GetLinkedAnnot(annot.handle, "IRT") };
+        let parent = Annot::wrap(self.bindings, linked)?;
+        if let Some(name) = parent.string("NM").filter(|s| !s.is_empty()) {
+            return Some(name);
+        }
+        // SAFETY: as above.
+        let index = unsafe {
+            self.bindings
+                .FPDFPage_GetAnnotIndex(self.page, parent.handle)
+        };
+        (index >= 0).then(|| format!("#{index}"))
     }
 
     /// The annotation with this id: its `/NM` name, or `#<index>` for one without a name.

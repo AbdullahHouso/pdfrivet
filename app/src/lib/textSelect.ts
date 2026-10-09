@@ -58,7 +58,7 @@ function flagsAt(text: PageText, i: number): number {
   return text.words[i * STRIDE + 5];
 }
 
-function hasBox(text: PageText, i: number): boolean {
+export function hasBox(text: PageText, i: number): boolean {
   return (flagsAt(text, i) & CHAR_NO_BOX) === 0;
 }
 
