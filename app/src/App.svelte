@@ -4,7 +4,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { onMount, untrack } from "svelte";
+import { onMount, tick, untrack } from "svelte";
 import AboutDialog from "./lib/AboutDialog.svelte";
 import AnnotateBar from "./lib/AnnotateBar.svelte";
 import {
@@ -230,6 +230,16 @@ function deleteSelectedAnnotation(tab: Tab) {
   if (sel && a) removeAnnotation(tab, sel.page, a).catch((e) => (error = toRivetError(e)));
 }
 
+let sidebar = $state<Sidebar>();
+
+/** Bookmarks a page (the current one by default): opens the sidebar's bookmarks, ready to rename it. */
+async function bookmarkPage(tab: Tab, page = tab.page) {
+  if (!tab.info.canEditOutline) return;
+  sidebarOpen = true;
+  await tick();
+  await sidebar?.addBookmark(page);
+}
+
 function showPageMenu(tab: Tab, e: MouseEvent) {
   const items: MenuItem[] = [];
   if (!isEmpty(tab.selection)) {
@@ -250,6 +260,13 @@ function showPageMenu(tab: Tab, e: MouseEvent) {
     }
   }
   items.push({ label: i18n.t("select-all"), shortcut: "Ctrl+A", action: () => selectAll(tab) });
+  items.push({
+    label: i18n.t("bookmark-add"),
+    shortcut: "Ctrl+B",
+    disabled: !tab.info.canEditOutline,
+    hint: i18n.t("bookmarks-protected"),
+    action: () => bookmarkPage(tab),
+  });
   contextMenu = { x: e.clientX, y: e.clientY, items };
 }
 
@@ -565,6 +582,7 @@ function onKey(e: KeyboardEvent) {
     [tabs.list.length > 0 && mod && !e.shiftKey && key === "t", () => tabs.showHome()],
     [!!tab && mod && (key === "=" || key === "+"), () => zoomStep(1)],
     [!!tab && mod && key === "-", () => zoomStep(-1)],
+    [!!tab && !typing && mod && !e.shiftKey && key === "b", () => tab && bookmarkPage(tab)],
     [!!tab && mod && key === "0", () => setZoomMode("fit-width")],
     [!!tab && ((mod && key === "g") || e.key === "F6"), () => toolbar?.focusPageInput()],
     [!!tab && !typing && !mod && e.key === "Home", () => goTo(0)],
@@ -734,7 +752,15 @@ onMount(() => {
     {#key active.id}
       {#if sidebarOpen}
         <div class="sidebar-wrap" in:fade out:out>
-          <Sidebar tab={active} width={sidebarWidth} ongoto={goTo} bind:pane={sidebarPane} onfind={() => active && openFind(active)} />
+          <Sidebar
+            bind:this={sidebar}
+            tab={active}
+            width={sidebarWidth}
+            ongoto={goTo}
+            bind:pane={sidebarPane}
+            onfind={() => active && openFind(active)}
+            onerror={(e) => (error = e)}
+          />
           <Splitter
             bind:value={() => sidebarWidth, (w) => (sidebarDrag = w)}
             min={sidebarMin}

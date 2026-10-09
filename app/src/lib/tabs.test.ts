@@ -14,6 +14,7 @@ const info: DocInfo = {
   rtl: false,
   canCopy: true,
   canAnnotate: true,
+  canEditOutline: true,
 };
 
 describe("moving tabs between windows", () => {

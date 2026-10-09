@@ -53,6 +53,9 @@ const paths = {
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
   redact: "M4 5h16v14H4zM7 10h10v4H7z",
   signature: "M3 17c3-1 5-9 7-9s-1 9 1 9 3-4 4-4 1 3 3 3 2-1 3-1M3 21h18",
+  bookmark: "M6 3h12v18l-6-4-6 4z",
+  pages: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+  "bookmark-add": "M6 3h12v18l-6-4-6 4zM12 7v6M9 10h6",
   book: "M3 5h6a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H3zM21 5h-6a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h7z",
 } as const;
 </script>

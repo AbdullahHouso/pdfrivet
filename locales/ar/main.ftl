@@ -139,8 +139,15 @@ thumbnail-size = حجم المصغّرات
 thumbnails-smaller = تصغير المصغّرات
 thumbnails-bigger = تكبير المصغّرات
 resize-sidebar = تغيير عرض الشريط الجانبي
-outline = الفهرس
-outline-empty = لا يحتوي هذا المستند على فهرس.
+bookmarks-tab = الإشارات
+bookmarks = الإشارات المرجعية
+bookmarks-empty = لا توجد إشارات مرجعية بعد. اضغط Ctrl+B لإضافة إشارة إلى الصفحة الحالية.
+bookmarks-protected = لا يمكن تعديل الإشارات المرجعية في ملفات PDF المحمية بكلمة مرور بعد.
+bookmark-add = إضافة إشارة مرجعية
+bookmark-add-inside = إضافة إشارة مرجعية داخلها
+bookmark-rename = إعادة التسمية
+bookmark-delete = حذف الإشارة المرجعية
+page-n = الصفحة { $page }
 go-to-page-n = الانتقال إلى الصفحة { $page }
 
 ## Start screen

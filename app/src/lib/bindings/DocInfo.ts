@@ -20,4 +20,8 @@ canCopy: boolean,
 /**
  * The document allows adding and changing annotations.
  */
-canAnnotate: boolean, };
+canAnnotate: boolean, 
+/**
+ * Bookmarks can be added and changed (not in password-protected files yet).
+ */
+canEditOutline: boolean, };

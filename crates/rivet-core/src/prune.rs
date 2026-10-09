@@ -13,12 +13,18 @@ use std::collections::BTreeSet;
 
 use lopdf::{Dictionary, Document, Object, ObjectId, content::Content};
 
-use crate::{Error, ErrorCode, Result};
+use crate::{Error, ErrorCode, OutlineItem, Result};
 
 /// Rewrites a PDF without deleted annotations and unreferenced objects.
 /// Returns `None` for password-protected files (lopdf can't write them).
 /// `redacted` pages (0-based) also lose every resource their content no longer uses.
-pub(crate) fn prune(bytes: &[u8], deleted_key: &str, redacted: &[u32]) -> Result<Option<Vec<u8>>> {
+/// An edited `outline` replaces the file's bookmarks.
+pub(crate) fn prune(
+    bytes: &[u8],
+    deleted_key: &str,
+    redacted: &[u32],
+    outline: Option<&[OutlineItem]>,
+) -> Result<Option<Vec<u8>>> {
     let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
     let mut doc = Document::load_mem(bytes).map_err(|e| failed(&e))?;
     if doc.is_encrypted() {
@@ -31,7 +37,10 @@ pub(crate) fn prune(bytes: &[u8], deleted_key: &str, redacted: &[u32]) -> Result
             keep_used_resources(&mut doc, page).map_err(|e| failed(&e))?;
         }
     }
-    if doc.prune_objects().is_empty() {
+    if let Some(items) = outline {
+        crate::outline::write(&mut doc, items).map_err(|e| failed(&e))?;
+    }
+    if doc.prune_objects().is_empty() && outline.is_none() {
         return Ok(Some(bytes.to_vec()));
     }
     doc.renumber_objects();

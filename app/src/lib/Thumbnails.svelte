@@ -2,6 +2,7 @@
 // Virtualized page thumbnails in a grid. Clicking one jumps to that page.
 // They fill the sidebar's width: a wider sidebar gives bigger thumbnails, and
 // the size control above them fits more per row.
+import ContextMenu, { type MenuItem } from "./ContextMenu.svelte";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
 import { maxThumbnailColumns, rotatedSize, THUMB_GAP, thumbnailGrid, visibleRange } from "./layout";
@@ -12,8 +13,26 @@ import type { Tab } from "./tabs.svelte";
 interface Props {
   tab: Tab;
   ongoto: (page: number) => void;
+  /** Bookmarks a page (from the right-click menu). */
+  onbookmark?: (page: number) => void;
 }
-let { tab, ongoto }: Props = $props();
+let { tab, ongoto, onbookmark }: Props = $props();
+
+let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
+
+function showMenu(e: MouseEvent, page: number) {
+  e.preventDefault();
+  const items: MenuItem[] = [{ label: i18n.t("go-to-page-n", { page: page + 1 }), action: () => ongoto(page) }];
+  if (onbookmark) {
+    items.push({
+      label: i18n.t("bookmark-add"),
+      disabled: !tab.info.canEditOutline,
+      hint: i18n.t("bookmarks-protected"),
+      action: () => onbookmark(page),
+    });
+  }
+  menu = { x: e.clientX, y: e.clientY, items };
+}
 
 let scroller: HTMLElement;
 let scrollTop = $state(0);
@@ -75,6 +94,7 @@ $effect(() => {
             style:width="{layout.widths[index]}px"
             style:height="{row.height}px"
             onclick={() => ongoto(index)}
+            oncontextmenu={(e) => showMenu(e, index)}
             aria-label={i18n.t("go-to-page-n", { page: index + 1 })}
             aria-current={index === tab.page ? "page" : undefined}
           >
@@ -95,6 +115,10 @@ $effect(() => {
     </div>
   </div>
 </div>
+
+{#if menu}
+  <ContextMenu {...menu} onclose={() => (menu = null)} />
+{/if}
 
 <style>
   .wrap {

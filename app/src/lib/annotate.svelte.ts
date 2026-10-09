@@ -5,6 +5,7 @@
 import type { Annotation } from "./bindings/Annotation";
 import type { Color } from "./bindings/Color";
 import type { PageRect } from "./bindings/PageRect";
+import { type Bookmark, copyTree } from "./outlineTree";
 import { forgetPageText, loadPageText } from "./pageText";
 import {
   addAnnotation,
@@ -13,6 +14,7 @@ import {
   type Picture,
   redact,
   restoreAnnotation,
+  setOutline,
   updateAnnotation,
   userName,
 } from "./pdf";
@@ -234,6 +236,13 @@ export async function remove(tab: Tab, page: number, a: Annotation) {
   changed(tab, page);
 }
 
+async function applyOutline(tab: Tab, items: Bookmark[]) {
+  const copy = copyTree(items);
+  await setOutline(tab.docId, copy);
+  tab.outline = copy;
+  tab.dirty = true;
+}
+
 /** Applies a step of the history: forwards (redo) or backwards (undo). */
 async function apply(tab: Tab, page: number, from: Annotation | null, to: Annotation | null) {
   if (from && to) {
@@ -248,18 +257,25 @@ async function apply(tab: Tab, page: number, from: Annotation | null, to: Annota
   changed(tab, page);
 }
 
+/** Undoes the last change; returns the page it was on (null for bookmark changes). */
 export async function undo(tab: Tab): Promise<number | null> {
   const steps = tab.history.undo();
   if (!steps) return null;
-  for (const step of [...steps].reverse()) await apply(tab, step.page, step.after, step.before);
-  return steps[0].page;
+  for (const step of [...steps].reverse()) {
+    if (step.kind === "outline") await applyOutline(tab, step.before);
+    else await apply(tab, step.page, step.after, step.before);
+  }
+  return steps[0].kind === "outline" ? null : steps[0].page;
 }
 
 export async function redo(tab: Tab): Promise<number | null> {
   const steps = tab.history.redo();
   if (!steps) return null;
-  for (const step of steps) await apply(tab, step.page, step.before, step.after);
-  return steps[0].page;
+  for (const step of steps) {
+    if (step.kind === "outline") await applyOutline(tab, step.after);
+    else await apply(tab, step.page, step.before, step.after);
+  }
+  return steps[0].kind === "outline" ? null : steps[0].page;
 }
 
 const MARKUP_STYLE = { highlight: "highlight", underline: "underline", strikeout: "strikeout" } as const;

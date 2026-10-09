@@ -61,6 +61,7 @@ enum Request {
     Open(PathBuf, Option<String>, Reply<(DocId, DocInfo)>),
     Info(DocId, Reply<DocInfo>),
     Outline(DocId, Reply<Vec<OutlineItem>>),
+    SetOutline(DocId, Vec<OutlineItem>, Reply<()>),
     Links(DocId, u32, Reply<Vec<PageLink>>),
     FormFields(DocId, u32, Reply<Vec<FormField>>),
     PageText(DocId, u32, Reply<PageText>),
@@ -129,6 +130,11 @@ impl Engine {
 
     pub fn outline(&self, doc: DocId) -> Result<Vec<OutlineItem>> {
         self.call(|reply| Request::Outline(doc, reply))
+    }
+
+    /// Replaces the bookmarks; they are written into the file on the next save.
+    pub fn set_outline(&self, doc: DocId, items: Vec<OutlineItem>) -> Result<()> {
+        self.call(|reply| Request::SetOutline(doc, items, reply))
     }
 
     /// The clickable links on a page.
@@ -397,6 +403,16 @@ impl Worker {
             }
             Request::Outline(id, reply) => {
                 let _ = reply.send(self.doc(id).map(Document::outline));
+            }
+            Request::SetOutline(id, items, reply) => {
+                let result = match self.docs.get_mut(&id) {
+                    Some(doc) => doc.set_outline(items),
+                    None => Err(Error::new(
+                        ErrorCode::DocumentNotOpen,
+                        format!("document {id}"),
+                    )),
+                };
+                let _ = reply.send(result);
             }
             Request::Links(id, page, reply) => {
                 let _ = reply.send(self.doc(id).and_then(|d| d.links(page)));

@@ -4,4 +4,9 @@
  * One entry in the outline. `page` is `None` when the entry doesn't point
  * to a page in this document (for example, a web link).
  */
-export type OutlineItem = { title: string, page: number | null, children: Array<OutlineItem>, };
+export type OutlineItem = { title: string, page: number | null, children: Array<OutlineItem>, 
+/**
+ * Which entry of the file's outline this is (its place when walking the
+ * outline in order), or `None` for a bookmark added in PDFRivet.
+ */
+origin: number | null, };

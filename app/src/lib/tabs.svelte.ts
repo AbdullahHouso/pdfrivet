@@ -5,10 +5,10 @@
 import { SvelteMap } from "svelte/reactivity";
 import type { Annotation } from "./bindings/Annotation";
 import type { DocInfo } from "./bindings/DocInfo";
-import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageRect } from "./bindings/PageRect";
 import { History } from "./history.svelte";
 import type { Degrees } from "./layout";
+import type { Bookmark } from "./outlineTree";
 import { forgetPages } from "./pageCanvasCache";
 import { forgetPageText } from "./pageText";
 import { closeDocument } from "./pdf";
@@ -60,7 +60,8 @@ export class Tab {
   /** Scroll position to restore when the tab becomes active again. */
   scrollTop = 0;
   scrollLeft = 0;
-  outline = $state<OutlineItem[] | null>(null);
+  /** Bookmarks (the outline), once loaded (see bookmarks.ts). Replaced on every change. */
+  outline = $state.raw<Bookmark[] | null>(null);
   /** True when there are changes (e.g. filled-in form fields) that aren't saved. */
   dirty = $state(false);
   /** Goes up after every change, so pages showing it re-render. */

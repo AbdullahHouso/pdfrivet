@@ -95,6 +95,7 @@ impl Pdf {
             deleted_on: RefCell::new(BTreeSet::new()),
             needs_prune: Cell::new(false),
             redacted: RefCell::new(BTreeSet::new()),
+            edited_outline: None,
         })
     }
 
@@ -186,6 +187,8 @@ pub struct DocInfo {
     pub can_copy: bool,
     /// The document allows adding and changing annotations.
     pub can_annotate: bool,
+    /// Bookmarks can be added and changed (not in password-protected files yet).
+    pub can_edit_outline: bool,
 }
 
 /// Clockwise view rotation. Only affects rendering; the file is never changed.
@@ -250,6 +253,8 @@ pub struct Document {
     needs_prune: Cell<bool>,
     /// Redacted pages: when saving, they keep only the resources still used.
     redacted: RefCell<BTreeSet<u32>>,
+    /// Bookmarks as edited in PDFRivet (PDFium can't change them); written on save.
+    edited_outline: Option<Vec<OutlineItem>>,
 }
 
 impl Document {
@@ -288,6 +293,7 @@ impl Document {
             rtl: crate::direction::detect(&self.inner),
             can_copy: self.can_copy(),
             can_annotate: self.can_annotate(),
+            can_edit_outline: self.can_edit_outline(),
         })
     }
 
@@ -406,9 +412,31 @@ impl Document {
             .unwrap_or(true)
     }
 
-    /// The document's table of contents (bookmarks). Empty if it has none.
+    /// The document's table of contents (bookmarks), as edited. Empty if it has none.
     pub fn outline(&self) -> Vec<OutlineItem> {
-        outline::read(&self.inner)
+        match &self.edited_outline {
+            Some(items) => items.clone(),
+            None => outline::read(&self.inner),
+        }
+    }
+
+    /// Replaces the bookmarks (written into the file on the next save).
+    /// Entries from [`Document::outline`] keep their `origin`.
+    pub fn set_outline(&mut self, items: Vec<OutlineItem>) -> Result<()> {
+        if !self.can_edit_outline() {
+            return Err(Error::new(
+                ErrorCode::ReadOnlyField,
+                "password-protected PDF",
+            ));
+        }
+        self.edited_outline = Some(items);
+        self.unsaved_changes.set(true);
+        Ok(())
+    }
+
+    /// Bookmarks can be changed (lopdf, which writes them, can't write encrypted files).
+    fn can_edit_outline(&self) -> bool {
+        self.properties().can_edit_metadata
     }
 
     /// The clickable links on a page.
@@ -561,9 +589,11 @@ impl Document {
             .inner
             .save_to_bytes()
             .map_err(|e| failed(&format!("{e:?}")))?;
-        if has_deleted || self.needs_prune.get() {
+        let outline = self.edited_outline.as_deref();
+        if has_deleted || self.needs_prune.get() || outline.is_some() {
             let redacted: Vec<u32> = self.redacted.borrow().iter().copied().collect();
-            match crate::prune::prune(&bytes, crate::annotations::DELETED_KEY, &redacted)? {
+            match crate::prune::prune(&bytes, crate::annotations::DELETED_KEY, &redacted, outline)?
+            {
                 Some(pruned) => bytes = pruned,
                 // Password-protected: deleted annotations can't be left out of the
                 // written file, so they are removed from the document for good.

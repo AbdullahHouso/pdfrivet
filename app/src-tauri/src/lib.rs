@@ -82,6 +82,16 @@ async fn get_outline(doc_id: DocId, state: State<'_, AppState>) -> Result<Vec<Ou
 }
 
 #[tauri::command]
+async fn set_outline(
+    doc_id: DocId,
+    items: Vec<OutlineItem>,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.set_outline(doc_id, items)).await
+}
+
+#[tauri::command]
 async fn get_links(
     doc_id: DocId,
     page: u32,
@@ -708,6 +718,7 @@ pub fn run() {
             list_printers,
             document_properties,
             set_metadata,
+            set_outline,
             print_placement,
             printer_properties,
             print_document,

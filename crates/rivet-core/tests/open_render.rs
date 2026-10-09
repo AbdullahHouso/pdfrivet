@@ -1212,3 +1212,156 @@ fn redaction_refuses_password_protected_files() {
     let err = doc.redact(0, &[rect(0.1, 0.1, 0.2, 0.2)]).unwrap_err();
     assert_eq!(err.code, ErrorCode::RedactProtected);
 }
+
+/// Titles and pages of an outline, nested, for comparing.
+fn outline_summary(items: &[OutlineItem]) -> Vec<(String, Option<u32>, usize)> {
+    items
+        .iter()
+        .map(|i| (i.title.clone(), i.page, i.children.len()))
+        .collect()
+}
+
+#[test]
+fn edits_bookmarks_and_saves_them_into_the_file() {
+    let _serial = serial();
+    let dir = temp_dir("bookmarks");
+    let path = dir.join("out.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    assert!(doc.info().unwrap().can_edit_outline);
+    let mut items = doc.outline();
+    // Rename the first, put a new Arabic bookmark under the second, drop the third.
+    items[0].title = "Start here".into();
+    items[1].children.push(OutlineItem {
+        title: "الصفحة الثالثة".into(),
+        page: Some(2),
+        children: Vec::new(),
+        origin: None,
+    });
+    items.truncate(2);
+    doc.set_outline(items.clone()).unwrap();
+    // Shown as edited before saving.
+    assert_eq!(doc.outline(), items);
+    doc.save(&path).unwrap();
+
+    let saved = pdf().open(&path, None).unwrap();
+    let outline = saved.outline();
+    assert_eq!(
+        outline_summary(&outline),
+        vec![
+            ("Start here".to_owned(), Some(0), 0),
+            ("Page two (US Letter)".to_owned(), Some(1), 1),
+        ]
+    );
+    assert_eq!(outline[1].children[0].title, "الصفحة الثالثة");
+    assert_eq!(outline[1].children[0].page, Some(2));
+
+    // The removed entry is gone from the file, not just unlinked.
+    let file = lopdf::Document::load(&path).unwrap();
+    let has_title = |dict: &lopdf::Dictionary| {
+        dict.get(b"Title")
+            .and_then(lopdf::Object::as_str)
+            .is_ok_and(|t| t.starts_with(b"Page three"))
+    };
+    assert!(
+        !file
+            .objects
+            .values()
+            .any(|o| o.as_dict().is_ok_and(has_title))
+    );
+
+    // Saving again (the outline is still the edited one) gives the same bookmarks.
+    let mut saved = saved;
+    let again = dir.join("again.pdf");
+    saved.set_outline(saved.outline()).unwrap();
+    saved.save(&again).unwrap();
+    assert_eq!(pdf().open(&again, None).unwrap().outline(), outline);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn bookmarks_from_the_file_keep_their_actions() {
+    let _serial = serial();
+    let dir = temp_dir("bookmark-actions");
+    // A copy of basic.pdf whose first bookmark opens a web page.
+    let source = dir.join("web.pdf");
+    let mut file = lopdf::Document::load(fixture("basic.pdf")).unwrap();
+    let outlines = file
+        .catalog()
+        .unwrap()
+        .get(b"Outlines")
+        .unwrap()
+        .as_reference()
+        .unwrap();
+    let first = file
+        .get_dictionary(outlines)
+        .unwrap()
+        .get(b"First")
+        .unwrap()
+        .as_reference()
+        .unwrap();
+    let entry = file.get_dictionary_mut(first).unwrap();
+    entry.remove(b"Dest");
+    let mut action = lopdf::Dictionary::new();
+    action.set("S", lopdf::Object::Name(b"URI".to_vec()));
+    action.set("URI", lopdf::Object::string_literal("https://example.com/"));
+    entry.set("A", action);
+    file.save(&source).unwrap();
+
+    // Move it to the end and save.
+    let mut doc = pdf().open(&source, None).unwrap();
+    let mut items = doc.outline();
+    let web = items.remove(0);
+    assert_eq!(web.page, None);
+    items.push(web);
+    doc.set_outline(items).unwrap();
+    let out = dir.join("out.pdf");
+    doc.save(&out).unwrap();
+
+    let saved = lopdf::Document::load(&out).unwrap();
+    let root = saved
+        .get_dictionary(
+            saved
+                .catalog()
+                .unwrap()
+                .get(b"Outlines")
+                .unwrap()
+                .as_reference()
+                .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(root.get(b"Count").unwrap().as_i64().unwrap(), 3);
+    let last = saved
+        .get_dictionary(root.get(b"Last").unwrap().as_reference().unwrap())
+        .unwrap();
+    let action = last.get(b"A").unwrap().as_dict().unwrap();
+    assert_eq!(
+        action.get(b"URI").unwrap().as_str().unwrap(),
+        b"https://example.com/"
+    );
+    // The others still go to their pages.
+    let reopened = pdf().open(&out, None).unwrap().outline();
+    assert_eq!(reopened[0].page, Some(1));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn removing_every_bookmark_removes_the_outline() {
+    let _serial = serial();
+    let dir = temp_dir("no-bookmarks");
+    let path = dir.join("out.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    doc.set_outline(Vec::new()).unwrap();
+    doc.save(&path).unwrap();
+    assert!(pdf().open(&path, None).unwrap().outline().is_empty());
+    let file = lopdf::Document::load(&path).unwrap();
+    assert!(file.catalog().unwrap().get(b"Outlines").is_err());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn password_protected_files_cant_edit_bookmarks_yet() {
+    let _serial = serial();
+    let mut doc = pdf().open(&fixture("password.pdf"), Some("rivet")).unwrap();
+    assert!(!doc.info().unwrap().can_edit_outline);
+    assert!(doc.set_outline(Vec::new()).is_err());
+}

@@ -48,6 +48,11 @@ export function getOutline(docId: number): Promise<OutlineItem[]> {
   return invoke("get_outline", { docId });
 }
 
+/** Replaces the bookmarks (written into the file on the next save). */
+export function setOutline(docId: number, items: OutlineItem[]): Promise<void> {
+  return invoke("set_outline", { docId, items });
+}
+
 export function getLinks(docId: number, page: number): Promise<PageLink[]> {
   return invoke("get_links", { docId, page });
 }

@@ -141,8 +141,15 @@ thumbnail-size = Thumbnail size
 thumbnails-smaller = Smaller thumbnails
 thumbnails-bigger = Bigger thumbnails
 resize-sidebar = Resize the sidebar
-outline = Outline
-outline-empty = This document has no outline.
+bookmarks-tab = Bookmarks
+bookmarks = Bookmarks
+bookmarks-empty = No bookmarks yet. Press Ctrl+B to bookmark the page you're on.
+bookmarks-protected = Bookmarks can't be changed in password-protected PDFs yet.
+bookmark-add = Add bookmark
+bookmark-add-inside = Add bookmark inside
+bookmark-rename = Rename
+bookmark-delete = Delete bookmark
+page-n = Page { $page }
 go-to-page-n = Go to page { $page }
 
 ## Start screen

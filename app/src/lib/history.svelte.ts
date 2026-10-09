@@ -1,16 +1,27 @@
-// Undo and redo for annotation changes, per tab. Each step remembers the
-// annotation before and after the change: added (before = null), deleted
-// (after = null) or changed (both). Undoing applies the step backwards.
+// Undo and redo for annotation and bookmark changes, per tab. Each step
+// remembers the annotation before and after the change: added (before =
+// null), deleted (after = null) or changed (both); or the whole bookmark tree
+// before and after. Undoing applies the step backwards.
 // Changes made in one gesture (everything one eraser stroke touched) form a
 // group that is undone and redone together.
 
 import type { Annotation } from "./bindings/Annotation";
+import type { Bookmark } from "./outlineTree";
 
-export interface Step {
+export interface AnnotationStep {
+  kind?: undefined;
   page: number;
   before: Annotation | null;
   after: Annotation | null;
 }
+
+export interface OutlineStep {
+  kind: "outline";
+  before: Bookmark[];
+  after: Bookmark[];
+}
+
+export type Step = AnnotationStep | OutlineStep;
 
 /** How many steps are kept. */
 const LIMIT = 200;
@@ -80,6 +91,7 @@ export class History {
   rename(oldId: string, newId: string) {
     if (oldId === newId) return;
     for (const step of [...this.#done, ...this.#undone].flat()) {
+      if (step.kind === "outline") continue;
       if (step.before?.id === oldId) step.before = { ...step.before, id: newId };
       if (step.after?.id === oldId) step.after = { ...step.after, id: newId };
     }
