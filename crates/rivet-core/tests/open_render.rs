@@ -1513,7 +1513,7 @@ fn text_boxes_are_drawn_saved_and_read_back() {
     let style = text_style("Amiri", 18.0);
     let mut text_box = annotation(
         AnnotationKind::FreeText {
-            text: "تحياتي والسلام\nPDFRivet 2026".into(),
+            text: "مرحبا بالعالم\nPDFRivet 2026".into(),
             style: style.clone(),
         },
         rect(0.5, 0.5, 0.9, 0.6),
@@ -1532,7 +1532,7 @@ fn text_boxes_are_drawn_saved_and_read_back() {
     let back = read.iter().find(|a| a.id == id).unwrap();
     match &back.kind {
         AnnotationKind::FreeText { text, style: s } => {
-            assert_eq!(text, "تحياتي والسلام\nPDFRivet 2026");
+            assert_eq!(text, "مرحبا بالعالم\nPDFRivet 2026");
             assert_eq!(s, &style);
         }
         other => panic!("{other:?}"),
@@ -1569,7 +1569,7 @@ fn text_boxes_are_drawn_saved_and_read_back() {
     };
     let rc = utf16(saved.get(b"RC").unwrap());
     assert!(
-        rc.contains(r#"<p dir="rtl" style="text-align:right">تحياتي والسلام</p>"#),
+        rc.contains(r#"<p dir="rtl" style="text-align:right">مرحبا بالعالم</p>"#),
         "{rc}"
     );
     assert!(
@@ -1651,7 +1651,7 @@ fn reads_text_boxes_from_other_apps_and_redraws_them() {
     annot.set("Type", lopdf::Object::Name(b"Annot".to_vec()));
     annot.set("Subtype", lopdf::Object::Name(b"FreeText".to_vec()));
     annot.set("Rect", vec![100.into(), 600.into(), 200.into(), 620.into()]);
-    annot.set("Contents", utf16("تحياتي والسلام"));
+    annot.set("Contents", utf16("مرحبا بالعالم"));
     annot.set("DA", lopdf::Object::string_literal("/Arial 12 Tf 0 0 0 rg"));
     annot.set(
         "DS",
@@ -1669,7 +1669,7 @@ fn reads_text_boxes_from_other_apps_and_redraws_them() {
     let AnnotationKind::FreeText { text, style } = &found.kind else {
         panic!("{:?}", found.kind);
     };
-    assert_eq!(text, "تحياتي والسلام");
+    assert_eq!(text, "مرحبا بالعالم");
     assert_eq!(style.size, 12.0);
     assert_eq!(style.font.family, "Arial");
     assert!(!style.font.bundled);
@@ -1681,7 +1681,7 @@ fn reads_text_boxes_from_other_apps_and_redraws_them() {
     let before = doc.render_page(0, 1.0, Rotation::None).unwrap();
     let mut edited = found.clone();
     edited.kind = AnnotationKind::FreeText {
-        text: "تحياتي والسلام عليكم".into(),
+        text: "مرحبا بالعالم كله".into(),
         style: style.clone(),
     };
     doc.update_annotation(0, &edited).unwrap();

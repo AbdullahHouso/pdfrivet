@@ -140,7 +140,7 @@ export function topmostAt(list: Annotation[], x: number, y: number, box: PageBox
 
 /** Whether an annotation can be moved and resized (text markup stays on its text). */
 export function canMove(a: Annotation): boolean {
-  return a.editable && ["ink", "line", "square", "circle", "note", "stamp"].includes(a.kind.kind);
+  return a.editable && ["ink", "line", "square", "circle", "note", "stamp", "freeText"].includes(a.kind.kind);
 }
 
 /** Whether only its position changes when resized (a note's icon keeps its size). */

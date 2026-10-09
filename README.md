@@ -98,3 +98,5 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 
 PDFRivet is licensed under the [Mozilla Public License 2.0](LICENSE).
 PDFium is distributed under its own BSD-style license (bundled with the app).
+The fonts bundled for text boxes, Rubik and Amiri, are under the SIL Open Font License 1.1
+(see `crates/rivet-core/fonts/`).

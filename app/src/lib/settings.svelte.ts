@@ -3,8 +3,10 @@
 
 import { load, type Store } from "@tauri-apps/plugin-store";
 import type { Color } from "./bindings/Color";
+import type { TextStyle } from "./bindings/TextStyle";
 import { type FileView, findRecent, type RecentFile, removeRecent, touchRecent, updateView } from "./recent";
 import type { PageLayout } from "./tabs.svelte";
+import { defaultTextStyle } from "./textBox";
 
 export type Theme = "system" | "light" | "dark" | "black";
 /**
@@ -72,6 +74,8 @@ let toolStyles = $state<Record<string, ToolStyle>>({});
 let sidebarWidth = $state(200);
 let commentsWidth = $state(300);
 let thumbnailColumns = $state(1);
+// How new text boxes look (font, size, positions, direction); colour is in toolStyles.
+let textStyle = $state<TextStyle>(defaultTextStyle());
 
 /** Turns animations on or off for the whole window (see app.css and motion.ts). */
 function applyMotion(on: boolean) {
@@ -155,6 +159,9 @@ function apply(key: string, value: unknown) {
     case "thumbnailColumns":
       thumbnailColumns = value as number;
       break;
+    case "textStyle":
+      textStyle = { ...defaultTextStyle(), ...(value as TextStyle) };
+      break;
   }
 }
 
@@ -184,6 +191,7 @@ export const settings = {
       sidebarWidth = (await store.get<number>("sidebarWidth")) ?? sidebarWidth;
       commentsWidth = (await store.get<number>("commentsWidth")) ?? commentsWidth;
       thumbnailColumns = (await store.get<number>("thumbnailColumns")) ?? thumbnailColumns;
+      textStyle = { ...defaultTextStyle(), ...((await store.get<TextStyle>("textStyle")) ?? {}) };
     } catch (e) {
       console.warn("[settings] using defaults", e);
     }
@@ -338,6 +346,15 @@ export const settings = {
   set thumbnailColumns(value: number) {
     thumbnailColumns = value;
     save("thumbnailColumns", value);
+  },
+
+  /** The style of new text boxes (a box's width and height aren't kept). */
+  get textStyle() {
+    return textStyle;
+  },
+  set textStyle(value: TextStyle) {
+    textStyle = { ...value, width: null, height: null };
+    save("textStyle", textStyle);
   },
 
   get recent() {

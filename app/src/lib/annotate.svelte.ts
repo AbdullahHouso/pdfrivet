@@ -4,7 +4,9 @@
 
 import type { Annotation } from "./bindings/Annotation";
 import type { Color } from "./bindings/Color";
+import type { PagePoint } from "./bindings/PagePoint";
 import type { PageRect } from "./bindings/PageRect";
+import type { TextStyle } from "./bindings/TextStyle";
 import { type Bookmark, copyTree } from "./outlineTree";
 import { forgetPageText, loadPageText } from "./pageText";
 import {
@@ -12,9 +14,11 @@ import {
   addImageStamp,
   deleteAnnotation,
   getAnnotations,
+  measureText,
   type Picture,
   redact,
   restoreAnnotation,
+  setAnnotationHidden,
   setOutline,
   updateAnnotation,
   userName,
@@ -22,6 +26,7 @@ import {
 import { settings, type ToolStyle } from "./settings.svelte";
 import { type Signature, signaturePixels } from "./signatures.svelte";
 import type { Tab } from "./tabs.svelte";
+import { isRtl } from "./textBox";
 import { isEmpty, ordered, rangeOnPage, selectionRects } from "./textSelect";
 
 export type AnnotTool =
@@ -34,6 +39,7 @@ export type AnnotTool =
   | "line"
   | "arrow"
   | "note"
+  | "text"
   | "eraser"
   | "signature"
   | "redact";
@@ -83,6 +89,7 @@ const DEFAULTS: Record<AnnotTool, ToolStyle> = {
   line: { color: hex("#e53935"), width: 2, opacity: 1, fill: false },
   arrow: { color: hex("#e53935"), width: 2, opacity: 1, fill: false },
   note: { color: hex("#ffd400"), width: 1, opacity: 1, fill: false },
+  text: { color: hex("#1b1c20"), width: 1, opacity: 1, fill: false },
   eraser: { color: hex("#1b1c20"), width: 1, opacity: 1, fill: false },
   signature: { color: hex("#1b1c20"), width: 1, opacity: 1, fill: false },
   redact: { color: hex("#1b1c20"), width: 1, opacity: 1, fill: false },
@@ -97,6 +104,25 @@ export function lighter(c: Color, amount = 0.6): Color {
 let open = $state(false);
 let tool = $state<AnnotTool | null>(null);
 let signature = $state<Signature | null>(null);
+
+/** A text box being written or edited on a page. */
+export interface TextEdit {
+  tab: Tab;
+  page: number;
+  /** The box being edited, or null for a new one. */
+  original: Annotation | null;
+  text: string;
+  style: TextStyle;
+  color: Color;
+  /**
+   * The box's top corner on its start side, in page fractions: its top-left,
+   * or its top-right when it grows with right-to-left text (see `growsLeft`).
+   */
+  anchor: PagePoint;
+  /** Being saved: the editor stays on screen until the page shows the result. */
+  saving: boolean;
+}
+let textEdit = $state<TextEdit | null>(null);
 let osUser: Promise<string> | null = null;
 
 /** The OS user name, asked for once. */
@@ -141,6 +167,10 @@ export const annotate = {
   },
   setStyle(t: AnnotTool, change: Partial<ToolStyle>) {
     settings.setToolStyle(t, { ...this.style(t), ...change });
+  },
+  /** The text box being written or edited, if any. */
+  get textEdit() {
+    return textEdit;
   },
   /** Who new annotations are by: the name in Settings, or the OS user name. */
   async author(): Promise<string> {
@@ -421,4 +451,106 @@ export async function applyRedactions(tab: Tab) {
   forgetPageText(tab.docId);
   tab.selection = null;
   tab.search.clear();
+}
+
+// --- Text boxes --------------------------------------------------------------
+
+/** A box that grows with right-to-left text keeps its right edge where it is, and grows leftwards. */
+export function growsLeft(text: string, style: TextStyle): boolean {
+  return style.width === null && isRtl(text, style);
+}
+
+/** Starts a new text box with its start corner at `at` (page fractions). */
+export function startText(tab: Tab, page: number, at: PagePoint) {
+  textEdit = {
+    tab,
+    page,
+    original: null,
+    text: "",
+    style: { ...settings.textStyle },
+    color: annotate.style("text").color,
+    anchor: at,
+    saving: false,
+  };
+}
+
+/** Edits an existing text box in place (it's hidden on the page meanwhile). */
+export async function editText(tab: Tab, page: number, a: Annotation) {
+  if (a.kind.kind !== "freeText") return;
+  const { text, style } = a.kind;
+  textEdit = {
+    tab,
+    page,
+    original: a,
+    text,
+    style,
+    color: a.color,
+    anchor: growsLeft(text, style) ? { x: a.rect.right, y: a.rect.top } : { x: a.rect.left, y: a.rect.top },
+    saving: false,
+  };
+  tab.selectedAnnotation = null;
+  await setAnnotationHidden(tab.docId, page, a.id, true);
+  tab.bumpPage(page);
+}
+
+/** Changes the text box being edited (its text, style or colour). */
+export function changeText(change: Partial<Pick<TextEdit, "text" | "style" | "color">>) {
+  if (textEdit && !textEdit.saving) textEdit = { ...textEdit, ...change };
+}
+
+/**
+ * Ends editing: saves the box (a new one is added, an edited one changed, an
+ * emptied one deleted), or with `cancel` leaves everything as it was.
+ */
+export async function finishText(cancel = false) {
+  const edit = textEdit;
+  if (!edit || edit.saving) return;
+  const { tab, page, original } = edit;
+  const text = edit.text.replace(/\s+$/u, "");
+  const show = async () => {
+    if (original) await setAnnotationHidden(tab.docId, page, original.id, false);
+  };
+  if (cancel || (!original && !text.trim())) {
+    textEdit = null;
+    await show();
+    if (original) tab.bumpPage(page);
+    return;
+  }
+  textEdit = { ...edit, saving: true };
+  try {
+    await show();
+    if (!text.trim() && original) {
+      await remove(tab, page, original);
+    } else {
+      const size = await measureText(text, edit.style);
+      const pageSize = tab.info.pageSizes[page];
+      const w = size.width / pageSize.width;
+      const h = size.height / pageSize.height;
+      const left = growsLeft(text, edit.style) ? edit.anchor.x - w : edit.anchor.x;
+      const rect = { left, top: edit.anchor.y, right: left + w, bottom: edit.anchor.y + h };
+      const kind = { kind: "freeText" as const, text, style: edit.style };
+      if (original) {
+        await update(tab, page, original, { ...original, kind, rect, color: edit.color, contents: text });
+      } else {
+        const added = await add(tab, page, {
+          id: "",
+          kind,
+          rect,
+          color: edit.color,
+          opacity: 1,
+          width: 0,
+          contents: text,
+          author: "",
+          modified: null,
+          editable: true,
+          replyTo: null,
+        });
+        tab.selectedAnnotation = { page, id: added.id };
+      }
+    }
+    // The editor stays until the page shows the text, so nothing blinks.
+    await tab.whenPainted(page);
+  } finally {
+    if (textEdit?.tab === tab && textEdit.page === page) textEdit = null;
+  }
 }

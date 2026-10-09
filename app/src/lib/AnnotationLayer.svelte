@@ -8,10 +8,15 @@ import {
   type AnnotTool,
   add,
   annotate,
+  changeText,
+  editText,
+  finishText,
+  growsLeft,
   lighter,
   PALETTE,
   placeSignature,
   remove,
+  startText,
   toHex,
   unmarkRedaction,
   update,
@@ -43,7 +48,9 @@ import type { Degrees } from "./layout";
 import { fade, out, pop, rise } from "./motion";
 import { getAnnotations, type RivetError, setAnnotationHidden, toRivetError } from "./pdf";
 import { settings, type ToolStyle } from "./settings.svelte";
+import TextBoxEditor from "./TextBoxEditor.svelte";
 import type { Tab } from "./tabs.svelte";
+import { stepSize, TEXT_PADDING } from "./textBox";
 
 interface Props {
   tab: Tab;
@@ -136,6 +143,15 @@ function onLayerDown(e: PointerEvent) {
   }
   if (tool === "signature") {
     putSignature(p);
+    return;
+  }
+  if (tool === "text") {
+    // A click while a box is being written only ends it (see `commitOnOutsideClick`).
+    if (annotate.textEdit) return;
+    const boxes = list.filter((a) => a.kind.kind === "freeText" && a.editable);
+    const existing = topmostAt(boxes, p.x, p.y, box);
+    if (existing) editText(tab, index, existing).catch(fail);
+    else startText(tab, index, fromPx(p.x, p.y, box));
     return;
   }
   layer.setPointerCapture(e.pointerId);
@@ -359,6 +375,17 @@ function onDragMove(e: PointerEvent) {
     const point = fromPx(p.x, p.y, box);
     const kind = { ...a.kind, [drag.handle]: point };
     drag.preview = { ...a, kind, rect: rectFrom(kind.from, kind.to) };
+  } else if (drag.handle !== "from" && drag.handle !== "to" && a.kind.kind === "freeText") {
+    // A text box's sides set its width (lines then wrap) and its height (room for the text to sit in).
+    const handle = drag.handle;
+    const r = dragHandle(rectToPx(a.rect, box), handle, dx, dy, 12);
+    const s = a.kind.style;
+    const style = {
+      ...s,
+      width: /[ew]/.test(handle) ? Math.max(s.size, r.width / scale - 2 * TEXT_PADDING) : s.width,
+      height: /[ns]/.test(handle) ? Math.max(0, r.height / scale - 2 * TEXT_PADDING) : s.height,
+    };
+    drag.preview = { ...a, rect: pxToRect(r, box), kind: { ...a.kind, style } };
   } else if (drag.handle !== "from" && drag.handle !== "to") {
     const r = dragHandle(rectToPx(a.rect, box), drag.handle, dx, dy);
     drag.preview = resized(a, pxToRect(r, box));
@@ -463,6 +490,68 @@ async function saveComment(a: Annotation) {
   }
 }
 
+/** A double-click on a text box's handle: back to fitting its text. */
+async function fitText(a: Annotation) {
+  if (a.kind.kind !== "freeText") return;
+  const style = { ...a.kind.style, width: null, height: null };
+  try {
+    await update(tab, index, a, { ...a, kind: { ...a.kind, style } });
+  } catch (err) {
+    fail(err);
+  }
+}
+
+// --- Writing in a text box --------------------------------------------------
+
+let textEdit = $derived(annotate.textEdit?.tab === tab && annotate.textEdit.page === index ? annotate.textEdit : null);
+
+/** Keys while writing: Escape or Ctrl+Enter finish, Ctrl+[ and Ctrl+] change the size. */
+function onTextKey(e: KeyboardEvent) {
+  // Everything typed belongs to the box, not to the app's shortcuts.
+  e.stopPropagation();
+  const edit = annotate.textEdit;
+  if (!edit) return;
+  if (e.key === "Escape" || (e.key === "Enter" && (e.ctrlKey || e.metaKey))) {
+    e.preventDefault();
+    finishText().catch(fail);
+  } else if ((e.ctrlKey || e.metaKey) && (e.code === "BracketLeft" || e.code === "BracketRight")) {
+    e.preventDefault();
+    const size = stepSize(edit.style.size, e.code === "BracketRight" ? 1 : -1);
+    changeText({ style: { ...edit.style, size } });
+  }
+}
+
+// A click outside the box (not on the Annotate toolbar, where its style is chosen) ends it.
+$effect(() => {
+  if (!textEdit) return;
+  const outside = (e: PointerEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest(".text-box, .annotate-bar, .font-menu")) return;
+    finishText().catch(fail);
+  };
+  window.addEventListener("pointerdown", outside, true);
+  return () => window.removeEventListener("pointerdown", outside, true);
+});
+
+// A double-click on a text box edits it. (The layer gets it: the first click
+// started a possible drag, which captures the pointer.)
+function onDoubleClick(e: MouseEvent) {
+  const p = pointer(e);
+  const boxes = list.filter((a) => a.kind.kind === "freeText" && a.editable);
+  const a = topmostAt(boxes, p.x, p.y, box);
+  if (a && !annotate.textEdit) editText(tab, index, a).catch(fail);
+}
+
+// Enter on a selected text box edits it.
+function onWindowKey(e: KeyboardEvent) {
+  const a = selected;
+  if (a?.kind.kind !== "freeText" || !a.editable || e.key !== "Enter" || annotate.textEdit) return;
+  const t = e.target as HTMLElement | null;
+  if (t?.closest("input, textarea, select, button, [contenteditable]")) return;
+  e.preventDefault();
+  editText(tab, index, a).catch(fail);
+}
+
 /** px of the selection frame and its handles. */
 let frame = $derived.by(() => {
   const a = drag?.preview ?? selected;
@@ -536,17 +625,21 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
       {/if}
 {/snippet}
 
+<svelte:window onkeydown={onWindowKey} />
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="annot-layer"
   class:drawing={drawingTool}
   class:eraser={tool === "eraser"}
+  class:writing={tool === "text"}
   bind:this={layer}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
   onpointercancel={onPointerUp}
   onpointerleave={() => (ghostAt = null)}
+  ondblclick={onDoubleClick}
 >
   <svg {width} {height} aria-hidden="true">
     <!-- Invisible shapes to click: drawings, shapes and notes. Text markup is
@@ -559,6 +652,10 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
           {/each}
         {:else if a.kind.kind === "line"}
           <polyline class="hit stroke" points={strokePoints([a.kind.from, a.kind.to])}
+            onpointerdown={(e) => onShapeDown(e, a)} />
+        {:else if a.kind.kind === "freeText"}
+          {@const r = rectToPx(a.rect, box)}
+          <rect class="hit fill text" x={r.left} y={r.top} width={r.width} height={r.height}
             onpointerdown={(e) => onShapeDown(e, a)} />
         {:else if a.kind.kind === "square" || a.kind.kind === "circle" || a.kind.kind === "note" || a.kind.kind === "stamp"}
           {@const r = rectToPx(a.rect, box)}
@@ -625,6 +722,8 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
         {:else if p.kind.kind === "note"}
           <rect class="preview" x={r.left} y={r.top} width={r.width} height={r.height} rx="2" stroke={rgb(p.color)}
             stroke-width="1.5" fill={rgb(lighter(p.color, 0.3))} />
+        {:else if p.kind.kind === "freeText"}
+          <!-- Drawn as text below. -->
         {:else}
           <!-- A signature or another app's stamp: its outline. -->
           <rect class="preview placeholder" x={r.left} y={r.top} width={r.width} height={r.height} />
@@ -646,12 +745,42 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
           {#each HANDLES as h (h)}
             {@const p = handlePos(h, { left: r.left - 3, top: r.top - 3, width: r.width + 6, height: r.height + 6 })}
             <rect class="handle {h}" x={p.x - 4} y={p.y - 4} width="8" height="8"
-              onpointerdown={(e) => startDrag(e, a, h)} />
+              onpointerdown={(e) => startDrag(e, a, h)} ondblclick={() => fitText(a)} />
           {/each}
         {/if}
       {/if}
     {/if}
   </svg>
+
+  <!-- A text box being moved or resized, as it will look. -->
+  {#if (drag?.movedEnough ? drag.preview : dropped)?.kind.kind === "freeText"}
+    {@const p = (drag?.movedEnough ? drag.preview : dropped) as Annotation}
+    {#if p.kind.kind === "freeText"}
+      {@const r = rectToPx(p.rect, box)}
+      {@const left = growsLeft(p.kind.text, p.kind.style)}
+      <TextBoxEditor text={p.kind.text} style={p.kind.style} color={p.color} {scale}
+        x={left ? r.left + r.width : r.left} y={r.top} growLeft={left} />
+    {/if}
+  {/if}
+
+  <!-- The text box being written. -->
+  {#if textEdit}
+    {@const at = toPx(textEdit.anchor, box)}
+    <TextBoxEditor
+      text={textEdit.text}
+      style={textEdit.style}
+      color={textEdit.color}
+      {scale}
+      x={at.x}
+      y={at.y}
+      growLeft={growsLeft(textEdit.text, textEdit.style)}
+      editable
+      saving={textEdit.saving}
+      placeholder={i18n.t("text-placeholder")}
+      oninput={(text) => changeText({ text })}
+      onkeydown={onTextKey}
+    />
+  {/if}
 
   <!-- Areas marked for redaction (applied when the document is saved). -->
   {#each tab.redactions.filter((m) => m.page === index) as mark (mark.id)}
@@ -674,10 +803,17 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
             aria-label={toHex(color)} onclick={() => recolor(a, color)}></button>
         {/each}
         <span class="sep" aria-hidden="true"></span>
-        <button class="icon" title={i18n.t("annot-comment")} aria-label={i18n.t("annot-comment")}
-          aria-pressed={editing === a.id} onclick={() => (editing = editing === a.id ? null : a.id)}>
-          <Icon name="comment" />
-        </button>
+        {#if a.kind.kind === "freeText"}
+          <button class="icon" title={i18n.t("text-edit")} aria-label={i18n.t("text-edit")} data-shortcut="Enter"
+            onclick={() => editText(tab, index, a).catch(fail)}>
+            <Icon name="text" />
+          </button>
+        {:else}
+          <button class="icon" title={i18n.t("annot-comment")} aria-label={i18n.t("annot-comment")}
+            aria-pressed={editing === a.id} onclick={() => (editing = editing === a.id ? null : a.id)}>
+            <Icon name="comment" />
+          </button>
+        {/if}
       {/if}
       <button class="icon" title={i18n.t("annot-delete")} aria-label={i18n.t("annot-delete")} data-shortcut="Delete"
         onclick={() => remove(tab, index, a).catch(fail)}>
@@ -725,6 +861,12 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
   }
   .annot-layer.eraser {
     cursor: cell;
+  }
+  .annot-layer.writing {
+    cursor: text;
+  }
+  .hit.text {
+    cursor: move;
   }
   .ghost {
     opacity: 0.7;

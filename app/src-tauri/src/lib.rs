@@ -156,6 +156,22 @@ async fn search_document(
     blocking(move || engine.search(doc_id, query, first)).await
 }
 
+/// Fonts that text boxes can use: PDFRivet's own, then the installed ones.
+/// The first call scans the system's font folders, so it runs off the main thread.
+#[tauri::command]
+async fn list_fonts() -> Result<Vec<rivet_core::FontInfo>, Error> {
+    blocking(|| Ok(rivet_core::fonts::list())).await
+}
+
+/// The size (points) a text box needs for its text.
+#[tauri::command]
+async fn measure_text(
+    text: String,
+    style: rivet_core::TextStyle,
+) -> Result<rivet_core::TextBoxSize, Error> {
+    blocking(move || Ok(rivet_core::measure_text(&text, &style))).await
+}
+
 /// The name of the user signed in to the OS (the default author of annotations).
 #[tauri::command]
 fn user_name() -> String {
@@ -522,6 +538,20 @@ fn page_protocol(engine: &Engine, uri: &http::Uri) -> http::Response<Vec<u8>> {
         return binary_response(text);
     }
 
+    // Fonts for text boxes: /font/<name> returns a bundled font file, so the
+    // editor shows text in the same font the page will.
+    if let ["font", name] = parts.as_slice() {
+        return match rivet_core::fonts::bundled_file(name) {
+            Some(bytes) => http::Response::builder()
+                .header("Access-Control-Allow-Origin", "*")
+                .header("Cache-Control", "max-age=31536000, immutable")
+                .header("Content-Type", "font/ttf")
+                .body(bytes.to_vec())
+                .unwrap_or_else(|_| http::Response::new(Vec::new())),
+            None => binary_response(Err(Error::new(ErrorCode::Internal, "no such font"))),
+        };
+    }
+
     // Printing: /print/<doc>/<page>?dpi=<n> returns a JPEG of the upright page.
     if let ["print", doc, page] = parts.as_slice() {
         let dpi = query("dpi")
@@ -730,6 +760,8 @@ pub fn run() {
             set_metadata,
             set_outline,
             get_annotations_from,
+            list_fonts,
+            measure_text,
             print_placement,
             printer_properties,
             print_document,

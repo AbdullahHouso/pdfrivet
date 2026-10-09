@@ -50,7 +50,7 @@ let canReply = $derived(tab.info.canReply);
 
 const KINDS: {
   kind: CommentKind;
-  icon: "highlight" | "underline" | "strikeout" | "pen" | "rectangle" | "note" | "signature";
+  icon: "highlight" | "underline" | "strikeout" | "pen" | "rectangle" | "note" | "text" | "signature";
 }[] = [
   { kind: "highlight", icon: "highlight" },
   { kind: "underline", icon: "underline" },
@@ -58,6 +58,7 @@ const KINDS: {
   { kind: "ink", icon: "pen" },
   { kind: "shape", icon: "rectangle" },
   { kind: "note", icon: "note" },
+  { kind: "text", icon: "text" },
   { kind: "stamp", icon: "signature" },
 ];
 

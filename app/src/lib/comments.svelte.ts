@@ -11,7 +11,16 @@ import type { Tab } from "./tabs.svelte";
 import { boxAt, codeAt, hasBox, type PageText } from "./textSelect";
 
 /** What kind of annotation, as the panel shows and filters them. */
-export type CommentKind = "highlight" | "underline" | "strikeout" | "ink" | "shape" | "note" | "stamp" | "other";
+export type CommentKind =
+  | "highlight"
+  | "underline"
+  | "strikeout"
+  | "ink"
+  | "shape"
+  | "note"
+  | "text"
+  | "stamp"
+  | "other";
 
 export function commentKind(a: Annotation): CommentKind {
   switch (a.kind.kind) {
@@ -25,6 +34,8 @@ export function commentKind(a: Annotation): CommentKind {
       return "shape";
     case "note":
       return "note";
+    case "freeText":
+      return "text";
     case "stamp":
       return "stamp";
     default:
@@ -95,7 +106,8 @@ export function filterThreads(threads: Thread[], f: CommentFilter): Thread[] {
     if (f.authors.size && ![a, ...replies].some((x) => f.authors.has(x.author))) return false;
     if (f.withText && !a.contents.trim() && replies.length === 0) return false;
     if (needle) {
-      const haystack = [a, ...replies].map((x) => `${x.contents}\n${x.author}`).join("\n");
+      const own = a.kind.kind === "freeText" ? a.kind.text : "";
+      const haystack = [own, ...[a, ...replies].map((x) => `${x.contents}\n${x.author}`)].join("\n");
       if (!haystack.toLocaleLowerCase().includes(needle)) return false;
     }
     return true;

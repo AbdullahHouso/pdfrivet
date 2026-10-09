@@ -614,6 +614,15 @@ function onKey(e: KeyboardEvent) {
         if (tab?.info.canAnnotate) annotate.open = !annotate.open;
       },
     ],
+    // T: write a text box.
+    [
+      !!tab && !typing && !mod && !e.altKey && key === "t",
+      () => {
+        if (!tab?.info.canAnnotate) return;
+        settings.tool = "select";
+        annotate.tool = "text";
+      },
+    ],
     [!!tab && !typing && mod && !e.shiftKey && key === "z", () => tab && undoRedo(tab, -1)],
     [!!tab && !typing && mod && (key === "y" || (e.shiftKey && key === "z")), () => tab && undoRedo(tab, 1)],
     [

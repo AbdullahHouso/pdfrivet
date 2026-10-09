@@ -2,8 +2,10 @@
 // The Annotate toolbar: a second row under the main toolbar with the
 // annotation tools, the current tool's colour, width and opacity, and undo/redo.
 import type { ComponentProps } from "svelte";
-import { type AnnotTool, annotate, PALETTE, redo, toHex, undo } from "./annotate.svelte";
+import { type AnnotTool, annotate, changeText, PALETTE, redo, toHex, undo, update } from "./annotate.svelte";
 import type { Color } from "./bindings/Color";
+import type { TextStyle } from "./bindings/TextStyle";
+import FontPicker from "./FontPicker.svelte";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
 import { fade, out } from "./motion";
@@ -12,6 +14,7 @@ import SignatureDialog from "./SignatureDialog.svelte";
 import { settings } from "./settings.svelte";
 import { type Signature, signatures } from "./signatures.svelte";
 import type { Tab } from "./tabs.svelte";
+import { clampSize, FONT_SIZES } from "./textBox";
 
 interface Props {
   tab: Tab;
@@ -36,6 +39,7 @@ const GROUPS: ToolButton[][] = [
     { tool: "arrow", icon: "arrow", label: "annot-arrow" },
   ],
   [
+    { tool: "text", icon: "text", label: "annot-text" },
     { tool: "note", icon: "note", label: "annot-note" },
     { tool: "eraser", icon: "eraser", label: "annot-eraser" },
   ],
@@ -90,7 +94,9 @@ function useSignature(sig: Signature) {
 function inkPath(sig: Extract<Signature, { kind: "ink" }>) {
   return sig.strokes.map((s) => `M${s.map((p) => `${p.x} ${p.y}`).join("L")}`).join(" ");
 }
-let style = $derived(current && !["eraser", "redact", "signature"].includes(current) ? annotate.style(current) : null);
+let style = $derived(
+  current && !["eraser", "redact", "signature", "text"].includes(current) ? annotate.style(current) : null,
+);
 let marked = $derived(tab.redactions.length);
 let hasWidth = $derived(current !== null && ["pen", "rectangle", "ellipse", "line", "arrow"].includes(current));
 let hasFill = $derived(current === "rectangle" || current === "ellipse");
@@ -107,6 +113,56 @@ function fromHex(value: string): Color {
     b: Number.parseInt(value.slice(5, 7), 16),
   };
 }
+
+// --- Text boxes: their style controls ---------------------------------------
+// They change the box being written, or the selected box, and become the
+// style of new boxes (like the other tools remember theirs).
+
+let editingText = $derived(annotate.textEdit?.tab === tab ? annotate.textEdit : null);
+let selectedText = $derived.by(() => {
+  const sel = tab.selectedAnnotation;
+  const a = sel ? tab.annotations.get(sel.page)?.find((x) => x.id === sel.id) : undefined;
+  return sel && a?.kind.kind === "freeText" && a.editable ? { page: sel.page, a } : null;
+});
+let textTarget = $derived.by((): { style: TextStyle; color: Color } | null => {
+  if (editingText) return { style: editingText.style, color: editingText.color };
+  if (selectedText?.a.kind.kind === "freeText")
+    return { style: selectedText.a.kind.style, color: selectedText.a.color };
+  if (current === "text") return { style: settings.textStyle, color: annotate.style("text").color };
+  return null;
+});
+
+function applyText(change: Partial<TextStyle>, color?: Color) {
+  settings.textStyle = { ...settings.textStyle, ...change };
+  if (color) annotate.setStyle("text", { color });
+  if (editingText) {
+    changeText({ style: { ...editingText.style, ...change }, color: color ?? editingText.color });
+    // Back to writing.
+    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".text-box textarea")?.focus());
+  } else if (selectedText) {
+    const { page, a } = selectedText;
+    if (a.kind.kind !== "freeText") return;
+    const kind = { ...a.kind, style: { ...a.kind.style, ...change } };
+    run((t) => update(t, page, a, { ...a, kind, color: color ?? a.color }));
+  }
+}
+
+const ALIGNS = [
+  { value: "auto", icon: "align-auto", label: "text-align-auto" },
+  { value: "left", icon: "align-left", label: "text-align-left" },
+  { value: "center", icon: "align-center", label: "text-align-center" },
+  { value: "right", icon: "align-right", label: "text-align-right" },
+] as const;
+const VALIGNS = [
+  { value: "top", icon: "valign-top", label: "text-valign-top" },
+  { value: "middle", icon: "valign-middle", label: "text-valign-middle" },
+  { value: "bottom", icon: "valign-bottom", label: "text-valign-bottom" },
+] as const;
+const DIRECTIONS = [
+  { value: "auto", icon: "dir-auto", label: "text-dir-auto" },
+  { value: "rtl", icon: "dir-rtl", label: "text-dir-rtl" },
+  { value: "ltr", icon: "dir-ltr", label: "text-dir-ltr" },
+] as const;
 
 async function run(action: (t: Tab) => Promise<unknown>) {
   try {
@@ -168,7 +224,58 @@ async function run(action: (t: Tab) => Promise<unknown>) {
     </div>
   </div>
 
-  {#if style && current}
+  {#if textTarget}
+    {@const ts = textTarget.style}
+    <div class="group style text-style" aria-label={i18n.t("annot-style")}>
+      <FontPicker value={ts.font} onchange={(font) => applyText({ font })} />
+      <input class="size" type="number" min="4" max="200" step="1" value={ts.size} list="text-sizes"
+        title={i18n.t("text-size")} aria-label={i18n.t("text-size")}
+        onchange={(e) => applyText({ size: clampSize(Number(e.currentTarget.value) || ts.size) })} />
+      <datalist id="text-sizes">
+        {#each FONT_SIZES as size (size)}
+          <option value={size}></option>
+        {/each}
+      </datalist>
+      <button class="icon" aria-pressed={ts.bold} onclick={() => applyText({ bold: !ts.bold })}
+        title={i18n.t("text-bold")} aria-label={i18n.t("text-bold")}>
+        <Icon name="bold" />
+      </button>
+      <span class="sep" aria-hidden="true"></span>
+      <div class="segmented" role="radiogroup" aria-label={i18n.t("text-align")}>
+        {#each ALIGNS as o (o.value)}
+          <button class="icon" role="radio" aria-checked={ts.align === o.value} onclick={() => applyText({ align: o.value })}
+            title={i18n.t(o.label)} aria-label={i18n.t(o.label)}>
+            <Icon name={o.icon} />
+          </button>
+        {/each}
+      </div>
+      <div class="segmented" role="radiogroup" aria-label={i18n.t("text-valign")}>
+        {#each VALIGNS as o (o.value)}
+          <button class="icon" role="radio" aria-checked={ts.valign === o.value} onclick={() => applyText({ valign: o.value })}
+            title={i18n.t(o.label)} aria-label={i18n.t(o.label)}>
+            <Icon name={o.icon} />
+          </button>
+        {/each}
+      </div>
+      <div class="segmented" role="radiogroup" aria-label={i18n.t("text-dir")}>
+        {#each DIRECTIONS as o (o.value)}
+          <button class="icon" role="radio" aria-checked={ts.direction === o.value}
+            onclick={() => applyText({ direction: o.value })} title={i18n.t(o.label)} aria-label={i18n.t(o.label)}>
+            <Icon name={o.icon} />
+          </button>
+        {/each}
+      </div>
+      <span class="sep" aria-hidden="true"></span>
+      {#each PALETTE as color (toHex(color))}
+        <button class="swatch" style:background={toHex(color)} aria-pressed={toHex(color) === toHex(textTarget.color)}
+          aria-label={toHex(color)} onclick={() => applyText({}, color)}></button>
+      {/each}
+      <label class="custom" title={i18n.t("annot-custom-color")}>
+        <input type="color" value={toHex(textTarget.color)} aria-label={i18n.t("annot-custom-color")}
+          onchange={(e) => applyText({}, fromHex(e.currentTarget.value))} />
+      </label>
+    </div>
+  {:else if style && current}
     <div class="group style" aria-label={i18n.t("annot-style")}>
       {#each PALETTE as color (toHex(color))}
         <button class="swatch" style:background={toHex(color)} aria-pressed={toHex(color) === toHex(style.color)}
@@ -251,7 +358,21 @@ async function run(action: (t: Tab) => Promise<unknown>) {
     padding-inline: 8px;
     background: var(--surface);
     border-block-end: 1px solid var(--border);
-    overflow-x: auto;
+    /* Long rows (a text box's controls) continue on a second line. */
+    flex-wrap: wrap;
+  }
+  .size {
+    width: 58px;
+    padding-block: 3px;
+    padding-inline: 6px;
+  }
+  .segmented {
+    display: flex;
+    gap: 1px;
+  }
+  .text-style .icon {
+    width: 30px;
+    height: 30px;
   }
   .group {
     display: flex;

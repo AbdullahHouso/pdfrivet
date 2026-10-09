@@ -68,6 +68,7 @@ const ICONS = {
   ink: "pen",
   shape: "rectangle",
   note: "note",
+  text: "text",
   stamp: "signature",
   other: "comment",
 } as const;
@@ -162,7 +163,7 @@ function showMenu(e: MouseEvent, target: Annotation) {
   e.stopPropagation();
   const isReply = target !== a;
   const items: MenuItem[] = [];
-  if (canEdit && target.editable) {
+  if (canEdit && target.editable && target.kind.kind !== "freeText") {
     items.push({
       label: i18n.t(isReply ? "reply-edit" : "comment-edit"),
       action: () => start(isReply ? target.id : "comment", target.contents),
@@ -230,7 +231,10 @@ function onclick(e: MouseEvent) {
     <blockquote dir="auto">{quote}</blockquote>
   {/if}
 
-  {#if editing === "comment"}
+  {#if a.kind.kind === "freeText"}
+    <!-- A text box's comment is its text (written on the page). -->
+    <p class="text written" dir="auto">{a.kind.text}</p>
+  {:else if editing === "comment"}
     {@render editor(i18n.t("annot-comment-placeholder"))}
   {:else if a.contents}
     <p class="text" dir="auto">{a.contents}</p>
@@ -375,6 +379,11 @@ function onclick(e: MouseEvent) {
     font-size: 13px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .written {
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--canvas);
   }
   .add {
     align-self: flex-start;

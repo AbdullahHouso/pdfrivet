@@ -7,6 +7,7 @@ import type { DocInfo } from "./bindings/DocInfo";
 import type { DocProperties } from "./bindings/DocProperties";
 import type { ErrorCode } from "./bindings/ErrorCode";
 import type { FieldChange } from "./bindings/FieldChange";
+import type { FontInfo } from "./bindings/FontInfo";
 import type { FormField } from "./bindings/FormField";
 import type { Metadata } from "./bindings/Metadata";
 import type { OutlineItem } from "./bindings/OutlineItem";
@@ -14,7 +15,9 @@ import type { PageLink } from "./bindings/PageLink";
 import type { PageRect } from "./bindings/PageRect";
 import type { SearchBatch } from "./bindings/SearchBatch";
 import type { SearchQuery } from "./bindings/SearchQuery";
+import type { TextBoxSize } from "./bindings/TextBoxSize";
 import type { TextRange } from "./bindings/TextRange";
+import type { TextStyle } from "./bindings/TextStyle";
 import type { Degrees } from "./layout";
 
 export interface OpenedDocument {
@@ -52,6 +55,16 @@ export function getOutline(docId: number): Promise<OutlineItem[]> {
 /** Annotations of the pages from `first` on, a batch of pages at a time. */
 export function getAnnotationsFrom(docId: number, first: number): Promise<AnnotationBatch> {
   return invoke("get_annotations_from", { docId, first });
+}
+
+/** Fonts text boxes can use: PDFRivet's own, then the installed ones. */
+export function listFonts(): Promise<FontInfo[]> {
+  return invoke("list_fonts");
+}
+
+/** The size (points) a text box needs for `text`. */
+export function measureText(text: string, style: TextStyle): Promise<TextBoxSize> {
+  return invoke("measure_text", { text, style });
 }
 
 /** Replaces the bookmarks (written into the file on the next save). */
@@ -196,7 +209,9 @@ export function captureTaskbarTab(): Promise<void> {
 
 // Custom protocols are exposed as http://<name>.localhost on Windows/Android
 // and as <name>://localhost elsewhere.
-const PROTOCOL_BASE = /Windows|Android/.test(navigator.userAgent) ? "http://rivet.localhost" : "rivet://localhost";
+export const PROTOCOL_BASE = /Windows|Android/.test(navigator.userAgent)
+  ? "http://rivet.localhost"
+  : "rivet://localhost";
 
 export interface PagePixels {
   width: number;
