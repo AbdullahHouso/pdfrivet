@@ -50,6 +50,11 @@ Query parameters: `scale`, `rot` (0/90/180/270, view only) and `thumb=1` for thu
   rendered before at that size it appears sharp at once. Otherwise a quick low-resolution
   preview shows while the sharp page renders. When zooming, the old pixels are stretched
   until the new render arrives.
+- **Pages in the webview** (`pageCanvasCache.ts`): a page leaving the screen keeps its canvas
+  (32 MB budget), and a page coming back paints it in the same frame. Getting pixels from the
+  engine, even from its cache, means sending megabytes through the webview, which showed the
+  empty page for a moment. Reading a page at a time, the next and previous rows are rendered
+  ahead into it.
 - **PDFium's own caches:** PDFium keeps fonts, images and other data of every page it has
   shown until the document is closed (about 20 MB per 100 pages in image-heavy files). After
   100 pages the engine quietly reopens the document from the same bytes

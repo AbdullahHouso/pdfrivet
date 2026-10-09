@@ -242,7 +242,7 @@ $effect(() => {
         scale,
       );
     }
-  }, 250);
+  }, 120);
   return () => clearTimeout(timer);
 });
 

@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 ## [Unreleased]
 
 ### Look and feel
+- The + button opens a new tab with the start page (recent files, Open), also with Ctrl+T.
+- Pages you just saw, and the next and previous pages when reading a page at a time, appear instantly instead of blank for a moment.
 - Smooth, quick animations: menus, dialogs, tooltips, the find bar, the sidebar, tabs and annotation menus fade and glide in and out. Settings → Appearance → Animations turns them off (off from the start if your system asks for reduced motion).
 
 ### Text
