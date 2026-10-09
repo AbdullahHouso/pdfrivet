@@ -6,16 +6,23 @@
 
 <p align="center"><strong>A free, fast PDF reader and editor for Windows, Linux and macOS.</strong></p>
 
-> **0.1 "Reader"** is out: get it from [pdfrivet.com](https://pdfrivet.com). PDFRivet is young; editing features come in the next versions.
+> **0.2** is out: get it from [pdfrivet.com](https://pdfrivet.com). It adds text selection and
+> search, annotations, signatures, text boxes, redaction, bookmarks and comments.
 
-## What it can do (0.1)
+## What it can do (0.2)
 
+- **Select, copy and search** text, with Arabic-aware search (diacritics, letter forms, digits)
+- **Annotate**: highlight, underline, strike out, pen, shapes, lines and arrows, sticky notes, eraser, undo and redo
+- **Write on pages** with text boxes in any font, with Arabic shaped and ordered correctly
+- **Sign** with a drawn signature or one from a photo, saved for next time
+- **Redact** text and areas for good
+- **Bookmark** pages and edit the document's bookmarks; **comment** on annotations and reply
 - Open several PDFs in **tabs**, from the app, by drag and drop, or with "Open with" in your file manager
 - **Continuous scrolling** that stays fast on documents with thousands of pages
 - **Zoom** (fit page, fit width, actual size, Ctrl + wheel, pinch) and **rotate** the view
 - **Single page or two pages** side by side (spreads follow the document's reading direction), with or without continuous scrolling
 - **Print** with PDFRivet's own dialog and a live preview: printer, pages, copies, scaling, paper, two-sided
-- **Thumbnails** and the document **outline** (table of contents)
+- **Thumbnails** in a resizable sidebar
 - **Fill in forms** (text fields, checkboxes, radio buttons, drop-downs) and **save**, including over the open file
 - Clickable **links** inside documents
 - **Password-protected** PDFs
@@ -39,10 +46,9 @@ translations (left-to-right and right-to-left alike) are welcome; see [CONTRIBUT
 |---|---|---|
 | M0 ✅ | – | Foundations: engine, app shell, EN/AR UI, CI |
 | M1 ✅ | 0.1 | Reader + forms: tabs, continuous scroll, zoom, thumbnails, outline, links, form filling, save, printing, document properties, in-app updates |
-| M2 | 0.2 | Text selection, copy and search |
+| M2 + M4 ✅ | 0.2 | Text selection, copy and search; annotations, signatures, text boxes, redaction, bookmarks and comments |
 | M3 | 0.3 | Page tools: merge, split, rotate, reorder, extract |
-| M4 | 0.4 | Annotations and hand-drawn signatures |
-| M5 | 0.5 | Export to images/text, images to PDF, flattening forms |
+| M5 | 0.4 | Export to images/text, images to PDF, flattening forms |
 
 ## Installing
 

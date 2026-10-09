@@ -3508,7 +3508,7 @@ dependencies = [
 
 [[package]]
 name = "rivet-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "image",
  "rivet-core",
@@ -3529,7 +3529,7 @@ dependencies = [
 
 [[package]]
 name = "rivet-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3539,7 +3539,7 @@ dependencies = [
 
 [[package]]
 name = "rivet-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "harfrust",
  "image",
@@ -6052,7 +6052,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "flate2",

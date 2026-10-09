@@ -7,64 +7,64 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 
 ## [Unreleased]
 
-### Look and feel
-- The + button opens a new tab with the start page (recent files, Open), also with Ctrl+T.
-- Pages you just saw, and the next and previous pages when reading a page at a time, appear instantly instead of blank for a moment.
-- PDF files get their own icon in Explorer (a white page with the PDFRivet mark and a copper “PDF” band) once PDFRivet is your default PDF app (Windows).
-- Drag the sidebar's edge to make it wider or narrower (up to a quarter of the window). Thumbnails grow with it, and the size slider above them fits 2, 3 or more per row.
-- Smooth, quick animations: menus, dialogs, tooltips, the find bar, the sidebar, tabs and annotation menus fade and glide in and out. Settings → Appearance → Animations turns them off (off from the start if your system asks for reduced motion).
+## [0.2.0] – 2026-10-10
 
-### Bookmarks
-- Bookmark the page you're on with Ctrl+B, the right-click menu (on a page or a thumbnail) or the sidebar's Bookmarks tab. The selected text, if any, becomes its title.
-- Rename (double-click or F2), delete, drag to reorder or put one inside another, or move them with Alt+arrow keys. Undo works here too.
-- Bookmarks are saved in the PDF's own bookmarks (its outline), so other PDF readers show them. The document's existing bookmarks can be edited the same way.
+PDFRivet now edits: select and search text, annotate, sign, write on pages, redact,
+bookmark and comment, with Arabic and other right-to-left languages handled properly
+everywhere.
 
-### Comments
-- A comments panel (toolbar button or Ctrl+Shift+C) lists every annotation, page by page: highlights with the text they mark, drawings and shapes with a small picture, notes and signatures. Click one to go to it.
-- Write or change any annotation's comment there, and reply to comments. Replies are saved the standard way, so Acrobat and other readers show them under the comment.
-- Search the comments, or show only some kinds of annotations or one author's.
-- Deleting an annotation deletes its replies too (undo brings them all back).
-
-### Text
+### Text and search
 - Select text with the mouse: drag, double-click a word, triple-click a line, Shift+click to extend, Ctrl+A for everything. Works the same in Arabic and other right-to-left text.
-- Copy with Ctrl+C or the right-click menu. PDFs whose author doesn't allow copying say so.
-- Arabic words with the lam-alef ligature (لا) are copied and found correctly.
-
-### Search
-- Text boxes (search, page number, comments) use PDFRivet's fonts, so Arabic shows properly there too.
-- Find in document with Ctrl+F: results are highlighted on the pages as you type; Enter / Shift+Enter or F3 / Shift+F3 step through them.
+- Copy with Ctrl+C or the right-click menu (PDFs whose author doesn't allow copying say so). Arabic words with the lam-alef ligature (لا) are copied correctly.
+- Find in document with Ctrl+F: results are highlighted as you type; Enter / Shift+Enter or F3 / Shift+F3 step through them. Match case and whole-word options.
 - Arabic is found with or without diacritics, with any form of alef (أ إ آ ا), with ى or ي, and in old PDFs that store letters in their joined forms. Digits match in any script (١٢٣ finds 123).
-- Match case and whole-word options.
-- All results with the text around them in the sidebar's new Search tab.
+- Every result with the text around it in the sidebar's Search tab.
 
 ### Annotations
 - A new Annotate toolbar (A): highlight, underline and strike out text, draw with a pen, add rectangles, ellipses, lines, arrows and sticky notes, and erase drawings.
-- Highlight, underline or strike out selected text from the right-click menu too.
+- Highlight, underline or strike out selected text from the right-click menu too; on scanned pages and pictures, drag over the area instead.
 - Pick each tool's colour, line width and opacity; rectangles and ellipses can be filled. Your choices are remembered.
-- Click an annotation to select it: move it, resize it, change its colour, add a comment or delete it (Delete key).
-- A comment typed in an annotation's comment box is kept when you click elsewhere on the page.
-- Undo and redo with Ctrl+Z and Ctrl+Y. Undoing a delete brings an annotation back exactly as it was, even one made in another app, and even after saving.
-- Moving or resizing an annotation keeps its look (for example highlighter strokes made on an iPad keep their rounded, see-through style); while you drag, only the moved copy shows. Nothing blinks when you finish drawing, moving or highlighting.
-- Highlight, underline and strike out on scanned pages and pictures: where there's no text, drag over the area.
+- Click an annotation to move it, resize it, change its colour, add a comment or delete it. Moving keeps its look (an iPad highlighter stroke stays rounded and see-through), and nothing blinks while you work.
+- Undo and redo with Ctrl+Z and Ctrl+Y, even for deletions and even after saving.
 - Annotations are saved the standard way, so other PDF readers show them too. Settings → General has the name shown as their author.
 
 ### Text boxes
-- Write on any page with the Text tool (T): click and type. The box grows with your text; drag its side to set a width and lines wrap, drag its bottom to make room and place the text at the top, middle or bottom. Double-click a box (or select it and press Enter) to edit it later.
-- Arabic is written properly: joined letters, لا ligatures, right-to-left lines, and Arabic and English mixed on one line in the right order.
-- Choose the font (PDFRivet's own Rubik and Amiri, or any font installed on your computer), size (Ctrl+[ and Ctrl+] while typing), bold, colour, where the text sits across and down the box, and its direction (from the text, right to left, or left to right).
-- Text boxes are saved the standard way, so other readers show them as they look in PDFRivet, and Acrobat can edit them.
-- Moving a text box or a signature shows it exactly as it looks on the page, and it leaves its old place at once.
-- Text boxes written by other apps can be edited too. Ones whose Arabic came out broken (letters apart or reversed) look right once edited in PDFRivet.
-
-### Redaction
-- Redact text or areas (Annotate → Redact): select text or drag over an area. Marked areas are shown outlined and can be unmarked; when you save (or choose Apply), they are blacked out and what was under them is removed from the file for good.
-- A redacted page keeps its exact look, and its text outside the redacted areas can still be selected and searched. Its images and drawings become one picture of the page.
-- Not available yet in password-protected PDFs.
+- Write on any page with the Text tool (T): click and type. The box grows with your text; drag its side to set a width so lines wrap, or its bottom to make room and place the text at the top, middle or bottom. Double-click a box (or select it and press Enter) to edit it.
+- Arabic is written properly: joined letters, ligatures, right-to-left lines, and Arabic and English mixed on one line in the right order.
+- Choose the font (PDFRivet's own Rubik and Amiri, or any font on your computer), size (Ctrl+[ and Ctrl+] while typing), bold, colour, where the text sits in the box, and its direction (from the text, right to left, or left to right).
+- Other readers show text boxes exactly as PDFRivet does, and Acrobat can edit them. Text boxes from other apps whose Arabic came out broken look right once edited in PDFRivet.
 
 ### Signatures
-- Sign documents: draw your signature with a mouse, pen or finger, or take it from a photo or scan of your signature on paper. The paper is removed automatically, with a slider to fine-tune it.
-- Signatures can be saved for next time (only on your computer), placed with a click, then moved and resized.
-- These are signatures you can see, not digital (certificate) signatures. Saving rewrites the file, so a document that already has a digital signature will no longer show it as valid.
+- Draw your signature with a mouse, pen or finger, or take it from a photo or scan of your signature on paper (the paper is removed automatically, with a slider to fine-tune it).
+- Save signatures for next time (only on your computer), place them with a click, then move and resize them.
+
+### Comments
+- A comments panel (toolbar button or Ctrl+Shift+C) lists every annotation, page by page: highlights with the text they mark, drawings and shapes with a small picture, notes, text boxes and signatures. Click one to go to it.
+- Write or change comments there and reply to them. Replies are saved the standard way, so Acrobat shows them under the comment.
+- Search the comments, or show only some kinds of annotations or one author's.
+
+### Bookmarks
+- Bookmark the page you're on with Ctrl+B, the right-click menu or the sidebar's Bookmarks tab; selected text becomes its title.
+- Rename (double-click or F2), delete, drag to reorder or nest, or move with Alt+arrow keys. Undo works here too.
+- Bookmarks are saved in the PDF itself, so other readers show them. A document's existing bookmarks can be edited the same way.
+
+### Redaction
+- Annotate → Redact: select text or drag over an area. When you save (or choose Apply, after a confirmation), the areas are blacked out and what was under them is removed from the file for good.
+- A redacted page keeps its exact look, and its other text can still be selected and searched.
+
+### Look and feel
+- Drag the sidebar's edge to make it wider (up to a quarter of the window); thumbnails grow with it, and the size slider fits 2, 3 or more per row.
+- The + button (or Ctrl+T) opens a new tab with the start page.
+- Pages you just saw, and the next page when reading a page at a time, appear instantly. In page-at-a-time mode the mouse wheel turns one page per notch.
+- Smooth, quick animations for menus, dialogs, tooltips and panels; Settings → Appearance turns them off.
+- Search boxes and other text fields show Arabic in PDFRivet's fonts.
+- PDF files get their own icon in Explorer once PDFRivet is your default PDF app (Windows).
+
+### Good to know
+- Signatures are signatures you can see, not digital (certificate) signatures. Saving rewrites the file, so a document that already has a digital signature will no longer show it as valid.
+- Redaction, editing bookmarks and replying to comments aren't available yet in password-protected PDFs.
+- Redaction turns a page's images and drawings into one picture of the page; text on a line that touches a redacted area may no longer be selectable.
+- A text box has one style for all its text. On pages rotated in the file, text boxes are written in the page's own orientation.
 
 ## [0.1.0] – 2026-10-08
 
