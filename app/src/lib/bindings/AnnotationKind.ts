@@ -3,8 +3,9 @@ import type { Color } from "./Color";
 import type { MarkupStyle } from "./MarkupStyle";
 import type { PagePoint } from "./PagePoint";
 import type { PageRect } from "./PageRect";
+import type { TextStyle } from "./TextStyle";
 
 /**
  * What kind of annotation it is, with its shape.
  */
-export type AnnotationKind = { "kind": "markup", style: MarkupStyle, quads: Array<PageRect>, } | { "kind": "ink", strokes: Array<Array<PagePoint>>, } | { "kind": "square", fill: Color | null, } | { "kind": "circle", fill: Color | null, } | { "kind": "line", from: PagePoint, to: PagePoint, arrow: boolean, } | { "kind": "note" } | { "kind": "stamp" } | { "kind": "other", subtype: string, };
+export type AnnotationKind = { "kind": "markup", style: MarkupStyle, quads: Array<PageRect>, } | { "kind": "ink", strokes: Array<Array<PagePoint>>, } | { "kind": "square", fill: Color | null, } | { "kind": "circle", fill: Color | null, } | { "kind": "line", from: PagePoint, to: PagePoint, arrow: boolean, } | { "kind": "note" } | { "kind": "stamp" } | { "kind": "freeText", text: string, style: TextStyle, } | { "kind": "other", subtype: string, };

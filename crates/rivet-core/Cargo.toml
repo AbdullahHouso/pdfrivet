@@ -8,15 +8,22 @@ repository.workspace = true
 description = "PDF engine for Rivet: open, render and edit PDFs (built on PDFium)."
 
 [dependencies]
+# Text boxes: finding installed fonts, and shaping text (Arabic joining,
+# ligatures, right-to-left order, line breaks) to draw it.
+fontdb = "0.24.0"
 # Image types (signature pictures arrive as raw RGBA pixels) and the JPEG
 # encoder for redacted areas (the app already builds it for printing).
 image = { version = "0.25.10", default-features = false, features = ["jpeg"] }
 lopdf = { version = "0.45.0", default-features = false }
 lru = "0.18.5"
 pdfium-render = "0.9.4"
+rustybuzz = "0.20.1"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 thiserror = "2.0.21"
 ts-rs = "12.0.1"
+unicode-bidi = "0.3.18"
+unicode-linebreak = "0.1.5"
 unicode-normalization = "0.1.25"
 
 [lints]

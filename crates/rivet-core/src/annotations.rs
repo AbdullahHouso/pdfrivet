@@ -12,6 +12,11 @@
 //!   knows them as lines. PDFium can't write a Line annotation's end points,
 //!   and ink looks the same in every reader.
 //! - Sticky notes: Text annotations.
+//! - Text boxes: FreeText annotations. We lay the text out ourselves
+//!   (`textlayout.rs`: Arabic joining, right-to-left order, line breaks) and
+//!   draw it as outlines, and also store it the way Acrobat does (`/DA`, `/DS`,
+//!   `/RC`), so Acrobat can edit it too. PDFium can't write the `/IT` name that
+//!   marks a box growing with its text; the save pass adds it (`prune.rs`).
 //! - Replies to an annotation's comment: Text annotations with an empty
 //!   appearance (so nothing is drawn), pointing to the annotation they answer.
 //!   PDFium can't write that reference (`/IRT`), so they carry the parent's
@@ -39,7 +44,9 @@ use ts_rs::TS;
 
 use crate::{
     Error, ErrorCode, Result,
+    fonts::TextFont,
     geometry::{Affine, PageGeometry},
+    textlayout::{self, TEXT_PADDING, TextAlign, TextDirection, TextStyle, VerticalAlign},
 };
 
 /// A point as fractions (0..1) of the page, top-left origin, before view rotation.
@@ -103,6 +110,8 @@ pub enum AnnotationKind {
     Note,
     /// A stamp (e.g. a signature image).
     Stamp,
+    /// A text box: text written on the page (its colour is the annotation's).
+    FreeText { text: String, style: TextStyle },
     /// Anything else (made by other apps): shown, and can be deleted.
     Other { subtype: String },
 }
@@ -163,6 +172,7 @@ pub struct AnnotationBatch {
 // Values from PDFium's public headers (fpdf_annot.h), which pdfium-render
 // doesn't re-export.
 const FPDF_ANNOT_TEXT: u32 = 1;
+const FPDF_ANNOT_FREETEXT: u32 = 3;
 const FPDF_ANNOT_LINK: u32 = 2;
 const FPDF_ANNOT_SQUARE: u32 = 5;
 const FPDF_ANNOT_CIRCLE: u32 = 6;
@@ -190,6 +200,14 @@ pub(crate) const DELETED_KEY: &str = "PDFRivetDeleted";
 
 /// Private key marking an Ink annotation that PDFRivet drew as a line or arrow.
 const SHAPE_KEY: &str = "PDFRivetShape";
+
+/// Private key holding a text box's settings (style and colour, as JSON), so
+/// PDFRivet reads back exactly what it wrote.
+const TEXT_KEY: &str = "PDFRivetText";
+
+/// Private key: "1" if a text box grows with its text (the save pass writes
+/// `/IT /FreeTextTypeWriter`), "" if it doesn't (the save pass removes `/IT`).
+pub(crate) const TYPEWRITER_KEY: &str = "PDFRivetTypewriter";
 
 /// Private key holding the name of the annotation a reply answers, until the
 /// file is saved and it becomes a real `/IRT` reference (see `prune.rs`).
@@ -230,6 +248,7 @@ pub(crate) fn add(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -> R
         AnnotationKind::Square { .. } => FPDF_ANNOT_SQUARE,
         AnnotationKind::Circle { .. } => FPDF_ANNOT_CIRCLE,
         AnnotationKind::Note => FPDF_ANNOT_TEXT,
+        AnnotationKind::FreeText { .. } => FPDF_ANNOT_FREETEXT,
         AnnotationKind::Stamp | AnnotationKind::Other { .. } => {
             return Err(internal("this kind of annotation can't be added"));
         }
@@ -467,6 +486,12 @@ fn fits_by_stretching(old: &Annotation, new: &Annotation) -> bool {
         (AnnotationKind::Markup { quads: a, .. }, AnnotationKind::Markup { quads: b, .. }) => {
             a == b
         }
+        // A text box only moves: same text and style, same size.
+        (a @ AnnotationKind::FreeText { .. }, b @ AnnotationKind::FreeText { .. }) => {
+            a == b
+                && ((n.right - n.left) - ow).abs() < 1e-4
+                && ((n.bottom - n.top) - oh).abs() < 1e-4
+        }
         (a, b) => std::mem::discriminant(a) == std::mem::discriminant(b),
     }
 }
@@ -651,6 +676,7 @@ impl Mapping {
 fn annot_to_model(annot: &Annot, index: i32, map: &Mapping) -> Option<Annotation> {
     let subtype = annot.subtype() as u32;
     let mut editable = true;
+    let mut text_color = None;
     let kind = match subtype {
         FPDF_ANNOT_LINK | FPDF_ANNOT_WIDGET | FPDF_ANNOT_POPUP => return None,
         FPDF_ANNOT_HIGHLIGHT | FPDF_ANNOT_UNDERLINE | FPDF_ANNOT_STRIKEOUT
@@ -689,6 +715,12 @@ fn annot_to_model(annot: &Annot, index: i32, map: &Mapping) -> Option<Annotation
             fill: annot.fill_color(),
         },
         FPDF_ANNOT_TEXT => AnnotationKind::Note,
+        FPDF_ANNOT_FREETEXT => {
+            let rect = annot.rect().map(|r| map.rect(&r))?;
+            let (kind, color) = read_text_box(annot, &rect, map);
+            text_color = color;
+            kind
+        }
         FPDF_ANNOT_STAMP => {
             // Only PDFRivet's own signature pictures can be moved and resized.
             editable = annot.string(SHAPE_KEY).as_deref() == Some("signature");
@@ -709,8 +741,13 @@ fn annot_to_model(annot: &Annot, index: i32, map: &Mapping) -> Option<Annotation
             .unwrap_or_else(|| format!("#{index}")),
         kind,
         rect,
-        color: annot
-            .main_color(matches!(subtype, FPDF_ANNOT_HIGHLIGHT | FPDF_ANNOT_TEXT))
+        color: text_color
+            .or_else(|| {
+                annot.main_color(matches!(
+                    subtype,
+                    FPDF_ANNOT_HIGHLIGHT | FPDF_ANNOT_TEXT | FPDF_ANNOT_FREETEXT
+                ))
+            })
             .unwrap_or(Color { r: 0, g: 0, b: 0 }),
         // Stroke opacity, or (some apps, e.g. Apple's highlighter) only the fill opacity.
         opacity: annot
@@ -806,9 +843,271 @@ fn write_shape(annot: &Annot, annotation: &Annotation, map: &Mapping) -> Result<
         AnnotationKind::Square { .. } | AnnotationKind::Circle { .. } | AnnotationKind::Note => {
             annot.set_rect(&map.rect_points(&annotation.rect));
         }
+        AnnotationKind::FreeText { .. } => {
+            if let Some((_, rect)) = text_box(annotation, map) {
+                annot.set_rect(&rect);
+            }
+        }
         AnnotationKind::Stamp | AnnotationKind::Other { .. } => {}
     }
     Ok(())
+}
+
+/// A text box's layout and Rect (PDF points). A box that grows with its text
+/// keeps its start corner where it is: top-left, or top-right for text that
+/// runs right to left.
+fn text_box(annotation: &Annotation, map: &Mapping) -> Option<(textlayout::Layout, FS_RECTF)> {
+    let AnnotationKind::FreeText { text, style } = &annotation.kind else {
+        return None;
+    };
+    let layout = textlayout::layout(text, style);
+    let r = map.rect_points(&annotation.rect);
+    let w = layout.width + 2.0 * TEXT_PADDING;
+    let h = layout.height + 2.0 * TEXT_PADDING;
+    let (left, right) = if style.width.is_none() && layout.rtl {
+        (r.right - w, r.right)
+    } else {
+        (r.left, r.left + w)
+    };
+    Some((
+        layout,
+        FS_RECTF {
+            left,
+            top: r.top,
+            right,
+            bottom: r.top - h,
+        },
+    ))
+}
+
+fn hex(c: Color) -> String {
+    format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b)
+}
+
+/// Escapes text for the rich text (XHTML) of `/RC`.
+fn xml_escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// Whether a paragraph runs right to left (forced, or from its first strong letter).
+fn paragraph_rtl(text: &str, direction: TextDirection) -> bool {
+    match direction {
+        TextDirection::Rtl => true,
+        TextDirection::Ltr => false,
+        TextDirection::Auto => matches!(
+            unicode_bidi::get_base_direction(text),
+            unicode_bidi::Direction::Rtl
+        ),
+    }
+}
+
+/// Writes a text box's text and style the standard ways, so other apps
+/// (Acrobat above all) can show and edit it: `/Contents`, `/DA`, `/DS`, `/RC`.
+fn write_text_box(annot: &Annot, text: &str, style: &TextStyle, color: Color) {
+    let c = |v: u8| f32::from(v) / 255.0;
+    let weight = if style.bold { "bold" } else { "normal" };
+    let family = style.font.family.replace(['\'', '"', ';'], "");
+    let fixed_align = |a: TextAlign| match a {
+        TextAlign::Left => Some("left"),
+        TextAlign::Center => Some("center"),
+        TextAlign::Right => Some("right"),
+        TextAlign::Auto => None,
+    };
+    let valign = match style.valign {
+        VerticalAlign::Top => "top",
+        VerticalAlign::Middle => "middle",
+        VerticalAlign::Bottom => "bottom",
+    };
+    let first_rtl = paragraph_rtl(text.lines().next().unwrap_or(""), style.direction);
+    let box_align = fixed_align(style.align).unwrap_or(if first_rtl { "right" } else { "left" });
+    annot.set_string("Contents", text);
+    annot.set_string(
+        "DA",
+        &format!(
+            "/Helv {} Tf {:.3} {:.3} {:.3} rg",
+            style.size,
+            c(color.r),
+            c(color.g),
+            c(color.b)
+        ),
+    );
+    annot.set_string(
+        "DS",
+        &format!(
+            "font: {weight} {}pt '{family}'; text-align:{box_align}; vertical-align:{valign}; color:{}",
+            style.size,
+            hex(color)
+        ),
+    );
+    let mut rc = format!(
+        "<?xml version=\"1.0\"?><body xmlns=\"http://www.w3.org/1999/xhtml\" \
+         xmlns:xfa=\"http://www.xfa.org/schema/xfa-data/1.0/\" xfa:APIVersion=\"Acrobat:11.0.0\" \
+         xfa:spec=\"2.0.2\" style=\"font-size:{}pt;font-weight:{weight};font-family:'{family}';color:{}\">",
+        style.size,
+        hex(color)
+    );
+    for para in text.split('\n') {
+        let rtl = paragraph_rtl(para, style.direction);
+        let align = fixed_align(style.align).unwrap_or(if rtl { "right" } else { "left" });
+        rc += &format!(
+            "<p dir=\"{}\" style=\"text-align:{align}\">{}</p>",
+            if rtl { "rtl" } else { "ltr" },
+            xml_escape(para)
+        );
+    }
+    rc += "</body>";
+    annot.set_string("RC", &rc);
+    annot.set_string(TYPEWRITER_KEY, if style.width.is_none() { "1" } else { "" });
+    let settings = serde_json::json!({ "style": style, "color": color });
+    annot.set_string(TEXT_KEY, &settings.to_string());
+    // The box itself has no border; its text is drawn by us.
+    annot.set_border_width(0.0);
+}
+
+/// A text box written by another app: its text, and its style as far as its
+/// `/DS`, `/RC` or `/DA` tell.
+fn read_text_box(annot: &Annot, rect: &PageRect, map: &Mapping) -> (AnnotationKind, Option<Color>) {
+    let text = annot
+        .string("Contents")
+        .unwrap_or_default()
+        .replace('\r', "\n");
+    if let Some(saved) = annot
+        .string(TEXT_KEY)
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
+    {
+        let style = saved
+            .get("style")
+            .cloned()
+            .and_then(|v| serde_json::from_value(v).ok());
+        let color = saved
+            .get("color")
+            .cloned()
+            .and_then(|v| serde_json::from_value(v).ok());
+        if let Some(style) = style {
+            return (AnnotationKind::FreeText { text, style }, color);
+        }
+    }
+    let ds = annot.string("DS").unwrap_or_default();
+    let rc = annot.string("RC").unwrap_or_default();
+    let da = annot.string("DA").unwrap_or_default();
+    let css = format!("{ds};{rc}");
+    let size = css_size(&css)
+        .or_else(|| {
+            // "/Helv 12 Tf": the number before Tf.
+            let words: Vec<&str> = da.split_whitespace().collect();
+            let at = words.iter().position(|w| *w == "Tf")?;
+            words.get(at.checked_sub(1)?)?.parse().ok()
+        })
+        .filter(|s: &f32| *s > 0.0)
+        .unwrap_or(12.0);
+    // `font-family: X`, or what follows the size in `font: bold 12pt X`.
+    let family = css_value(&css, "font-family")
+        .or_else(|| {
+            let font = css_value(&css, "font")?;
+            let words: Vec<&str> = font.split_whitespace().collect();
+            let size_at = words.iter().position(|w| w.ends_with("pt"))?;
+            Some(words[size_at + 1..].join(" "))
+        })
+        .map(|f| f.trim_matches(|c| c == '\'' || c == '"').to_owned())
+        .filter(|f| !f.is_empty());
+    let bundled = family
+        .as_deref()
+        .is_some_and(|f| ["rubik", "amiri"].contains(&f.to_lowercase().as_str()));
+    let align = match css_value(&css, "text-align").as_deref() {
+        Some("center") => TextAlign::Center,
+        Some("right") => TextAlign::Right,
+        Some("left") => TextAlign::Left,
+        _ => TextAlign::Auto,
+    };
+    let typewriter = annot
+        .string("IT")
+        .is_some_and(|it| it.contains("TypeWriter"));
+    let points = map.rect_points(rect);
+    let style = TextStyle {
+        font: match family {
+            Some(family) => TextFont { family, bundled },
+            None => TextFont::default(),
+        },
+        size,
+        bold: css.contains("bold"),
+        align,
+        valign: VerticalAlign::Top,
+        direction: TextDirection::Auto,
+        width: (!typewriter).then_some((points.right - points.left - 2.0 * TEXT_PADDING).max(size)),
+        height: None,
+    };
+    let color = css_value(&css, "color").and_then(|c| parse_hex(&c));
+    (AnnotationKind::FreeText { text, style }, color)
+}
+
+/// The value of a CSS property in a style string (first match).
+fn css_value(css: &str, property: &str) -> Option<String> {
+    let lower = css.to_lowercase();
+    let mut from = 0;
+    while let Some(i) = lower[from..].find(property) {
+        let at = from + i;
+        from = at + property.len();
+        // Not part of a longer name (e.g. "color" in "background-color").
+        let before = at.checked_sub(1).map(|i| lower.as_bytes()[i]);
+        if before.is_some_and(|b| b.is_ascii_alphanumeric() || b == b'-') {
+            continue;
+        }
+        let rest = css[from..].trim_start();
+        let Some(rest) = rest.strip_prefix(':') else {
+            continue;
+        };
+        let end = rest.find([';', '"', '>']).unwrap_or(rest.len());
+        return Some(rest[..end].trim().to_owned());
+    }
+    None
+}
+
+/// The font size in a style string: `font-size:12pt` or `font: … 12pt …`.
+fn css_size(css: &str) -> Option<f32> {
+    let value = css_value(css, "font-size").or_else(|| css_value(css, "font"))?;
+    value
+        .split_whitespace()
+        .find_map(|w| w.strip_suffix("pt").and_then(|n| n.parse().ok()))
+}
+
+fn parse_hex(s: &str) -> Option<Color> {
+    let h = s.trim().strip_prefix('#')?;
+    if h.len() != 6 {
+        return None;
+    }
+    let v = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).ok();
+    Some(Color {
+        r: v(0)?,
+        g: v(2)?,
+        b: v(4)?,
+    })
+}
+
+/// A text box's appearance: its text's outlines, filled in its colour.
+fn text_box_appearance(annotation: &Annotation, map: &Mapping) -> String {
+    let Some((layout, rect)) = text_box(annotation, map) else {
+        return String::new();
+    };
+    let path = layout.to_pdf_path(rect.left + TEXT_PADDING, rect.top - TEXT_PADDING);
+    if path.is_empty() {
+        return String::new();
+    }
+    let c = |v: u8| f32::from(v) / 255.0;
+    let (r, g, b) = (
+        c(annotation.color.r),
+        c(annotation.color.g),
+        c(annotation.color.b),
+    );
+    if layout.fake_bold() {
+        // No bold face: fill and outline the letters a little to thicken them.
+        let width = layout.size * 0.035;
+        format!("q {r:.3} {g:.3} {b:.3} rg {r:.3} {g:.3} {b:.3} RG {width:.2} w 1 j {path}B Q")
+    } else {
+        format!("q {r:.3} {g:.3} {b:.3} rg {path}f Q")
+    }
 }
 
 fn write_strokes(annot: &Annot, strokes: &[Vec<(f32, f32)>], pad: f32) -> Result<()> {
@@ -892,6 +1191,13 @@ fn rect_to_quad(r: &PageRect, map: &Mapping) -> FS_QUADPOINTSF {
 
 /// Colours, opacity, width, text, author and modification date.
 fn write_style(annot: &Annot, annotation: &Annotation, now: &str) {
+    if let AnnotationKind::FreeText { text, style } = &annotation.kind {
+        // A text box's colour is its text's; `/C` would be read as its background.
+        write_text_box(annot, text, style, annotation.color);
+        annot.set_string("T", &annotation.author);
+        annot.set_string("M", now);
+        return;
+    }
     let alpha = (annotation.opacity.clamp(0.0, 1.0) * 255.0).round() as u32;
     annot.set_color(COLOR_STROKE, annotation.color, alpha);
     if let AnnotationKind::Square { fill } | AnnotationKind::Circle { fill } = &annotation.kind {
@@ -934,6 +1240,10 @@ fn write_appearance(annot: &Annot, annotation: &Annotation, map: &Mapping) {
             let strokes =
                 line_strokes(map.points(*from), map.points(*to), *arrow, annotation.width);
             annot.set_appearance(&ink_appearance(&strokes, annotation));
+        }
+        // Text is laid out and drawn by us (PDFium can't shape Arabic).
+        AnnotationKind::FreeText { .. } => {
+            annot.set_appearance(&text_box_appearance(annotation, map));
         }
         _ => {}
     }

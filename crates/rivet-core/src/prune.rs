@@ -19,13 +19,16 @@ use crate::{Error, ErrorCode, OutlineItem, Result};
 /// Returns `None` for password-protected files (lopdf can't write them).
 /// `redacted` pages (0-based) also lose every resource their content no longer uses.
 /// An edited `outline` replaces the file's bookmarks. With `replies`, replies
-/// added in PDFRivet are linked to the annotations they answer.
+/// added in PDFRivet are linked to the annotations they answer. With
+/// `text_boxes`, text boxes get the `/IT` name that tells readers they grow
+/// with their text.
 pub(crate) fn prune(
     bytes: &[u8],
     deleted_key: &str,
     redacted: &[u32],
     outline: Option<&[OutlineItem]>,
     replies: bool,
+    text_boxes: bool,
 ) -> Result<Option<Vec<u8>>> {
     let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
     let mut doc = Document::load_mem(bytes).map_err(|e| failed(&e))?;
@@ -36,6 +39,9 @@ pub(crate) fn prune(
     if replies {
         link_replies(&mut doc, crate::annotations::REPLY_KEY.as_bytes());
     }
+    if text_boxes {
+        mark_typewriters(&mut doc, crate::annotations::TYPEWRITER_KEY.as_bytes());
+    }
     let pages = doc.get_pages();
     for index in redacted {
         if let Some(&page) = pages.get(&(index + 1)) {
@@ -45,7 +51,7 @@ pub(crate) fn prune(
     if let Some(items) = outline {
         crate::outline::write(&mut doc, items).map_err(|e| failed(&e))?;
     }
-    if doc.prune_objects().is_empty() && outline.is_none() && !replies {
+    if doc.prune_objects().is_empty() && outline.is_none() && !replies && !text_boxes {
         return Ok(Some(bytes.to_vec()));
     }
     doc.renumber_objects();
@@ -179,6 +185,28 @@ fn link_replies(doc: &mut Document, key: &[u8]) {
                 .filter(|a| !matches!(a, Object::Reference(id) if orphans.contains(id)))
                 .collect();
             set_page_annots(doc, page_id, holder, kept);
+        }
+    }
+}
+
+/// Text boxes that grow with their text get `/IT /FreeTextTypeWriter` (a
+/// name, which PDFium can't write); ones that don't lose it. The private key
+/// saying which is removed.
+fn mark_typewriters(doc: &mut Document, key: &[u8]) {
+    for object in doc.objects.values_mut() {
+        let dict = match object {
+            Object::Dictionary(d) => d,
+            Object::Stream(s) => &mut s.dict,
+            _ => continue,
+        };
+        let Ok(value) = dict.get(key).and_then(Object::as_str).map(<[u8]>::to_vec) else {
+            continue;
+        };
+        dict.remove(key);
+        if value == b"1" {
+            dict.set("IT", Object::Name(b"FreeTextTypeWriter".to_vec()));
+        } else {
+            dict.remove(b"IT");
         }
     }
 }

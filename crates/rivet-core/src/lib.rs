@@ -14,6 +14,7 @@ mod direction;
 mod document;
 mod engine;
 mod error;
+pub mod fonts;
 mod forms;
 mod geometry;
 mod links;
@@ -24,6 +25,7 @@ mod prune;
 mod redact;
 mod search;
 mod text;
+mod textlayout;
 
 pub use annotations::{
     Annotation, AnnotationBatch, AnnotationKind, Color, MarkupStyle, PageAnnotations, PagePoint,
@@ -32,8 +34,13 @@ pub use annotations::{
 pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, Rotation, pdfium_platform};
 pub use engine::{DocId, Engine};
 pub use error::{Error, ErrorCode, Result};
+pub use fonts::{FontInfo, TextFont};
 pub use forms::{FieldChange, FieldKind, FormField};
 pub use links::{LinkTarget, PageLink};
 pub use outline::OutlineItem;
 pub use search::{SearchBatch, SearchHit, SearchQuery};
 pub use text::{CHAR_GENERATED, CHAR_NO_BOX, PageText, TextChar, TextRange};
+pub use textlayout::{
+    LINE_HEIGHT, TEXT_PADDING, TextAlign, TextBoxSize, TextDirection, TextStyle, VerticalAlign,
+    measure as measure_text,
+};

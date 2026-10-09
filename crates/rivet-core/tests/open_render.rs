@@ -7,7 +7,8 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use rivet_core::{
     Annotation, AnnotationKind, CHAR_GENERATED, CHAR_NO_BOX, Color, Engine, ErrorCode, FieldChange,
     FieldKind, FormField, LinkTarget, MarkupStyle, OutlineItem, PagePoint, PageRect, PageText, Pdf,
-    Rotation, SearchQuery, StampImage, TextRange,
+    Rotation, SearchQuery, StampImage, TextAlign, TextDirection, TextFont, TextRange, TextStyle,
+    VerticalAlign,
 };
 
 fn repo_root() -> PathBuf {
@@ -1470,4 +1471,222 @@ fn reads_every_pages_annotations_in_batches() {
     assert_eq!(batch.pages.len(), 1);
     assert_eq!(batch.pages[0].page, 2);
     assert!(doc.annotations_from(3).pages.is_empty());
+}
+
+fn text_style(family: &str, size: f32) -> TextStyle {
+    TextStyle {
+        font: TextFont {
+            family: family.into(),
+            bundled: true,
+        },
+        size,
+        bold: false,
+        align: TextAlign::Auto,
+        valign: VerticalAlign::Top,
+        direction: TextDirection::Auto,
+        width: None,
+        height: None,
+    }
+}
+
+/// Non-white pixels inside a page area (fractions) of a render.
+fn ink_in(page: &rivet_core::RenderedPage, r: PageRect) -> usize {
+    let (w, h) = (page.width as f32, page.height as f32);
+    let mut count = 0;
+    for y in (r.top * h) as u32..(r.bottom * h).min(h) as u32 {
+        for x in (r.left * w) as u32..(r.right * w).min(w) as u32 {
+            let i = ((y * page.width + x) * 4) as usize;
+            if page.rgba[i..i + 3] != [255, 255, 255] {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+#[test]
+fn text_boxes_are_drawn_saved_and_read_back() {
+    let _serial = serial();
+    let dir = temp_dir("text-box");
+    let path = dir.join("t.pdf");
+    let mut doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let style = text_style("Amiri", 18.0);
+    let mut text_box = annotation(
+        AnnotationKind::FreeText {
+            text: "تحياتي والسلام\nPDFRivet 2026".into(),
+            style: style.clone(),
+        },
+        rect(0.5, 0.5, 0.9, 0.6),
+    );
+    text_box.color = BLUE;
+    let area = rect(0.2, 0.45, 0.95, 0.75);
+    let before = doc.render_page(0, 1.0, Rotation::None).unwrap();
+    let id = doc.add_annotation(0, &text_box).unwrap();
+    let after = doc.render_page(0, 1.0, Rotation::None).unwrap();
+    assert!(
+        ink_in(&after, area) > ink_in(&before, area) + 200,
+        "the text is drawn"
+    );
+
+    let read = doc.annotations(0).unwrap();
+    let back = read.iter().find(|a| a.id == id).unwrap();
+    match &back.kind {
+        AnnotationKind::FreeText { text, style: s } => {
+            assert_eq!(text, "تحياتي والسلام\nPDFRivet 2026");
+            assert_eq!(s, &style);
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(back.color, BLUE);
+    // It grew with its text from its top-right corner (the first line is Arabic).
+    assert!((back.rect.right - 0.9).abs() < 1e-3 && back.rect.left > 0.5);
+    assert!((back.rect.top - 0.5).abs() < 1e-3);
+
+    doc.save(&path).unwrap();
+    let file = lopdf::Document::load(&path).unwrap();
+    let saved = file
+        .objects
+        .values()
+        .filter_map(|o| o.as_dict().ok())
+        .find(|d| {
+            d.get(b"Subtype")
+                .and_then(|s| s.as_name())
+                .is_ok_and(|n| n == b"FreeText")
+        })
+        .unwrap();
+    assert_eq!(
+        saved.get(b"IT").unwrap().as_name().unwrap(),
+        b"FreeTextTypeWriter"
+    );
+    assert!(!saved.has(b"PDFRivetTypewriter"));
+    let utf16 = |o: &lopdf::Object| {
+        let b = o.as_str().unwrap();
+        let units: Vec<u16> = b[2..]
+            .chunks(2)
+            .map(|c| u16::from_be_bytes([c[0], c[1]]))
+            .collect();
+        String::from_utf16_lossy(&units)
+    };
+    let rc = utf16(saved.get(b"RC").unwrap());
+    assert!(
+        rc.contains(r#"<p dir="rtl" style="text-align:right">تحياتي والسلام</p>"#),
+        "{rc}"
+    );
+    assert!(
+        rc.contains(r#"<p dir="ltr" style="text-align:left">PDFRivet 2026</p>"#),
+        "{rc}"
+    );
+    let ds = saved.get(b"DS").unwrap().as_str().unwrap();
+    assert!(String::from_utf8_lossy(ds).contains("18pt 'Amiri'"));
+
+    let reopened = pdf().open(&path, None).unwrap();
+    let again = reopened.annotations(0).unwrap();
+    assert!(matches!(&again[0].kind, AnnotationKind::FreeText { style: s, .. } if s == &style));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn text_boxes_move_and_change() {
+    let _serial = serial();
+    let doc = pdf().open(&fixture("basic.pdf"), None).unwrap();
+    let mut style = text_style("Rubik", 14.0);
+    let mut a = annotation(
+        AnnotationKind::FreeText {
+            text: "Hello".into(),
+            style: style.clone(),
+        },
+        rect(0.1, 0.5, 0.2, 0.55),
+    );
+    a.id = doc.add_annotation(0, &a).unwrap();
+    let placed = doc.annotations(0).unwrap().remove(0);
+    // Longer text: the box grows to the right.
+    let mut longer = placed.clone();
+    longer.kind = AnnotationKind::FreeText {
+        text: "Hello there, world".into(),
+        style: style.clone(),
+    };
+    doc.update_annotation(0, &longer).unwrap();
+    let grown = doc.annotations(0).unwrap().remove(0);
+    assert!((grown.rect.left - placed.rect.left).abs() < 1e-3);
+    assert!(grown.rect.right > placed.rect.right + 0.05);
+    // A set width: lines wrap and the box gets taller.
+    style.width = Some(60.0);
+    let mut wrapped = grown.clone();
+    wrapped.kind = AnnotationKind::FreeText {
+        text: "Hello there, world".into(),
+        style,
+    };
+    doc.update_annotation(0, &wrapped).unwrap();
+    let tall = doc.annotations(0).unwrap().remove(0);
+    assert!(tall.rect.bottom - tall.rect.top > (grown.rect.bottom - grown.rect.top) * 2.0);
+    // Moving keeps its look.
+    let mut moved = tall.clone();
+    let dy = 0.2;
+    moved.rect = rect(
+        tall.rect.left,
+        tall.rect.top + dy,
+        tall.rect.right,
+        tall.rect.bottom + dy,
+    );
+    doc.update_annotation(0, &moved).unwrap();
+    let page = doc.render_page(0, 1.0, Rotation::None).unwrap();
+    assert!(ink_in(&page, moved.rect) > 50);
+    assert!(ink_in(&page, tall.rect) == 0);
+}
+
+#[test]
+fn reads_text_boxes_from_other_apps_and_redraws_them() {
+    let _serial = serial();
+    let dir = temp_dir("text-box-other");
+    let source = dir.join("other.pdf");
+    // A text box like PDFgear writes: typewriter, Arial, red, no PDFRivet keys.
+    let mut file = lopdf::Document::load(fixture("basic.pdf")).unwrap();
+    let page = *file.get_pages().get(&1).unwrap();
+    let utf16 = |s: &str| {
+        let mut b = vec![0xFE, 0xFF];
+        b.extend(s.encode_utf16().flat_map(u16::to_be_bytes));
+        lopdf::Object::String(b, lopdf::StringFormat::Hexadecimal)
+    };
+    let mut annot = lopdf::Dictionary::new();
+    annot.set("Type", lopdf::Object::Name(b"Annot".to_vec()));
+    annot.set("Subtype", lopdf::Object::Name(b"FreeText".to_vec()));
+    annot.set("Rect", vec![100.into(), 600.into(), 200.into(), 620.into()]);
+    annot.set("Contents", utf16("تحياتي والسلام"));
+    annot.set("DA", lopdf::Object::string_literal("/Arial 12 Tf 0 0 0 rg"));
+    annot.set(
+        "DS",
+        lopdf::Object::string_literal("font: 12pt Arial; text-align:left; color:#ff0000"),
+    );
+    annot.set("IT", lopdf::Object::Name(b"FreeTextTypeWriter".to_vec()));
+    let id = file.add_object(annot);
+    file.get_dictionary_mut(page)
+        .unwrap()
+        .set("Annots", vec![lopdf::Object::Reference(id)]);
+    file.save(&source).unwrap();
+
+    let doc = pdf().open(&source, None).unwrap();
+    let found = doc.annotations(0).unwrap().remove(0);
+    let AnnotationKind::FreeText { text, style } = &found.kind else {
+        panic!("{:?}", found.kind);
+    };
+    assert_eq!(text, "تحياتي والسلام");
+    assert_eq!(style.size, 12.0);
+    assert_eq!(style.font.family, "Arial");
+    assert!(!style.font.bundled);
+    assert_eq!(style.align, TextAlign::Left);
+    assert_eq!(style.width, None);
+    assert_eq!(found.color, Color { r: 255, g: 0, b: 0 });
+    assert!(found.editable);
+    // Editing it draws it again, with joined Arabic (Arial may be missing: a bundled font stands in).
+    let before = doc.render_page(0, 1.0, Rotation::None).unwrap();
+    let mut edited = found.clone();
+    edited.kind = AnnotationKind::FreeText {
+        text: "تحياتي والسلام عليكم".into(),
+        style: style.clone(),
+    };
+    doc.update_annotation(0, &edited).unwrap();
+    let after = doc.render_page(0, 1.0, Rotation::None).unwrap();
+    let r = doc.annotations(0).unwrap().remove(0).rect;
+    assert!(ink_in(&after, r) > ink_in(&before, r));
+    let _ = std::fs::remove_dir_all(dir);
 }

@@ -97,6 +97,7 @@ impl Pdf {
             redacted: RefCell::new(BTreeSet::new()),
             edited_outline: None,
             has_replies: Cell::new(false),
+            has_text_boxes: Cell::new(false),
         })
     }
 
@@ -260,6 +261,8 @@ pub struct Document {
     edited_outline: Option<Vec<OutlineItem>>,
     /// Replies were added: saving links them to the annotations they answer.
     has_replies: Cell<bool>,
+    /// Text boxes were added or changed: saving writes their `/IT` name.
+    has_text_boxes: Cell<bool>,
 }
 
 impl Document {
@@ -354,6 +357,7 @@ impl Document {
         if annotation.reply_to.is_some() {
             self.has_replies.set(true);
         }
+        self.note_text_box(annotation);
         Ok(id)
     }
 
@@ -364,7 +368,14 @@ impl Document {
         let page = self.load_page(index)?;
         let id = crate::annotations::update(self.pdfium, &page, annotation)?;
         self.unsaved_changes.set(true);
+        self.note_text_box(annotation);
         Ok(id)
+    }
+
+    fn note_text_box(&self, annotation: &crate::Annotation) {
+        if matches!(annotation.kind, crate::AnnotationKind::FreeText { .. }) {
+            self.has_text_boxes.set(true);
+        }
     }
 
     /// Places a picture (a signature) as a stamp in `annotation.rect`; returns its id.
@@ -629,7 +640,8 @@ impl Document {
             .map_err(|e| failed(&format!("{e:?}")))?;
         let outline = self.edited_outline.as_deref();
         let replies = self.has_replies.get();
-        if has_deleted || self.needs_prune.get() || outline.is_some() || replies {
+        let text_boxes = self.has_text_boxes.get();
+        if has_deleted || self.needs_prune.get() || outline.is_some() || replies || text_boxes {
             let redacted: Vec<u32> = self.redacted.borrow().iter().copied().collect();
             match crate::prune::prune(
                 &bytes,
@@ -637,6 +649,7 @@ impl Document {
                 &redacted,
                 outline,
                 replies,
+                text_boxes,
             )? {
                 Some(pruned) => bytes = pruned,
                 // Password-protected: deleted annotations can't be left out of the
