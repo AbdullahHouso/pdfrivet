@@ -110,6 +110,15 @@ CI (`.github/workflows/ci.yml`) runs them on Linux and Windows on every push to 
   only opacity/transform, and never the size of something that resizes the pages.
 - **Right-click menus:** on Linux/macOS `contextmenu` fires on button down, so menus opened from it
   must be `popover="manual"` (an automatic popover closes on button up).
+- **PDFium can't write the outline or `/IRT`:** bookmarks and replies are finished by lopdf on
+  save (`outline.rs`, `prune.rs`). PDFium may write new annotations inline in `/Annots`; make them
+  objects before anything points to them.
+- **HTML drag and drop doesn't work in WebView2** while Tauri handles file drops: drag with
+  pointer events (see `BookmarksPane.svelte`).
+- **The `Icon` component's `<svg>` has class `icon`, and so do icon buttons:** style an icon
+  inside a button with `button :global(svg)`, not `:global(.icon)` (that also hits the button).
+- **Vite doesn't reload `locales/*.ftl`** (outside the app folder): restart the dev server after
+  adding strings.
 - **Windows-only Rust can't be checked from Linux** (ring needs `lib.exe`); rely on CI's Windows job.
 
 ## Dependencies to know

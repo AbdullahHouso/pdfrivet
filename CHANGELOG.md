@@ -11,7 +11,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - The + button opens a new tab with the start page (recent files, Open), also with Ctrl+T.
 - Pages you just saw, and the next and previous pages when reading a page at a time, appear instantly instead of blank for a moment.
 - PDF files get their own icon in Explorer (a white page with the PDFRivet mark and a copper “PDF” band) once PDFRivet is your default PDF app (Windows).
+- Drag the sidebar's edge to make it wider or narrower (up to a quarter of the window). Thumbnails grow with it, and the size slider above them fits 2, 3 or more per row.
 - Smooth, quick animations: menus, dialogs, tooltips, the find bar, the sidebar, tabs and annotation menus fade and glide in and out. Settings → Appearance → Animations turns them off (off from the start if your system asks for reduced motion).
+
+### Bookmarks
+- Bookmark the page you're on with Ctrl+B, the right-click menu (on a page or a thumbnail) or the sidebar's Bookmarks tab. The selected text, if any, becomes its title.
+- Rename (double-click or F2), delete, drag to reorder or put one inside another, or move them with Alt+arrow keys. Undo works here too.
+- Bookmarks are saved in the PDF's own bookmarks (its outline), so other PDF readers show them. The document's existing bookmarks can be edited the same way.
+
+### Comments
+- A comments panel (toolbar button or Ctrl+Shift+C) lists every annotation, page by page: highlights with the text they mark, drawings and shapes with a small picture, notes and signatures. Click one to go to it.
+- Write or change any annotation's comment there, and reply to comments. Replies are saved the standard way, so Acrobat and other readers show them under the comment.
+- Search the comments, or show only some kinds of annotations or one author's.
+- Deleting an annotation deletes its replies too (undo brings them all back).
 
 ### Text
 - Select text with the mouse: drag, double-click a word, triple-click a line, Shift+click to extend, Ctrl+A for everything. Works the same in Arabic and other right-to-left text.

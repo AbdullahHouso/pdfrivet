@@ -217,6 +217,46 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   never reopens it to free memory before they're saved, and only the changed page's renders are
   dropped from the cache.
 
+## Bookmarks
+
+- PDFium reads the outline but can't change it. The edited tree is kept in the `Document`
+  (`edited_outline`, replaced as a whole by `set_outline`) and written into the file on save by
+  `outline::write` (lopdf, in the `prune.rs` pass): the tree's links (`First`, `Last`, `Next`,
+  `Prev`, `Parent`, `Count`) and titles (UTF-16 when not ASCII) are rewritten.
+- Entries from the file carry `origin`, their place in a walk of the original outline (the same
+  order PDFium reads it). On save that finds their original dictionary, so destinations, actions
+  (web links, named destinations), colours and styles are kept, and closed entries stay closed.
+  New entries go to the top of their page (`/XYZ null top null`). Unused old entries are pruned.
+- Not in password-protected files (lopdf can't write them): `DocInfo.canEditOutline`.
+- UI: `outlineTree.ts` (pure tree edits by key: move, nest, shift, indent), `bookmarks.ts` (load,
+  `editBookmarks` = copy, change, send, record one undo step), `BookmarksPane.svelte` and
+  `BookmarkNode.svelte`. Dragging uses pointer events, not HTML drag and drop (Tauri's file drop
+  handling takes over HTML drag and drop in WebView2).
+
+## Comments and replies
+
+- Every annotation can carry a comment (`contents`). The comments panel reads all of a document's
+  annotations a batch of pages at a time (`annotations_from`, 40 pages or 60 ms like search), then
+  reads again only pages whose revision changed (`DocComments.sync`).
+- **Replies** are Text annotations with an empty appearance (nothing is drawn) and the parent's
+  Rect. PDFium can't write the `/IRT` reference, so a reply carries the parent's `/NM` in a
+  private `PDFRivetReplyTo` key; the save pass turns it into `/IRT <parent> /RT /R` (what Acrobat
+  writes), first making inline annotation dictionaries objects of their own. Replies whose parent
+  was deleted are left out. Replies from other apps are read through `FPDFAnnot_GetLinkedAnnot`.
+- A parent must have a name before it can be answered: an unnamed (`#index`) annotation is named
+  first through `update`. Deleting an annotation deletes its replies in the same undo group.
+- Replies are left out of `tab.annotations` (they're not on the page, so they can't be clicked).
+- UI: `comments.svelte.ts` (threads, filters, the text a markup marks), `CommentsPanel.svelte`,
+  `CommentCard.svelte`.
+
+## Side panels
+
+- The sidebar and the comments panel are resized with `Splitter.svelte` (pointer drag, arrow keys,
+  double-click resets), between a minimum and a quarter of the window; widths are saved in
+  settings when a drag ends.
+- Thumbnails are laid out by `thumbnailGrid` (`layout.ts`): a chosen number of columns that fill the
+  sidebar's width, rows lined up at the bottom, virtualized by row like the viewer.
+
 ## Redaction
 
 - Marks live in the tab (`tab.redactions`) until they're applied, on save (after a confirmation)
