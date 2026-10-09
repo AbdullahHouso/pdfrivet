@@ -2,6 +2,7 @@
 // Shows the update check: checking, up to date, a new version with its notes,
 // download progress, or an error.
 import { i18n } from "./i18n.svelte";
+import { dialogOut } from "./motion";
 import { updater } from "./updater.svelte";
 
 interface Props {
@@ -21,6 +22,7 @@ $effect(() => {
 </script>
 
 <dialog
+  out:dialogOut|global
   bind:this={dialog}
   aria-labelledby="update-title"
   aria-busy={busy || status?.kind === "checking"}

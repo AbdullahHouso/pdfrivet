@@ -18,6 +18,7 @@ export interface MenuItem {
 // the button goes down, and an automatic popover would close again as soon
 // as the button is released outside it.
 import { formatShortcut } from "./tooltip";
+import { out } from "./motion";
 
 interface Props {
   x: number;
@@ -65,7 +66,7 @@ function choose(item: MenuItem) {
 }
 </script>
 
-<div class="context-menu" popover="manual" role="menu" bind:this={menu}>
+<div class="context-menu" out:out|global popover="manual" role="menu" bind:this={menu}>
   {#each items as item (item.label)}
     <button class="item" role="menuitem" disabled={item.disabled} title={item.disabled ? item.hint : undefined}
       onclick={() => choose(item)}>

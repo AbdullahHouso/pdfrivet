@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 
 ## [Unreleased]
 
+### Look and feel
+- Smooth, quick animations: menus, dialogs, tooltips, the find bar, the sidebar, tabs and annotation menus fade and glide in and out. Settings → Appearance → Animations turns them off (off from the start if your system asks for reduced motion).
+
 ### Text
 - Select text with the mouse: drag, double-click a word, triple-click a line, Shift+click to extend, Ctrl+A for everything. Works the same in Arabic and other right-to-left text.
 - Copy with Ctrl+C or the right-click menu. PDFs whose author doesn't allow copying say so.

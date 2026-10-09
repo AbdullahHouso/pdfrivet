@@ -4,6 +4,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import Icon from "./Icon.svelte";
 import { i18n, languages } from "./i18n.svelte";
+import { dialogOut } from "./motion";
 import { userName } from "./pdf";
 import { type DefaultZoom, type DocumentWindows, PAGE_TONES, settings, type Theme } from "./settings.svelte";
 import type { PageLayout } from "./tabs.svelte";
@@ -65,12 +66,16 @@ function zoomLabel(zoom: DefaultZoom): string {
 }
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="settings-title" {onclose}>
+<dialog
+  out:dialogOut|global bind:this={dialog} aria-labelledby="settings-title"
+  oncancel={(e) => {
+    // Closed by the app (not the browser), so it can fade out.
+    e.preventDefault();
+    onclose();
+  }}>
   <header>
     <h2 id="settings-title">{i18n.t("settings")}</h2>
-    <form method="dialog">
-      <button class="icon" aria-label={i18n.t("close")} title={i18n.t("close")}><Icon name="close" /></button>
-    </form>
+    <button class="icon" onclick={onclose} aria-label={i18n.t("close")} title={i18n.t("close")}><Icon name="close" /></button>
   </header>
 
   <div class="body">
@@ -156,6 +161,11 @@ function zoomLabel(zoom: DefaultZoom): string {
             {/each}
           </div>
         </div>
+        <label class="check">
+          <input type="checkbox" bind:checked={settings.animations} />
+          {i18n.t("animations")}
+        </label>
+        <p class="hint">{i18n.t("animations-hint")}</p>
       {:else}
         <p class="hint">{i18n.t("reading-defaults-hint")}</p>
 

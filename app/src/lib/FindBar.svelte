@@ -4,6 +4,7 @@
 // the results, which are highlighted on the pages.
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+import { out, rise } from "./motion";
 import type { Tab } from "./tabs.svelte";
 
 interface Props {
@@ -59,7 +60,7 @@ let status = $derived.by(() => {
 });
 </script>
 
-<div class="find-bar" role="search">
+<div class="find-bar" role="search" in:rise|global out:out|global>
   <Icon name="search" />
   <input
     bind:this={input}

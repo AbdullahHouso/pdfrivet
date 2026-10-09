@@ -105,6 +105,9 @@ CI (`.github/workflows/ci.yml`) runs them on Linux and Windows on every push to 
   that must really leave the file (deleted annotations, redactions) goes through `prune.rs`.
 - **Text boxes don't inherit fonts:** `input`/`textarea` need `font: inherit` (set in `app.css`), or
   they use the system font, which may lack Arabic (Linux).
+- **Animations:** Svelte 5 transitions on a component's root need `|global`; dialogs must be closed
+  by the app (prevent `cancel`, no `<form method="dialog">`) or they vanish before fading; animate
+  only opacity/transform, and never the size of something that resizes the pages.
 - **Right-click menus:** on Linux/macOS `contextmenu` fires on button down, so menus opened from it
   must be `popover="manual"` (an automatic popover closes on button up).
 - **Windows-only Rust can't be checked from Linux** (ring needs `lib.exe`); rely on CI's Windows job.

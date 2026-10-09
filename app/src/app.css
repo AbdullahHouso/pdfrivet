@@ -6,6 +6,12 @@
    neutral greys and white for the interface, copper as the accent.
    Text contrast is checked for WCAG AA (4.5:1). */
 :root {
+  /* Motion: entries ease out, exits are quicker so closing always feels instant.
+     Settings → Animations off sets them to zero (data-motion="off"). */
+  --motion-in: 140ms;
+  --motion-out: 90ms;
+  --motion-hover: 100ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --text: #1b1c20;
   --muted: #5f6470;
   /* Toolbar, sidebar, menus and dialogs. */
@@ -202,6 +208,13 @@ button:hover:not(:disabled) {
   background: var(--hover);
 }
 
+button {
+  transition:
+    background-color var(--motion-hover) ease-out,
+    border-color var(--motion-hover) ease-out,
+    color var(--motion-hover) ease-out;
+}
+
 button:disabled {
   opacity: 0.4;
   cursor: default;
@@ -267,6 +280,23 @@ button.icon svg {
 .tooltip[hidden] {
   display: none;
 }
+/* Tooltips fade in and out (tooltip.ts); moving from one to the next swaps them at once. */
+.tooltip {
+  pointer-events: none;
+  transition: opacity var(--motion-out) ease-in;
+}
+.tooltip.entering {
+  animation: tooltip-in var(--motion-in) var(--ease-out);
+}
+.tooltip.leaving {
+  opacity: 0;
+}
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
 .tooltip kbd {
   font: inherit;
   font-size: 11px;
@@ -320,5 +350,58 @@ button.icon svg {
   }
   .print-page:last-child {
     break-after: auto;
+  }
+}
+
+/* --- Animations ----------------------------------------------------------
+   Only opacity and transform change, which the GPU handles without laying the
+   page out again. Entries use --motion-in, exits --motion-out. */
+:root[data-motion="off"] {
+  --motion-in: 0ms;
+  --motion-out: 0ms;
+  --motion-hover: 0ms;
+}
+
+/* Menus and other popovers: fade and drop in, fade out. */
+[popover]:not(.tooltip) {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top center;
+  transition:
+    opacity var(--motion-out) ease-in,
+    transform var(--motion-out) ease-in,
+    overlay var(--motion-out) allow-discrete,
+    display var(--motion-out) allow-discrete;
+}
+[popover]:not(.tooltip):popover-open {
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--motion-in);
+  transition-timing-function: var(--ease-out);
+}
+@starting-style {
+  [popover]:not(.tooltip):popover-open {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+/* Dialogs: rise in with their backdrop; closing fades them out (motion.ts). */
+dialog[open] {
+  animation: dialog-in var(--motion-in) var(--ease-out);
+}
+dialog[open]::backdrop {
+  animation: fade-in var(--motion-in) ease-out;
+  opacity: var(--backdrop-opacity, 1);
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
   }
 }

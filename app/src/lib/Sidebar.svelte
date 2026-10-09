@@ -1,6 +1,7 @@
 <script lang="ts">
 // Side panel with page thumbnails, the document outline and search results.
 import { i18n } from "./i18n.svelte";
+import { fade } from "./motion";
 import OutlineNode from "./OutlineNode.svelte";
 import { getOutline } from "./pdf";
 import SearchPane from "./SearchPane.svelte";
@@ -41,6 +42,8 @@ $effect(() => {
     </button>
   </div>
   <div class="pane" class:fixed={pane === "search"}>
+    {#key pane}
+    <div class="pane-content" in:fade>
     {#if pane === "thumbnails"}
       <Thumbnails {tab} {ongoto} />
     {:else if pane === "search"}
@@ -56,6 +59,8 @@ $effect(() => {
         {/each}
       </ul>
     {/if}
+    </div>
+    {/key}
   </div>
 </aside>
 
@@ -95,6 +100,9 @@ $effect(() => {
     flex: 1;
     min-height: 0;
     overflow: auto;
+  }
+  .pane-content {
+    height: 100%;
   }
   /* The search results scroll by themselves (they're virtualized). */
   .pane.fixed {

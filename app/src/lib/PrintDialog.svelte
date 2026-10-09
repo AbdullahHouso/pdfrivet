@@ -11,6 +11,7 @@ import type { PrinterInfo } from "./bindings/PrinterInfo";
 import type { PrintSettings } from "./bindings/PrintSettings";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+import { dialogOut } from "./motion";
 import PageView from "./PageView.svelte";
 import {
   choosePages,
@@ -151,7 +152,8 @@ function sheetsLabel(): string {
 }
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="print-title" oncancel={(e) => { e.preventDefault(); oncancel(); }}>
+<dialog
+  out:dialogOut|global bind:this={dialog} aria-labelledby="print-title" oncancel={(e) => { e.preventDefault(); oncancel(); }}>
   <form onsubmit={submit}>
     <header class="head">
       <Icon name="print" />

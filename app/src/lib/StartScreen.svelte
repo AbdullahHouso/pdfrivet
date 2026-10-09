@@ -2,6 +2,7 @@
 import logoUrl from "../../../assets/brand/rivet-icon.svg";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+import { fade } from "./motion";
 import { filesExist } from "./pdf";
 import { settings } from "./settings.svelte";
 
@@ -33,7 +34,7 @@ function when(ms: number): string {
 }
 </script>
 
-<div class="start">
+<div class="start" in:fade|global>
   <div class="hero">
     <img class="logo" src={logoUrl} alt="" width="96" height="96" />
     <h1>{i18n.t("app-name")}</h1>

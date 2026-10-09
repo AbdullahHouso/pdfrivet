@@ -40,6 +40,10 @@ let target: Element | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 /** When a tooltip last closed: moving on to the next button shows its tooltip at once. */
 let closedAt = 0;
+/** The tooltip is fading out (see `hide`). */
+let leaveTimer: ReturnType<typeof setTimeout> | undefined;
+/** How long the fade-out takes (as --motion-out in app.css). */
+const FADE_OUT = 90;
 
 // A plain floating element, not a top-layer popover: WebView2 (Windows) can
 // keep painting a closed popover. To appear above an open menu or dialog, it
@@ -73,6 +77,12 @@ function show(el: Element) {
   }
   const host = el.closest("dialog[open], [popover]") ?? document.body;
   if (tip.parentElement !== host) host.append(tip);
+  // Moving straight to the next tooltip while this one fades out: no fade-in,
+  // it just takes the new place (the toolbar stays snappy).
+  const wasLeaving = tip.classList.contains("leaving");
+  clearTimeout(leaveTimer);
+  tip.classList.remove("leaving");
+  tip.classList.toggle("entering", !wasLeaving);
   tip.hidden = false;
   // Below the element, centred and kept on screen; above it if there's no room.
   const box = el.getBoundingClientRect();
@@ -90,9 +100,20 @@ function hide() {
   clearTimeout(timer);
   target?.removeEventListener("pointerleave", hide);
   target = null;
-  if (tooltip && !tooltip.hidden) {
-    tooltip.hidden = true;
+  if (tooltip && !tooltip.hidden && !tooltip.classList.contains("leaving")) {
+    const tip = tooltip;
     closedAt = Date.now();
+    // Fade out, then take it away (at once when animations are off).
+    const off = document.documentElement.dataset.motion === "off";
+    tip.classList.remove("entering");
+    tip.classList.add("leaving");
+    leaveTimer = setTimeout(
+      () => {
+        tip.hidden = true;
+        tip.classList.remove("leaving");
+      },
+      off ? 0 : FADE_OUT,
+    );
   }
 }
 

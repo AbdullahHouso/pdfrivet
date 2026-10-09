@@ -231,6 +231,24 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   rewritten by lopdf, so redaction refuses them (`RedactProtected`).
 - Area marks also work for highlight/underline/strikeout (one quad = the area), for scans.
 
+## Animations
+
+- Only opacity and transform are animated (no layout work), entries ~140 ms easing out, exits
+  ~90 ms. Durations are CSS variables in `app.css` (`--motion-in`, `--motion-out`,
+  `--motion-hover`) and `lib/motion.ts` for Svelte transitions; `data-motion="off"` on `<html>`
+  (Settings → Animations) sets them all to zero.
+- Popovers (menus) animate in CSS with `@starting-style` and `transition-behavior:
+  allow-discrete` for the exit (Chromium/WebView2; older WebKitGTK just closes them at once).
+  Dialogs animate in with a keyframe and out with `dialogOut` (the backdrop follows through
+  `--backdrop-opacity`). Elements shown with `{#if}` use `rise`, `pop`, `fade` and `out`.
+- Svelte 5 transitions are local: one on a component's root only runs when the parent's
+  `{#if}` changes if it's marked `|global`.
+- Dialogs must be closed by the app (prevent `cancel`, no `<form method="dialog">`): a natively
+  closed dialog is hidden at once, before it can fade.
+- Tooltips (`tooltip.ts`) fade in and out; moving straight to the next one swaps them at once.
+- Things that change size (the Annotate row, the sidebar) only fade, never slide: sliding would
+  resize the pages on every frame.
+
 ## Page display and printing
 
 - `layout.ts` arranges pages in **rows** of one or two pages (`columns`), mirrored for

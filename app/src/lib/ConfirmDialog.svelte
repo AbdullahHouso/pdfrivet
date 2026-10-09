@@ -1,6 +1,7 @@
 <script lang="ts">
 // A small question dialog with a few answers (e.g. Save / Don't save / Cancel).
 // Escape picks the last choice, which should be the safe "Cancel".
+import { dialogOut } from "./motion";
 export interface Choice {
   id: string;
   label: string;
@@ -24,6 +25,7 @@ $effect(() => {
 </script>
 
 <dialog
+  out:dialogOut|global
   bind:this={dialog}
   aria-labelledby="confirm-title"
   aria-describedby="confirm-message"

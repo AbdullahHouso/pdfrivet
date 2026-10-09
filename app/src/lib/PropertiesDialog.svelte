@@ -7,6 +7,7 @@ import type { Metadata } from "./bindings/Metadata";
 import type { PageSize } from "./bindings/PageSize";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+import { dialogOut } from "./motion";
 import { documentProperties, type RivetError, toRivetError } from "./pdf";
 
 interface Props {
@@ -108,7 +109,8 @@ function date(iso: string | null): string {
 const yesNo = (v: boolean) => i18n.t(v ? "yes" : "no");
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="props-title" oncancel={(e) => { e.preventDefault(); oncancel(); }}>
+<dialog
+  out:dialogOut|global bind:this={dialog} aria-labelledby="props-title" oncancel={(e) => { e.preventDefault(); oncancel(); }}>
   <form onsubmit={submit}>
     <header class="head">
       <Icon name="info" />

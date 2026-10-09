@@ -108,6 +108,8 @@ settings-reading = Reading
 updates = Updates
 check-now = Check now
 page-tone-hint = Laid over the pages while you read; your files aren't changed. Each document remembers the colour you last used for it.
+animations = Animations
+animations-hint = Menus, dialogs and tooltips fade in and out. Off by default when your system asks for less motion.
 reading-defaults-hint = How documents open the first time. After that, each file reopens the way you left it: page, zoom, page display and scrolling.
 
 ## Saving

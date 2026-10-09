@@ -64,7 +64,15 @@ let autoUpdate = $state(true);
 let lastUpdateCheck = 0;
 let skippedVersion = $state<string | null>(null);
 let author = $state("");
+// Animations start off when the system asks for reduced motion.
+let animations = $state(!(typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches));
 let toolStyles = $state<Record<string, ToolStyle>>({});
+
+/** Turns animations on or off for the whole window (see app.css and motion.ts). */
+function applyMotion(on: boolean) {
+  if (typeof document !== "undefined") document.documentElement.dataset.motion = on ? "on" : "off";
+}
+applyMotion(animations);
 
 function applyTheme(value: Theme) {
   if (value === "system") delete document.documentElement.dataset.theme;
@@ -126,6 +134,10 @@ function apply(key: string, value: unknown) {
     case "author":
       author = value as string;
       break;
+    case "animations":
+      animations = value as boolean;
+      applyMotion(animations);
+      break;
     case "toolStyles":
       toolStyles = value as Record<string, ToolStyle>;
       break;
@@ -153,11 +165,13 @@ export const settings = {
       lastUpdateCheck = (await store.get<number>("lastUpdateCheck")) ?? 0;
       skippedVersion = (await store.get<string>("skippedVersion")) ?? null;
       author = (await store.get<string>("author")) ?? "";
+      animations = (await store.get<boolean>("animations")) ?? animations;
       toolStyles = (await store.get<Record<string, ToolStyle>>("toolStyles")) ?? {};
     } catch (e) {
       console.warn("[settings] using defaults", e);
     }
     applyTheme(theme);
+    applyMotion(animations);
   },
 
   get theme() {
@@ -255,6 +269,16 @@ export const settings = {
   set skippedVersion(value: string | null) {
     skippedVersion = value;
     save("skippedVersion", value);
+  },
+
+  /** Menus, dialogs and tooltips animate in and out. */
+  get animations() {
+    return animations;
+  },
+  set animations(value: boolean) {
+    animations = value;
+    applyMotion(value);
+    save("animations", value);
   },
 
   /** The name written as the author of new annotations (empty: the OS user name). */

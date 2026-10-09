@@ -6,6 +6,7 @@ import { type AnnotTool, annotate, applyRedactions, PALETTE, redo, toHex, undo }
 import type { Color } from "./bindings/Color";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+import { fade, out } from "./motion";
 import { type RivetError, toRivetError } from "./pdf";
 import SignatureDialog from "./SignatureDialog.svelte";
 import { settings } from "./settings.svelte";
@@ -114,7 +115,7 @@ async function run(action: (t: Tab) => Promise<unknown>) {
 }
 </script>
 
-<div class="annotate-bar" role="toolbar" aria-label={i18n.t("annotate")}>
+<div class="annotate-bar" in:fade|global out:out|global role="toolbar" aria-label={i18n.t("annotate")}>
   <div class="group" role="radiogroup" aria-label={i18n.t("annotate-tools")}>
     <button class="icon" role="radio" aria-checked={current === null} onclick={() => choose(null)}
       title={i18n.t("annot-select")} aria-label={i18n.t("annot-select")} data-shortcut="Escape">

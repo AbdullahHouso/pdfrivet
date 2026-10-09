@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import logoUrl from "../../../assets/brand/rivet-icon.svg";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+import { dialogOut } from "./motion";
 
 const WEBSITE = "https://pdfrivet.com";
 const GITHUB = "https://github.com/AbdullahHouso/pdfrivet";
@@ -29,7 +30,13 @@ $effect(() => {
 });
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="about-title" onclose={onclose}>
+<dialog
+  out:dialogOut|global bind:this={dialog} aria-labelledby="about-title"
+  oncancel={(e) => {
+    // Closed by the app (not the browser), so it can fade out.
+    e.preventDefault();
+    onclose();
+  }}>
   <img src={logoUrl} alt="" width="72" height="72" />
   <h2 id="about-title">{i18n.t("app-name")}</h2>
   {#if version}<p class="version">{i18n.t("version", { version })}</p>{/if}
@@ -39,9 +46,9 @@ $effect(() => {
     <button onclick={() => open(WEBSITE)}><Icon name="globe" />{i18n.t("website")}</button>
     <button onclick={() => open(GITHUB)}><Icon name="code" />GitHub</button>
   </div>
-  <form method="dialog">
-    <button class="primary">{i18n.t("close")}</button>
-  </form>
+  <div class="close">
+    <button class="primary" onclick={onclose}>{i18n.t("close")}</button>
+  </div>
   <p class="small url" dir="ltr">pdfrivet.com</p>
 </dialog>
 
@@ -77,7 +84,7 @@ $effect(() => {
     align-items: center;
     gap: 8px;
   }
-  form {
+  .close {
     margin-block-start: 16px;
   }
   .url {

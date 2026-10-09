@@ -40,6 +40,7 @@ import type { PagePoint } from "./bindings/PagePoint";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
 import type { Degrees } from "./layout";
+import { fade, out, pop, rise } from "./motion";
 import { getAnnotations, type RivetError, setAnnotationHidden, toRivetError } from "./pdf";
 import { settings, type ToolStyle } from "./settings.svelte";
 import type { Tab } from "./tabs.svelte";
@@ -628,7 +629,7 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
     <!-- The selection frame and its handles. -->
     {#if frame}
       {@const { a, r } = frame}
-      <rect class="frame" x={r.left - 3} y={r.top - 3} width={r.width + 6} height={r.height + 6} />
+      <rect in:fade class="frame" x={r.left - 3} y={r.top - 3} width={r.width + 6} height={r.height + 6} />
       {#if canMove(a) && !drawingTool}
         {#if a.kind.kind === "line"}
           {#each [["from", a.kind.from], ["to", a.kind.to]] as const as [end, point] (end)}
@@ -649,7 +650,7 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
   <!-- Areas marked for redaction (applied when the document is saved). -->
   {#each tab.redactions.filter((m) => m.page === index) as mark (mark.id)}
     {@const r = rectToPx(mark.rect, box)}
-    <div class="redaction" style:left="{r.left}px" style:top="{r.top}px" style:width="{r.width}px"
+    <div class="redaction" in:fade out:out style:left="{r.left}px" style:top="{r.top}px" style:width="{r.width}px"
       style:height="{r.height}px">
       <button class="unmark" title={i18n.t("redact-unmark")} aria-label={i18n.t("redact-unmark")}
         onclick={() => unmarkRedaction(tab, mark.id)}>
@@ -660,7 +661,7 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
 
   {#if selected && menuPos && !drag}
     {@const a = selected}
-    <div class="annot-menu" style:left="{menuPos.x}px" style:top="{menuPos.y}px" bind:clientWidth={menuWidth}>
+    <div class="annot-menu" in:pop out:out style:left="{menuPos.x}px" style:top="{menuPos.y}px" bind:clientWidth={menuWidth}>
       {#if a.editable}
         {#each PALETTE as color (toHex(color))}
           <button class="swatch" style:background={toHex(color)} aria-pressed={toHex(color) === toHex(a.color)}
@@ -679,6 +680,8 @@ let draftStyle = $derived(tool ? annotate.style(tool) : null);
     </div>
     {#if editing === a.id}
       <textarea
+        in:rise={{ y: -4 }}
+        out:out
         class="comment"
         style:left="{menuPos.commentX}px"
         style:top="{menuPos.commentY}px"

@@ -3,6 +3,7 @@
 // or scan, with the paper made transparent. It can be kept for next time.
 import type { Color } from "./bindings/Color";
 import { i18n } from "./i18n.svelte";
+import { dialogOut } from "./motion";
 import { contentBounds, fitWithin, normalizeStrokes, removeBackground, suggestThreshold } from "./signatureImage";
 import { newSignatureId, type Signature } from "./signatures.svelte";
 
@@ -197,6 +198,7 @@ function use() {
 </script>
 
 <dialog
+  out:dialogOut|global
   bind:this={dialog}
   aria-labelledby="signature-title"
   oncancel={(e) => {

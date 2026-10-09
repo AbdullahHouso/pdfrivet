@@ -25,6 +25,7 @@ import FindBar from "./lib/FindBar.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { shortcutKey } from "./lib/keys";
 import { type Degrees, rotatedSize, stepZoom } from "./lib/layout";
+import { fade, out, rise } from "./lib/motion";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
 import PropertiesDialog from "./lib/PropertiesDialog.svelte";
@@ -705,7 +706,7 @@ onMount(() => {
 {/if}
 
 {#if error}
-  <div class="error" role="alert">
+  <div class="error" role="alert" in:rise out:out>
     <span>{i18n.t(`error-${error.code}`)}</span>
     <button onclick={() => (error = null)}>{i18n.t("dismiss")}</button>
   </div>
@@ -715,7 +716,9 @@ onMount(() => {
   {#if active}
     {#key active.id}
       {#if sidebarOpen}
+        <div class="sidebar-wrap" in:fade out:out>
         <Sidebar tab={active} ongoto={goTo} bind:pane={sidebarPane} onfind={() => active && openFind(active)} />
+        </div>
       {/if}
       {@const tab = active}
       <Viewer bind:this={viewer} {tab} onerror={(e) => (error = e)} oncontextmenu={(e) => showPageMenu(tab, e)} />
@@ -736,7 +739,7 @@ onMount(() => {
   {/if}
 
   {#if dragging}
-    <div class="drop-overlay" aria-hidden="true">
+    <div class="drop-overlay" aria-hidden="true" in:fade out:out>
       <span>{i18n.t("drop-to-open")}</span>
     </div>
   {/if}
@@ -776,7 +779,7 @@ onMount(() => {
 {/if}
 
 {#if sendingToPrinter}
-  <div class="print-progress" role="status" aria-live="polite">
+  <div class="print-progress" role="status" aria-live="polite" in:fade out:out>
     <span>{i18n.t("printing-sending")}</span>
     <progress></progress>
   </div>
@@ -854,6 +857,12 @@ onMount(() => {
   .print-progress progress {
     width: 160px;
     accent-color: var(--accent);
+  }
+  /* Holds the sidebar so it can fade in and out when shown or hidden. */
+  .sidebar-wrap {
+    display: flex;
+    flex: none;
+    min-height: 0;
   }
   .drop-overlay {
     position: absolute;

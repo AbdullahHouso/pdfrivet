@@ -1,6 +1,7 @@
 <script lang="ts">
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+import { pop } from "./motion";
 import { type Tab, tabs } from "./tabs.svelte";
 
 interface Props {
@@ -15,6 +16,7 @@ let { onopen, onclose }: Props = $props();
   {#each tabs.list as tab (tab.id)}
     {@const active = tab.id === tabs.active?.id}
     <div
+      in:pop
       class="tab"
       class:active
       role="tab"

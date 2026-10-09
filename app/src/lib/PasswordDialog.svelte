@@ -3,6 +3,7 @@
 // handles focus, Escape and screen readers for us.
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
+import { dialogOut } from "./motion";
 
 interface Props {
   fileName: string;
@@ -26,7 +27,8 @@ $effect(() => {
 });
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="pw-title" oncancel={(e) => { e.preventDefault(); oncancel(); }}>
+<dialog
+  out:dialogOut|global bind:this={dialog} aria-labelledby="pw-title" oncancel={(e) => { e.preventDefault(); oncancel(); }}>
   <form
     onsubmit={(e) => {
       e.preventDefault();
