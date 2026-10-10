@@ -191,6 +191,7 @@ props-modified = تاريخ التعديل
 props-file = الملف
 props-file-name = اسم الملف
 props-location = الموقع
+open-file-short = فتح
 show-in-folder = إظهار في المجلد
 props-file-size = حجم الملف
 props-pages = الصفحات
@@ -354,6 +355,8 @@ error-redact-protected = لا يمكن التنقيح في الملفات الم
 error-io = تعذّرت قراءة الملف.
 error-internal = حدث خطأ ما.
 dismiss = إغلاق
+error-assemble-not-allowed = لا يسمح مؤلف المستند بتغيير صفحاته.
+error-undo-unavailable = لم يعد بالإمكان التراجع عن هذا التغيير.
 
 ## Updates
 check-updates = البحث عن تحديثات…
@@ -418,3 +421,43 @@ default-app-open-settings = افتح الإعدادات مرة أخرى
 default-app-is-default = ملفات PDF تُفتح في PDFRivet.
 default-app-not-default = ملفات PDF تُفتح في برنامج آخر.
 default-app-ask = اقترح جعل PDFRivet البرنامج الافتراضي
+
+## Page tools
+tools = الأدوات
+tools-this-document = هذا المستند
+tools-create = إنشاء
+organize-pages = تنظيم الصفحات
+organize-done = تم
+organize-hint = اسحب الصفحات لترتيبها. استخدم Ctrl أو Shift مع النقر لتحديد أكثر من صفحة.
+organize-selected = { $count ->
+    [one] صفحة واحدة محددة
+    [two] صفحتان محددتان
+    [few] { $count } صفحات محددة
+   *[other] { $count } صفحة محددة
+}
+organize-size = حجم المصغّرات
+organize-discard-title = تجاهل التغييرات على الصفحات؟
+organize-discard-text = ستبقى الصفحات كما كانت.
+organize-discard = تجاهل
+organize-keep = متابعة التنظيم
+organize-last-page = يجب أن يبقى في المستند صفحة واحدة على الأقل.
+organize-redactions-first = طبّق التنقيحات المحددة أو أزلها أولًا.
+organize-inserted-from = من { $file }
+organize-blank-page = صفحة فارغة
+rotate-clockwise = تدوير مع عقارب الساعة
+rotate-counterclockwise = تدوير عكس عقارب الساعة
+delete-pages = حذف
+delete-page = حذف الصفحة
+duplicate-pages = تكرار
+insert-blank-page = إدراج صفحة فارغة
+insert-from-file = إدراج صفحات من ملف…
+extract-pages = استخراج صفحات…
+extract-page = استخراج الصفحة…
+extract-title = استخراج صفحات
+extract-pages-label = الصفحات
+extract-pages-hint = مثال: 1-3، 7
+extract-delete-after = حذفها من هذا المستند
+extract-run = استخراج…
+extract-name = { $name } (الصفحات { $pages })
+extract-done = حُفظت الصفحات في { $file }.
+extract-apply-first = اضغط «تم» أولًا: تُستخرج الصفحات كما هي في المستند.

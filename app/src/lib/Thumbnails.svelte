@@ -8,16 +8,22 @@ import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
 import { maxThumbnailColumns, rotatedSize, rowAt, THUMB_GAP, thumbnailGrid, visibleRange } from "./layout";
 import PageView from "./PageView.svelte";
+import { arrange, rotate } from "./pageEdits";
+import { type RivetError, toRivetError } from "./pdf";
 import { settings } from "./settings.svelte";
 import type { Tab } from "./tabs.svelte";
+import type { ToolId } from "./tools/tools";
 
 interface Props {
   tab: Tab;
   ongoto: (page: number) => void;
   /** Bookmarks a page (from the right-click menu). */
   onbookmark?: (page: number) => void;
+  /** A page tool for a page (from the right-click menu). */
+  ontool?: (tool: ToolId, page: number) => void;
+  onerror?: (e: RivetError) => void;
 }
-let { tab, ongoto, onbookmark }: Props = $props();
+let { tab, ongoto, onbookmark, ontool, onerror }: Props = $props();
 
 let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
 
@@ -31,6 +37,46 @@ function showMenu(e: MouseEvent, page: number) {
       hint: i18n.t("bookmarks-protected"),
       action: () => onbookmark(page),
     });
+  }
+  // Page tools, for this page.
+  const assemble = tab.info.canAssemble;
+  const fail = (err: unknown) => onerror?.(toRivetError(err));
+  const notAllowed = i18n.t("error-assemble-not-allowed");
+  items.push(
+    {
+      label: i18n.t("rotate-clockwise"),
+      disabled: !assemble,
+      hint: notAllowed,
+      action: () => rotate(tab, [page], 1).catch(fail),
+    },
+    {
+      label: i18n.t("rotate-counterclockwise"),
+      disabled: !assemble,
+      hint: notAllowed,
+      action: () => rotate(tab, [page], -1).catch(fail),
+    },
+    {
+      label: i18n.t("delete-page"),
+      disabled: !assemble || tab.info.pageCount < 2,
+      hint: assemble ? i18n.t("organize-last-page") : notAllowed,
+      action: () => {
+        const slots = Array.from({ length: tab.info.pageCount }, (_, index) => index)
+          .filter((index) => index !== page)
+          .map((index) => ({ source: { kind: "page" as const, index }, turns: 0 }));
+        arrange(tab, slots).catch(fail);
+      },
+    },
+  );
+  if (ontool) {
+    items.push(
+      { label: i18n.t("extract-page"), disabled: !assemble, hint: notAllowed, action: () => ontool("extract", page) },
+      {
+        label: i18n.t("organize-pages"),
+        disabled: !assemble,
+        hint: notAllowed,
+        action: () => ontool("organize", page),
+      },
+    );
   }
   menu = { x: e.clientX, y: e.clientY, items };
 }

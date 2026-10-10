@@ -8,6 +8,7 @@ import RecentMenu from "./RecentMenu.svelte";
 import type { ZoomMode } from "./recent";
 import { PAGE_TONES, type PageTone, settings } from "./settings.svelte";
 import type { PageLayout, Tab } from "./tabs.svelte";
+import { TOOLS, type ToolId } from "./tools/tools";
 import { formatShortcut } from "./tooltip";
 
 interface Props {
@@ -38,6 +39,8 @@ interface Props {
   oncontinuous: (continuous: boolean) => void;
   onpagesrtl: (rtl: boolean) => void;
   onpagetone: (tone: PageTone) => void;
+  /** A tool from the Tools menu (see tools/tools.ts). */
+  ontool: (tool: ToolId) => void;
 }
 let props: Props = $props();
 let tab = $derived(props.tab);
@@ -88,6 +91,12 @@ function onZoomSelect(e: Event) {
 }
 
 let appMenu: HTMLDivElement;
+let toolsMenu: HTMLDivElement;
+
+function runTool(tool: ToolId) {
+  toolsMenu.hidePopover();
+  props.ontool(tool);
+}
 let recentMenu: RecentMenu | undefined = $state();
 
 /** Runs a File menu command after closing the menus. */
@@ -121,7 +130,9 @@ function run(command: () => void) {
 
   <!-- Center: moving around the document -->
   <div class="zone center">
-    {#if tab}
+    {#if tab?.organizing}
+      <span class="mode-title">{i18n.t("organize-pages")}</span>
+    {:else if tab}
       <div class="group">
         <button class="icon" onclick={() => props.onstep(-1)} disabled={tab.page === 0}
           aria-label={i18n.t("previous-page")} title={i18n.t("previous-page")}>
@@ -236,6 +247,26 @@ function run(command: () => void) {
 
   <!-- End (right in English, left in Arabic): app menu -->
   <div class="zone end">
+  <button class="icon" popovertarget="tools-menu" aria-label={i18n.t("tools")} title={i18n.t("tools")}>
+    <Icon name="tools" />
+  </button>
+  <div id="tools-menu" class="menu tools-menu" popover bind:this={toolsMenu}>
+    {#each [["document", "tools-this-document"], ["create", "tools-create"]] as const as [group, heading] (group)}
+      {@const list = TOOLS.filter((t) => t.group === group)}
+      {#if list.length}
+        <div class="menu-section" role="group" aria-label={i18n.t(heading)}>
+          <span class="menu-label">{i18n.t(heading)}</span>
+          {#each list as tool (tool.id)}
+            {@const disabled = tool.needsDocument && (!tab || (tool.needsAssemble && !tab.info.canAssemble))}
+            <button class="menu-item command" {disabled} onclick={() => runTool(tool.id)}
+              title={tab && tool.needsAssemble && !tab.info.canAssemble ? i18n.t("error-assemble-not-allowed") : undefined}>
+              <span class="tool-name"><Icon name={tool.icon} />{i18n.t(tool.label)}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    {/each}
+  </div>
   <button class="icon" onclick={props.ontogglecomments} disabled={!tab} aria-pressed={props.commentsOpen}
     aria-label={i18n.t("toggle-comments")} title={i18n.t("toggle-comments")} data-shortcut="Ctrl+Shift+C">
     <Icon name="comment" />
@@ -291,6 +322,17 @@ function run(command: () => void) {
 </header>
 
 <style>
+  .mode-title {
+    font-weight: 600;
+  }
+  .tools-menu {
+    min-width: 240px;
+  }
+  .tool-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
   /* Three zones; the middle one stays centred whatever the sides contain. */
   .toolbar {
     display: grid;

@@ -58,6 +58,17 @@ pub(crate) async fn import_pages(
     blocking(move || engine.import_pages(doc_id, source, pages, at)).await
 }
 
+#[tauri::command]
+pub(crate) async fn extract_pages(
+    doc_id: DocId,
+    pages: Vec<u32>,
+    path: std::path::PathBuf,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.extract_pages(doc_id, pages, path)).await
+}
+
 /// Undo or redo of a page change (see `Engine::swap_snapshot`).
 #[tauri::command]
 pub(crate) async fn swap_snapshot(

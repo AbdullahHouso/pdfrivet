@@ -193,6 +193,7 @@ props-modified = Modified
 props-file = File
 props-file-name = File name
 props-location = Location
+open-file-short = Open
 show-in-folder = Show in folder
 props-file-size = File size
 props-pages = Pages
@@ -351,6 +352,8 @@ error-redact-protected = Redaction isn’t possible in password-protected PDFs y
 error-io = The file could not be read.
 error-internal = Something went wrong.
 dismiss = Dismiss
+error-assemble-not-allowed = The document's author doesn't allow changing its pages.
+error-undo-unavailable = This change can no longer be undone.
 
 ## Updates
 check-updates = Check for updates…
@@ -415,3 +418,41 @@ default-app-open-settings = Open settings again
 default-app-is-default = PDFRivet opens your PDF files.
 default-app-not-default = Your PDF files open in another app.
 default-app-ask = Offer to make PDFRivet the default
+
+## Page tools
+tools = Tools
+tools-this-document = This document
+tools-create = Create
+organize-pages = Organize pages
+organize-done = Done
+organize-hint = Drag pages to put them in order. Ctrl+click or Shift+click selects several.
+organize-selected = { $count ->
+    [one] 1 page selected
+   *[other] { $count } pages selected
+}
+organize-size = Thumbnail size
+organize-discard-title = Discard the changes to the pages?
+organize-discard-text = The pages stay as they were.
+organize-discard = Discard
+organize-keep = Keep organizing
+organize-last-page = A document needs at least one page.
+organize-redactions-first = Apply or remove the marked redactions first.
+organize-inserted-from = From { $file }
+organize-blank-page = Blank page
+rotate-clockwise = Rotate clockwise
+rotate-counterclockwise = Rotate counter-clockwise
+delete-pages = Delete
+delete-page = Delete page
+duplicate-pages = Duplicate
+insert-blank-page = Insert blank page
+insert-from-file = Insert pages from a file…
+extract-pages = Extract pages…
+extract-page = Extract page…
+extract-title = Extract pages
+extract-pages-label = Pages
+extract-pages-hint = For example 1-3, 7
+extract-delete-after = Delete them from this document
+extract-run = Extract…
+extract-name = { $name } (pages { $pages })
+extract-done = Pages saved to { $file }.
+extract-apply-first = Click Done first: pages are extracted as they are in the document.

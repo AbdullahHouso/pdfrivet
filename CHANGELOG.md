@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 
 ## [Unreleased]
 
+### Pages
+- Organize pages (Tools menu, or right-click a thumbnail): every page as a big thumbnail. Drag pages into a new order, turn them, delete or duplicate them, add blank pages or pages from another PDF, with undo while you work. Done applies everything at once, and Ctrl+Z undoes it all in one step. Works the same in right-to-left layouts.
+- Right-click a thumbnail to turn that page, delete it, or extract it into a new file.
+- Extract pages (Tools menu): save some pages as a new PDF, and optionally delete them from this one.
+- Deleted pages really leave the saved file, as with redaction. Bookmarks follow their pages; bookmarks of deleted pages go.
+- Turning pages here changes the file; the toolbar's rotate button still only turns your view.
+
 ### Added
 - PDFRivet offers to become your default PDF app when another app opens PDF files (once, after you open a file; "Not now" waits a week). Settings → General shows which app opens your PDFs. On Windows this opens PDFRivet's page in the Windows settings, and the installer's last page has a link to it.
 

@@ -26,3 +26,16 @@ export function parsePageRange(text: string, pageCount: number): number[] | null
   }
   return [...pages].sort((a, b) => a - b);
 }
+
+/** Writes 0-based pages as a short 1-based range for people: [0, 1, 2, 6] is "1-3, 7". */
+export function pageList(pages: number[]): string {
+  const sorted = [...new Set(pages)].sort((a, b) => a - b);
+  const parts: string[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
+    parts.push(j > i ? `${sorted[i] + 1}-${sorted[j] + 1}` : `${sorted[i] + 1}`);
+    i = j;
+  }
+  return parts.join(", ");
+}

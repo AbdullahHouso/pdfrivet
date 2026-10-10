@@ -22,18 +22,21 @@ pub fn serial() -> MutexGuard<'static, ()> {
     LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+pub fn pdfium_dir() -> PathBuf {
+    std::env::var_os("RIVET_PDFIUM_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            repo_root()
+                .join("vendor/pdfium")
+                .join(rivet_core::pdfium_platform())
+        })
+}
+
 /// PDFium can only be bound once per process, so all tests share one [`Pdf`].
 pub fn pdf() -> &'static Pdf {
     static PDF: OnceLock<Pdf> = OnceLock::new();
     PDF.get_or_init(|| {
-        let dir = std::env::var_os("RIVET_PDFIUM_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                repo_root()
-                    .join("vendor/pdfium")
-                    .join(rivet_core::pdfium_platform())
-            });
-        Pdf::load(&dir).expect("PDFium not found: run `cargo xtask fetch-pdfium`")
+        Pdf::load(&pdfium_dir()).expect("PDFium not found: run `cargo xtask fetch-pdfium`")
     })
 }
 

@@ -84,6 +84,8 @@ export class Tab {
   readonly search: DocSearch;
   /** The find bar is open. */
   findOpen = $state(false);
+  /** Organize pages is shown instead of the pages (see OrganizeView). */
+  organizing = $state(false);
   /** Undo and redo of annotation, bookmark and page changes. */
   readonly history = new History((steps) => {
     // Page steps keep a whole earlier state in the engine; free it once unreachable.

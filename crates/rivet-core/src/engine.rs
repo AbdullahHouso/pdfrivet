@@ -430,6 +430,17 @@ impl Engine {
         })
     }
 
+    /// Writes some pages of a document (as they are now, with unsaved changes)
+    /// into a new PDF file at `path`.
+    pub fn extract_pages(&self, doc: DocId, pages: Vec<u32>, path: PathBuf) -> Result<()> {
+        self.task(move |w| {
+            let source = w.doc(doc)?;
+            let mut out = w.pdf.new_document()?;
+            out.import_pages(source, &pages, 0)?;
+            out.save(&path)
+        })
+    }
+
     /// Undo and redo of page changes: puts the document back to a kept state,
     /// and keeps the state it replaces instead (returned, for going back again).
     pub fn swap_snapshot(&self, doc: DocId, id: SnapshotId) -> Result<(SnapshotId, DocInfo)> {

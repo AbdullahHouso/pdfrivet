@@ -9,6 +9,7 @@ import type { RivetError } from "./pdf";
 import SearchPane from "./SearchPane.svelte";
 import Thumbnails from "./Thumbnails.svelte";
 import type { Tab } from "./tabs.svelte";
+import type { ToolId } from "./tools/tools";
 
 export type SidebarPane = "thumbnails" | "outline" | "search";
 
@@ -21,8 +22,10 @@ interface Props {
   /** Width in px (the splitter next to it changes it). */
   width: number;
   onerror?: (e: RivetError) => void;
+  /** A page tool from a thumbnail's menu, for that page. */
+  ontool?: (tool: ToolId, page: number) => void;
 }
-let { tab, ongoto, onfind, pane = $bindable("thumbnails"), width, onerror }: Props = $props();
+let { tab, ongoto, onfind, pane = $bindable("thumbnails"), width, onerror, ontool }: Props = $props();
 
 const panes = [
   { id: "thumbnails", icon: "pages", label: "thumbnails" },
@@ -53,7 +56,7 @@ export async function addBookmark(page = tab.page) {
     {#key pane}
     <div class="pane-content" in:fade>
     {#if pane === "thumbnails"}
-      <Thumbnails {tab} {ongoto} onbookmark={addBookmark} />
+      <Thumbnails {tab} {ongoto} onbookmark={addBookmark} {ontool} {onerror} />
     {:else if pane === "search"}
       <SearchPane {tab} {onfind} />
     {:else}

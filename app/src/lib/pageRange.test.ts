@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePageRange } from "./pageRange";
+import { pageList, parsePageRange } from "./pageRange";
 
 describe("parsePageRange", () => {
   it("parses single pages and ranges", () => {
@@ -19,5 +19,14 @@ describe("parsePageRange", () => {
     expect(parsePageRange("abc", 10)).toBeNull();
     expect(parsePageRange("0", 10)).toBeNull();
     expect(parsePageRange("9-11", 10)).toBeNull();
+  });
+});
+
+describe("pageList", () => {
+  it("joins runs of pages into ranges", () => {
+    expect(pageList([0, 1, 2, 6])).toBe("1-3, 7");
+    expect(pageList([4, 2, 3, 3])).toBe("3-5");
+    expect(pageList([9])).toBe("10");
+    expect(pageList([])).toBe("");
   });
 });

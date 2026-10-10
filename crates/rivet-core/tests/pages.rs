@@ -188,3 +188,18 @@ fn refuses_nonsense() {
     assert_eq!(err.code, ErrorCode::DocumentNotOpen);
     assert_eq!(doc.page_count(), 3, "nothing changed");
 }
+
+#[test]
+fn extracts_pages_into_a_new_file() {
+    let _serial = serial();
+    let engine = rivet_core::Engine::start(&common::pdfium_dir()).unwrap();
+    let (doc, _) = engine.open(&fixture("basic.pdf"), None).unwrap();
+    let dir = temp_dir("extract");
+    let out = dir.join("extracted.pdf");
+    engine.extract_pages(doc, vec![2, 0], out.clone()).unwrap();
+    let extracted = pdf().open(&out, None).unwrap();
+    assert_eq!(extracted.page_count(), 2);
+    assert!(page_text(&extracted, 0).contains("Page three"));
+    assert!(page_text(&extracted, 1).contains("Page one"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -325,6 +325,11 @@ export function importPages(docId: number, source: number, pages: number[], at: 
   return invoke("import_pages", { docId, source, pages, at });
 }
 
+/** Writes some pages (as they are now) into a new PDF file. */
+export function extractPages(docId: number, pages: number[], path: string): Promise<void> {
+  return invoke("extract_pages", { docId, pages, path });
+}
+
 /** Undo/redo of a page change: back to a kept state; returns the state it replaced. */
 export function swapSnapshot(docId: number, snapshot: number): Promise<PagesChanged> {
   return invoke("swap_snapshot", { docId, snapshot });

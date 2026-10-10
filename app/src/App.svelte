@@ -4,6 +4,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { onMount, tick, untrack } from "svelte";
 import AboutDialog from "./lib/AboutDialog.svelte";
 import AnnotateBar from "./lib/AnnotateBar.svelte";
@@ -25,6 +26,7 @@ import DefaultAppCard from "./lib/DefaultAppCard.svelte";
 import { defaultApp } from "./lib/defaultApp.svelte";
 import { hasOtherWindows, moveToNewWindow, openInNewWindow, tabsWindowLabel, windowRequest } from "./lib/docWindows";
 import FindBar from "./lib/FindBar.svelte";
+import Icon from "./lib/Icon.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { isTyping, modalOpen, shortcutKey } from "./lib/keys";
 import {
@@ -39,13 +41,17 @@ import {
   stepZoom,
 } from "./lib/layout";
 import { fade, out, rise } from "./lib/motion";
+import OrganizeView from "./lib/organize/OrganizeView.svelte";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
 import PropertiesDialog from "./lib/PropertiesDialog.svelte";
+import { arrange } from "./lib/pageEdits";
+import { pageList } from "./lib/pageRange";
 import {
   captureTaskbarTab,
   closeDocument,
   documentInfo,
+  extractPages,
   filesExist,
   getText,
   openDocument,
@@ -69,6 +75,8 @@ import TabBar from "./lib/TabBar.svelte";
 import Toolbar from "./lib/Toolbar.svelte";
 import { type Tab, type TabState, tabs } from "./lib/tabs.svelte";
 import { isEmpty, toTextRange } from "./lib/textSelect";
+import ExtractDialog from "./lib/tools/ExtractDialog.svelte";
+import type { ToolId } from "./lib/tools/tools";
 import UpdateDialog from "./lib/UpdateDialog.svelte";
 import { updater } from "./lib/updater.svelte";
 import Viewer from "./lib/Viewer.svelte";
@@ -509,6 +517,70 @@ async function openPending() {
   await openFiles(await takePendingFiles());
 }
 
+/** A tool finished: says so, with Open and Show in folder for the file it wrote. */
+let finished = $state<{ text: string; path?: string } | null>(null);
+let finishedTimer: ReturnType<typeof setTimeout> | undefined;
+function showFinished(text: string, path?: string) {
+  finished = { text, path };
+  clearTimeout(finishedTimer);
+  finishedTimer = setTimeout(() => (finished = null), 10_000);
+}
+
+/** Opens Organize pages for a tab (when its pages can be changed). */
+function organize(tab: Tab) {
+  if (!tab.info.canAssemble) {
+    error = { code: "assemble-not-allowed", detail: "" };
+    return;
+  }
+  if (tab.redactions.length) {
+    showFinished(i18n.t("organize-redactions-first"));
+    return;
+  }
+  closeFind(tab);
+  annotate.open = false;
+  tab.selection = null;
+  tab.organizing = true;
+}
+
+/** The tab whose Extract pages dialog is open. */
+let extracting = $state<Tab | null>(null);
+
+/** A tool chosen from the Tools menu or the start page. */
+function runTool(tool: ToolId) {
+  const tab = active;
+  if (tool === "organize" && tab) organize(tab);
+  else if (tool === "extract" && tab) extracting = tab;
+}
+
+/**
+ * Writes some pages (0-based) of a document into a new file the user names;
+ * with `deleteAfter`, they're then deleted from the document (one undo step).
+ */
+async function extractFlow(tab: Tab, pages: number[], deleteAfter = false) {
+  const name = tab.fileName.replace(/\.pdf$/i, "");
+  const folder = tab.path.slice(0, tab.path.length - tab.fileName.length);
+  const target = await save({
+    defaultPath: folder + i18n.t("extract-name", { name, pages: pageList(pages) }) + ".pdf",
+    filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }],
+  });
+  if (!target) return;
+  const path = /\.pdf$/i.test(target) ? target : `${target}.pdf`;
+  try {
+    await extractPages(tab.docId, pages, path);
+    if (deleteAfter) {
+      const gone = new Set(pages);
+      const kept = Array.from({ length: tab.info.pageCount }, (_, index) => index).filter((i) => !gone.has(i));
+      await arrange(
+        tab,
+        kept.map((index) => ({ source: { kind: "page", index }, turns: 0 })),
+      );
+    }
+    showFinished(i18n.t("extract-done", { file: fileName(path) }), path);
+  } catch (e) {
+    error = toRivetError(e);
+  }
+}
+
 function goTo(page: number) {
   viewer?.goToPage(page);
 }
@@ -651,6 +723,8 @@ function onKey(e: KeyboardEvent) {
     [!!tab && !typing && !mod && !e.altKey && key === "h", () => (settings.tool = "hand")],
     [!!tab && !typing && !mod && e.key === "End", () => tab && goTo(tab.info.pageCount - 1)],
   ];
+  // Organize pages handles its own keys; the document's shortcuts wait.
+  if (tab?.organizing) return;
   const match = shortcuts.find(([when]) => when);
   if (!match) return;
   // With a dialog open, shortcuts would act on the window behind it (Ctrl+A
@@ -768,6 +842,7 @@ onMount(() => {
   oncontinuous={(on) => {
     if (active) active.continuous = on;
   }}
+  ontool={runTool}
 />
 
 {#if active && annotate.open}
@@ -787,9 +862,33 @@ onMount(() => {
   </div>
 {/if}
 
+{#if finished}
+  <div class="print-progress finished" role="status" aria-live="polite" in:rise out:out>
+    <span>{finished.text}</span>
+    {#if finished.path}
+      {@const path = finished.path}
+      <button onclick={() => openFiles([path])}>{i18n.t("open-file-short")}</button>
+      <button onclick={() => revealItemInDir(path).catch(() => {})}>{i18n.t("show-in-folder")}</button>
+    {/if}
+    <button class="icon" onclick={() => (finished = null)} aria-label={i18n.t("dismiss")} title={i18n.t("dismiss")}>
+      <Icon name="close" />
+    </button>
+  </div>
+{/if}
+
 <main>
   {#if active}
     {#key active.id}
+      {#if active.organizing}
+        {@const tab = active}
+        <OrganizeView
+          {tab}
+          onclose={() => (tab.organizing = false)}
+          onerror={(e) => (error = e)}
+          onask={ask}
+          onextract={(pages) => extractFlow(tab, pages)}
+        />
+      {:else}
       {#if sidebarOpen}
         <div class="sidebar-wrap" in:fade out:out>
           <Sidebar
@@ -800,6 +899,11 @@ onMount(() => {
             bind:pane={sidebarPane}
             onfind={() => active && openFind(active)}
             onerror={(e) => (error = e)}
+            ontool={(tool, page) => {
+              if (!active) return;
+              if (tool === "extract") extractFlow(active, [page]);
+              else if (tool === "organize") organize(active);
+            }}
           />
           <Splitter
             bind:value={() => sidebarWidth, (w) => (sidebarDrag = w)}
@@ -851,6 +955,7 @@ onMount(() => {
           }}
         />
       {/if}
+      {/if}
     {/key}
   {:else}
     <StartScreen onopen={pickFiles} onopenpath={openRecent} />
@@ -862,6 +967,19 @@ onMount(() => {
     </div>
   {/if}
 </main>
+
+{#if extracting}
+  {@const tab = extracting}
+  <ExtractDialog
+    pageCount={tab.info.pageCount}
+    initial={String(tab.page + 1)}
+    oncancel={() => (extracting = null)}
+    onrun={(pages, deleteAfter) => {
+      extracting = null;
+      extractFlow(tab, pages, deleteAfter);
+    }}
+  />
+{/if}
 
 {#if passwordFor}
   <PasswordDialog
