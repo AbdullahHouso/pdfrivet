@@ -88,6 +88,7 @@ impl Pdf {
             inner,
             path: path.to_path_buf(),
             new_metadata: None,
+            saved_at: None,
             source,
             password: password.map(str::to_owned),
             pages_loaded: Cell::new(0),
@@ -243,6 +244,9 @@ pub struct Document {
     path: std::path::PathBuf,
     /// Title/author/… changed by the user, written into the file on save.
     new_metadata: Option<crate::metadata::Metadata>,
+    /// When PDFRivet last saved the file (a PDF date). PDFium keeps showing the
+    /// producer and date the file was opened with, so the properties use this.
+    saved_at: Option<String>,
     source: Source,
     password: Option<String>,
     /// Pages PDFium has loaded since the document was (re)opened.
@@ -569,9 +573,16 @@ impl Document {
         DocProperties {
             metadata: self.new_metadata.clone().unwrap_or(stored),
             creator: tag(PdfDocumentMetadataTagType::Creator),
-            producer: tag(PdfDocumentMetadataTagType::Producer),
+            producer: match self.saved_at {
+                Some(_) => crate::metadata::PRODUCER.to_owned(),
+                None => tag(PdfDocumentMetadataTagType::Producer),
+            },
             created: pdf_date_to_iso(&tag(PdfDocumentMetadataTagType::CreationDate)),
-            modified: pdf_date_to_iso(&tag(PdfDocumentMetadataTagType::ModificationDate)),
+            modified: pdf_date_to_iso(
+                self.saved_at
+                    .as_deref()
+                    .unwrap_or(&tag(PdfDocumentMetadataTagType::ModificationDate)),
+            ),
             pdf_version: version.trim_start_matches("Pdf").replace('_', "."),
             page_count: self.page_count(),
             file_name: self
@@ -671,10 +682,10 @@ impl Document {
                 None => {}
             }
         }
-        // PDFium can't write metadata; changed title/author/… are added here.
-        if let Some(meta) = &self.new_metadata {
-            bytes = crate::metadata::apply(bytes, meta)?;
-        }
+        // PDFium can't write metadata: PDFRivet as the producer, the date and
+        // a changed title, author… are added here.
+        let (stamped, saved_at) = crate::metadata::stamp(bytes, self.new_metadata.as_ref())?;
+        bytes = stamped;
         let dir = path
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
@@ -698,6 +709,9 @@ impl Document {
         // The saved bytes now hold every change, so reopening is safe again.
         // Redacted leftovers aren't in the saved file; later saves needn't prune
         // for them. (Deleted annotations are left out of every save until undone.)
+        if saved_at.is_some() {
+            self.saved_at = saved_at;
+        }
         self.needs_prune.set(false);
         self.redacted.borrow_mut().clear();
         if let Source::Memory(_) = self.source {

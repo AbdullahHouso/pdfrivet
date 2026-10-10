@@ -7,7 +7,9 @@
 //! readers look at are updated: the classic Info dictionary and, when present,
 //! the XMP metadata stream that Acrobat prefers.
 
-use lopdf::{IncrementalDocument, Object, StringFormat, text_string};
+use lopdf::{Object, Stream, StringFormat};
+
+use crate::incremental::{Pdf, text};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -157,10 +159,19 @@ fn replace_xmp_property(xml: &mut String, tag: &str, replacement: &str, value: &
     false
 }
 
-/// Updates the title, author, subject, keywords and dates already present in an
-/// XMP packet. Properties the packet doesn't have are left to the Info dictionary.
-pub fn update_xmp(xml: &str, meta: &Metadata, modified_iso: &str) -> String {
+/// Updates the producer, dates and (when edited) title, author, subject and
+/// keywords already present in an XMP packet. Properties the packet doesn't have are left to the Info dictionary.
+pub fn update_xmp(xml: &str, edits: Option<&Metadata>, modified_iso: &str) -> String {
     let mut out = xml.to_owned();
+    let producer = format!("<pdf:Producer>{PRODUCER}</pdf:Producer>");
+    replace_xmp_property(&mut out, "pdf:Producer", &producer, PRODUCER);
+    for tag in ["xmp:ModifyDate", "xmp:MetadataDate"] {
+        let element = format!("<{tag}>{modified_iso}</{tag}>");
+        replace_xmp_property(&mut out, tag, &element, modified_iso);
+    }
+    let Some(meta) = edits else {
+        return out;
+    };
     let alt = |v: &str| {
         format!(
             "<rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li></rdf:Alt>",
@@ -181,91 +192,96 @@ pub fn update_xmp(xml: &str, meta: &Metadata, modified_iso: &str) -> String {
     replace_xmp_property(&mut out, "dc:creator", &creator, &meta.author);
     replace_xmp_property(&mut out, "dc:description", &description, &meta.subject);
     replace_xmp_property(&mut out, "pdf:Keywords", &keywords, &meta.keywords);
-    for tag in ["xmp:ModifyDate", "xmp:MetadataDate"] {
-        let element = format!("<{tag}>{modified_iso}</{tag}>");
-        replace_xmp_property(&mut out, tag, &element, modified_iso);
-    }
     out
 }
 
-/// Writes `meta` into a saved PDF (`bytes`) as an incremental update.
-pub(crate) fn apply(bytes: Vec<u8>, meta: &Metadata) -> Result<Vec<u8>> {
+/// What saved files name as their Producer: the program that wrote the PDF.
+/// (The Creator, the program the document was made in, stays as it was.)
+pub const PRODUCER: &str = concat!("PDFRivet ", env!("CARGO_PKG_VERSION"));
+
+/// Marks a saved PDF (`bytes`) as written by PDFRivet now, and writes changed
+/// title, author… (`edits`), as an incremental update. Updates the Info
+/// dictionary and, when the document has one, the XMP metadata. Returns the
+/// new bytes and the modification date written (none if left as it was).
+///
+/// Password-protected files are left as they are: their metadata would have
+/// to be encrypted, which isn't supported yet (changing their title or author
+/// is refused before this).
+pub(crate) fn stamp(bytes: Vec<u8>, edits: Option<&Metadata>) -> Result<(Vec<u8>, Option<String>)> {
     let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
-    let mut doc: IncrementalDocument = bytes.as_slice().try_into().map_err(|e| failed(&e))?;
-    if doc.get_prev_documents().is_encrypted() {
-        return Err(failed(
-            &"cannot change the description of a password-protected PDF yet",
-        ));
+    let pdf = Pdf::read(&bytes).map_err(|e| failed(&e))?;
+    if pdf.trailer.has(b"Encrypt") {
+        if edits.is_some() {
+            return Err(failed(
+                &"cannot change the description of a password-protected PDF yet",
+            ));
+        }
+        return Ok((bytes, None));
     }
     let (pdf_now, iso_now) = now();
+    let mut changed: Vec<(lopdf::ObjectId, Object)> = Vec::new();
 
     // Info dictionary: update the existing one, or add a new one.
-    let info_id = match doc
-        .get_prev_documents()
-        .trailer
-        .get(b"Info")
-        .and_then(Object::as_reference)
-    {
-        Ok(id) => {
-            doc.opt_clone_object_to_new_document(id)
-                .map_err(|e| failed(&e))?;
-            id
-        }
-        Err(_) => {
-            let id = doc.new_document.new_object_id();
-            doc.new_document
-                .objects
-                .insert(id, Object::Dictionary(lopdf::Dictionary::new()));
-            doc.new_document.trailer.set("Info", Object::Reference(id));
-            id
-        }
-    };
-    let info = doc
-        .new_document
-        .get_dictionary_mut(info_id)
-        .map_err(|e| failed(&e))?;
-    for (key, value) in [
-        ("Title", &meta.title),
-        ("Author", &meta.author),
-        ("Subject", &meta.subject),
-        ("Keywords", &meta.keywords),
-    ] {
-        if value.trim().is_empty() {
-            info.remove(key.as_bytes());
-        } else {
-            info.set(key, text_string(value.trim()));
-        }
-    }
-    info.set(
-        "ModDate",
-        Object::String(pdf_now.into_bytes(), StringFormat::Literal),
-    );
-
-    // XMP metadata, if the document has it.
-    let xmp_id = doc
-        .get_prev_documents()
-        .catalog()
-        .ok()
-        .and_then(|catalog| catalog.get(b"Metadata").ok())
-        .and_then(|m| m.as_reference().ok());
-    if let Some(id) = xmp_id {
-        doc.opt_clone_object_to_new_document(id)
-            .map_err(|e| failed(&e))?;
-        if let Ok(Object::Stream(stream)) = doc.new_document.get_object_mut(id) {
-            let content = stream
-                .decompressed_content()
-                .unwrap_or_else(|_| stream.content.clone());
-            if let Ok(xml) = String::from_utf8(content) {
-                stream.set_plain_content(update_xmp(&xml, meta, &iso_now).into_bytes());
-                stream.dict.remove(b"Filter");
-                stream.dict.remove(b"DecodeParms");
+    let existing = pdf.trailer.get(b"Info").and_then(Object::as_reference).ok();
+    let mut info = existing
+        .and_then(|(number, _)| pdf.object(number))
+        .and_then(|o| o.as_dict().ok().cloned())
+        .unwrap_or_default();
+    if let Some(meta) = edits {
+        for (key, value) in [
+            ("Title", &meta.title),
+            ("Author", &meta.author),
+            ("Subject", &meta.subject),
+            ("Keywords", &meta.keywords),
+        ] {
+            if value.trim().is_empty() {
+                info.remove(key.as_bytes());
+            } else {
+                info.set(key, text(value.trim()));
             }
         }
     }
+    info.set("Producer", text(PRODUCER));
+    info.set(
+        "ModDate",
+        Object::String(pdf_now.clone().into_bytes(), StringFormat::Literal),
+    );
+    let info_id = existing.unwrap_or_else(|| (pdf.next_number(), 0));
+    changed.push((info_id, Object::Dictionary(info)));
 
-    let mut out = Vec::new();
-    doc.save_to(&mut out).map_err(|e| failed(&e))?;
-    Ok(out)
+    // XMP metadata, if the document has it.
+    let xmp = pdf
+        .trailer
+        .get(b"Root")
+        .ok()
+        .and_then(|root| pdf.resolve(root))
+        .and_then(|catalog| {
+            catalog
+                .as_dict()
+                .ok()?
+                .get(b"Metadata")
+                .ok()?
+                .as_reference()
+                .ok()
+        });
+    if let Some(id) = xmp
+        && let Some(Object::Stream(stream)) = pdf.object(id.0)
+        && let Ok(xml) = String::from_utf8(
+            stream
+                .decompressed_content()
+                .unwrap_or_else(|_| stream.content.clone()),
+        )
+    {
+        let mut dict = stream.dict.clone();
+        dict.remove(b"Filter");
+        dict.remove(b"DecodeParms");
+        let updated = update_xmp(&xml, edits, &iso_now).into_bytes();
+        changed.push((id, Object::Stream(Stream::new(dict, updated))));
+    }
+
+    // A file that had no Info dictionary gets one in the new trailer.
+    let new_info = existing.is_none().then_some(info_id);
+    Ok((pdf.append(&changed, new_info), Some(pdf_now)))
 }
 
 #[cfg(test)]
@@ -309,7 +325,7 @@ mod tests {
             subject: String::new(),
             keywords: "a, b".into(),
         };
-        let out = update_xmp(xml, &meta, "2026-10-07T12:00:00Z");
+        let out = update_xmp(xml, Some(&meta), "2026-10-07T12:00:00Z");
         assert!(out.contains("عنوان &lt;جديد&gt;"));
         assert!(!out.contains("Old title"));
         assert!(out.contains("<rdf:li>Rivet</rdf:li>"));
@@ -317,5 +333,30 @@ mod tests {
         assert!(out.contains("<xmp:ModifyDate>2026-10-07T12:00:00Z</xmp:ModifyDate>"));
         // No description element existed, so none is invented.
         assert!(!out.contains("dc:description"));
+    }
+
+    #[test]
+    fn stamps_a_file_without_an_info_dictionary() {
+        let fixture = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/basic.pdf"
+        );
+        let mut doc = lopdf::Document::load(fixture).unwrap();
+        doc.trailer.remove(b"Info");
+        let mut bytes = Vec::new();
+        doc.save_to(&mut bytes).unwrap();
+
+        let (out, date) = stamp(bytes, None).unwrap();
+        assert!(date.is_some());
+        let doc = lopdf::Document::load_mem(&out).unwrap();
+        let info = doc
+            .trailer
+            .get(b"Info")
+            .and_then(|r| doc.dereference(r))
+            .unwrap()
+            .1;
+        let producer = info.as_dict().unwrap().get(b"Producer").unwrap();
+        assert_eq!(lopdf::decode_text_string(producer).unwrap(), PRODUCER);
+        assert_eq!(doc.get_pages().len(), 3);
     }
 }

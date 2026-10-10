@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 
 ## [Unreleased]
 
+### Changed
+- Saved files name PDFRivet as their producer and get an updated modification date. The program the document was made in (Creator) is kept.
+- Pinch to zoom on a touchpad zooms the pages.
+- The interface's labels and buttons can no longer be selected like text.
+
+### Fixed
+- After jumping to a page with small pages in view, the page you jumped to is the one highlighted in the thumbnails.
+- Shortcuts no longer act on the document behind an open dialog (Ctrl+A in Settings selected the page's text; Ctrl+O opened a file).
+
 ## [0.2.0] – 2026-10-10
 
 PDFRivet now edits: select and search text, annotate, sign, write on pages, redact,

@@ -385,6 +385,8 @@ fn reads_and_changes_document_properties() {
     let dir = temp_dir("props");
     let out = dir.join("renamed.pdf");
     doc.save(&out).unwrap();
+    // The open document shows what the save wrote.
+    assert_eq!(doc.properties().producer, rivet_core::metadata::PRODUCER);
     if let Some(keep) = std::env::var_os("RIVET_KEEP_OUTPUT") {
         std::fs::copy(&out, keep).unwrap();
     }
@@ -392,6 +394,17 @@ fn reads_and_changes_document_properties() {
     assert_eq!(reopened.metadata, meta);
     assert_eq!(reopened.page_count, 3);
     assert!(reopened.modified.is_some());
+    // PDFRivet wrote the file; the program the document was made in is kept.
+    assert_eq!(reopened.producer, rivet_core::metadata::PRODUCER);
+    assert_eq!(reopened.creator, props.creator);
+
+    // Saving again (now with an incremental update in the file) keeps working.
+    let mut again = pdf().open(&out, None).unwrap();
+    let out2 = dir.join("again.pdf");
+    again.save(&out2).unwrap();
+    let props2 = pdf().open(&out2, None).unwrap().properties();
+    assert_eq!(props2.metadata, meta);
+    assert_eq!(props2.producer, rivet_core::metadata::PRODUCER);
     let _ = std::fs::remove_dir_all(&dir);
 
     let protected = pdf().open(&fixture("password.pdf"), Some("rivet")).unwrap();

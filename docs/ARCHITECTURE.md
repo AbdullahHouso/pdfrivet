@@ -354,9 +354,15 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
 ## Document properties
 
 - `rivet-core/src/metadata.rs` reads the description and file details (with PDFium) and
-  changes title/author/subject/keywords. PDFium can't write metadata, so on save lopdf adds an
+  changes title/author/subject/keywords. PDFium can't write metadata, so every save appends an
   **incremental update** to the bytes PDFium wrote (only the Info dictionary and the XMP stream
-  are appended; nothing else is rewritten). Password-protected files are read-only for now.
+  are appended; nothing else is rewritten): Producer becomes "PDFRivet <version>", the
+  modification date is updated, and edited fields are written. Creator (the program the
+  document was made in) is kept. Password-protected files are left as they are for now.
+- `rivet-core/src/incremental.rs` writes that update. It reads only the cross-reference
+  sections and the objects it needs (about 50 ms on a 42 MB file, where a full lopdf parse took
+  0.7 s), uses lopdf to parse single objects and decode streams, and matches the file's
+  cross-reference format (table or stream).
 - The pdfium-render fork also fixes reading the modification date (`ModDate` key).
 
 ## Updates
