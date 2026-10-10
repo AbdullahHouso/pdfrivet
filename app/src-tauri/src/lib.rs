@@ -817,6 +817,7 @@ pub fn run() {
             tools::rotate_pages,
             tools::import_pages,
             tools::extract_pages,
+            tools::finish_merge,
             tools::swap_snapshot,
             tools::drop_snapshots
         ])

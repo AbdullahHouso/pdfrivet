@@ -367,6 +367,14 @@ impl Document {
         })
     }
 
+    /// The file's bytes as opened (or last saved), when they're kept in memory.
+    pub(crate) fn file_bytes(&self) -> Option<Arc<Vec<u8>>> {
+        match &self.source {
+            Source::Memory(bytes) if !bytes.is_empty() => Some(bytes.clone()),
+            _ => None,
+        }
+    }
+
     /// The author's permissions allow changing the pages (see [`DocInfo::can_assemble`]).
     pub(crate) fn can_assemble(&self) -> bool {
         let permissions = self.inner.permissions();

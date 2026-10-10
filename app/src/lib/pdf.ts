@@ -9,6 +9,7 @@ import type { ErrorCode } from "./bindings/ErrorCode";
 import type { FieldChange } from "./bindings/FieldChange";
 import type { FontInfo } from "./bindings/FontInfo";
 import type { FormField } from "./bindings/FormField";
+import type { MergePart } from "./bindings/MergePart";
 import type { Metadata } from "./bindings/Metadata";
 import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageLink } from "./bindings/PageLink";
@@ -328,6 +329,11 @@ export function importPages(docId: number, source: number, pages: number[], at: 
 /** Writes some pages (as they are now) into a new PDF file. */
 export function extractPages(docId: number, pages: number[], path: string): Promise<void> {
   return invoke("extract_pages", { docId, pages, path });
+}
+
+/** Finishes a merged document (pages already imported): bookmarks, form fields; writes it. */
+export function finishMerge(docId: number, parts: MergePart[], bookmarkFiles: boolean, path: string): Promise<void> {
+  return invoke("finish_merge", { docId, parts, bookmarkFiles, path });
 }
 
 /** Undo/redo of a page change: back to a kept state; returns the state it replaced. */

@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Extract pages (Tools menu): save some pages as a new PDF, and optionally delete them from this one.
 - Deleted pages really leave the saved file, as with redaction. Bookmarks follow their pages; bookmarks of deleted pages go.
 - Turning pages here changes the file; the toolbar's rotate button still only turns your view.
+- Merge PDFs (Tools menu or the start page): put files in order, take all or some pages of each, unlock password-protected ones, and get one PDF with a bookmark per file (each file's own bookmarks under it). Form fields keep working; fields with the same name in different files are renamed so they don't share a value.
+- The start page has the tools too.
 
 ### Added
 - PDFRivet offers to become your default PDF app when another app opens PDF files (once, after you open a file; "Not now" waits a week). Settings → General shows which app opens your PDFs. On Windows this opens PDFRivet's page in the Windows settings, and the installer's last page has a link to it.

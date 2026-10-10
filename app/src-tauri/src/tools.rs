@@ -1,7 +1,7 @@
 //! Commands for the page tools: organizing, merging, splitting, converting…
 //! Like the rest, they are thin wrappers around `rivet-core`.
 
-use rivet_core::{DocId, DocInfo, Error, PageSlot, SnapshotId};
+use rivet_core::{DocId, DocInfo, Error, MergePart, PageSlot, SnapshotId};
 use serde::Serialize;
 use tauri::State;
 
@@ -67,6 +67,19 @@ pub(crate) async fn extract_pages(
 ) -> Result<(), Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.extract_pages(doc_id, pages, path)).await
+}
+
+/// Finishes a merged document (bookmarks, form fields) and writes it.
+#[tauri::command]
+pub(crate) async fn finish_merge(
+    doc_id: DocId,
+    parts: Vec<MergePart>,
+    bookmark_files: bool,
+    path: std::path::PathBuf,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.finish_merge(doc_id, parts, bookmark_files, path)).await
 }
 
 /// Undo or redo of a page change (see `Engine::swap_snapshot`).

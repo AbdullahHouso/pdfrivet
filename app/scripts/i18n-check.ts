@@ -1,5 +1,5 @@
-// Checks every locale against English: syntax errors, missing keys and
-// keys that no longer exist in English. Run with `bun run i18n:check`.
+// Checks every locale against English: syntax errors, keys defined twice
+// (the later one would be ignored), missing keys and keys that no longer exist in English. Run with `bun run i18n:check`.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,7 +14,10 @@ function keysOf(code: string): { keys: Set<string>; errors: string[] } {
   for (const file of readdirSync(join(root, code)).filter((f) => f.endsWith(".ftl"))) {
     const ast = parse(readFileSync(join(root, code, file), "utf8"), {});
     for (const entry of ast.body) {
-      if (entry instanceof Message) keys.add(entry.id.name);
+      if (entry instanceof Message) {
+        if (keys.has(entry.id.name)) errors.push(`${code}/${file}: "${entry.id.name}" is defined twice`);
+        keys.add(entry.id.name);
+      }
       if (entry instanceof Junk)
         errors.push(`${code}/${file}: syntax error near "${entry.content.trim().slice(0, 40)}"`);
     }

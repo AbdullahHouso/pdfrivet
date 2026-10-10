@@ -5,12 +5,15 @@ import { i18n } from "./i18n.svelte";
 import { fade } from "./motion";
 import { filesExist } from "./pdf";
 import { settings } from "./settings.svelte";
+import { TOOLS, type ToolId } from "./tools/tools";
 
 interface Props {
   onopen: () => void;
   onopenpath: (path: string) => void;
+  /** A tool card was chosen (tools that need a file ask for one first). */
+  ontool: (tool: ToolId) => void;
 }
-let { onopen, onopenpath }: Props = $props();
+let { onopen, onopenpath, ontool }: Props = $props();
 
 // Which recent files still exist (checked each time the start screen shows).
 let missing = $state<Set<string>>(new Set());
@@ -42,6 +45,20 @@ function when(ms: number): string {
     <button class="primary big" onclick={onopen}>{i18n.t("open-file")}</button>
     <p class="hint">{i18n.t("drop-hint")}</p>
   </div>
+
+  <section class="tools" aria-labelledby="tools-heading">
+    <h2 id="tools-heading">{i18n.t("tools")}</h2>
+    <ul>
+      {#each TOOLS as tool (tool.id)}
+        <li>
+          <button class="tool" onclick={() => ontool(tool.id)}>
+            <Icon name={tool.icon} />
+            <span>{i18n.t(tool.label).replace(/…$/, "")}</span>
+          </button>
+        </li>
+      {/each}
+    </ul>
+  </section>
 
   {#if settings.recent.length > 0}
     <section class="recent" aria-labelledby="recent-heading">
@@ -108,8 +125,38 @@ function when(ms: number): string {
     font-size: 13px;
     color: var(--muted);
   }
-  .recent {
+  .recent,
+  .tools {
     width: min(640px, 100%);
+  }
+  .tools ul {
+    padding: 0;
+    background: none;
+    border: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+  }
+  .tool {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding-block: 14px;
+    padding-inline: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    text-align: center;
+  }
+  .tool:hover {
+    border-color: var(--accent);
+  }
+  .tool :global(svg) {
+    width: 24px;
+    height: 24px;
+    color: var(--accent);
   }
   h2 {
     font-size: 14px;

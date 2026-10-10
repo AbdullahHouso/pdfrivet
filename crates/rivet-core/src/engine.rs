@@ -17,9 +17,9 @@ use std::{
 };
 
 use crate::{
-    Annotation, DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink,
-    PageSlot, PageText, Pdf, RenderedPage, Result, Rotation, SearchBatch, SearchQuery, Snapshot,
-    StampImage, TextRange,
+    Annotation, DocInfo, Document, Error, ErrorCode, FieldChange, FormField, MergePart,
+    OutlineItem, PageLink, PageSlot, PageText, Pdf, RenderedPage, Result, Rotation, SearchBatch,
+    SearchQuery, Snapshot, StampImage, TextRange,
     cache::{Key, RenderCache},
     metadata::{DocProperties, Metadata},
     print::PrintSettings,
@@ -427,6 +427,29 @@ impl Engine {
             w.structure_changed(doc);
             result?;
             w.doc(doc)?.info()
+        })
+    }
+
+    /// Finishes a merged document (pages already copied in with
+    /// [`Engine::import_pages`]): bookmarks and form fields, then writes it to `path`.
+    pub fn finish_merge(
+        &self,
+        doc: DocId,
+        parts: Vec<MergePart>,
+        bookmark_files: bool,
+        path: PathBuf,
+    ) -> Result<()> {
+        self.task(move |w| {
+            let mut merged = w.docs.remove(&doc).ok_or_else(|| not_open(doc))?;
+            let result = parts
+                .iter()
+                .map(|part| Ok((part.clone(), w.doc(part.doc)?)))
+                .collect::<Result<Vec<_>>>()
+                .and_then(|sources| {
+                    crate::merge::finish(&mut merged, &sources, bookmark_files, &path)
+                });
+            w.docs.insert(doc, merged);
+            result
         })
     }
 

@@ -76,7 +76,9 @@ import Toolbar from "./lib/Toolbar.svelte";
 import { type Tab, type TabState, tabs } from "./lib/tabs.svelte";
 import { isEmpty, toTextRange } from "./lib/textSelect";
 import ExtractDialog from "./lib/tools/ExtractDialog.svelte";
+import MergeDialog from "./lib/tools/MergeDialog.svelte";
 import type { ToolId } from "./lib/tools/tools";
+import { TOOLS } from "./lib/tools/tools";
 import UpdateDialog from "./lib/UpdateDialog.svelte";
 import { updater } from "./lib/updater.svelte";
 import Viewer from "./lib/Viewer.svelte";
@@ -545,11 +547,29 @@ function organize(tab: Tab) {
 /** The tab whose Extract pages dialog is open. */
 let extracting = $state<Tab | null>(null);
 
+/** The Merge PDFs dialog is open. */
+let merging = $state(false);
+
 /** A tool chosen from the Tools menu or the start page. */
 function runTool(tool: ToolId) {
   const tab = active;
   if (tool === "organize" && tab) organize(tab);
   else if (tool === "extract" && tab) extracting = tab;
+  else if (tool === "merge") merging = true;
+}
+
+/** A tool card on the start page: tools for a document ask for one first. */
+async function startTool(tool: ToolId) {
+  const info = TOOLS.find((t) => t.id === tool);
+  if (!info?.needsDocument) return runTool(tool);
+  const path = await open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }],
+  });
+  if (typeof path !== "string") return;
+  await openPath(path);
+  if (active && active.path === path) runTool(tool);
 }
 
 /**
@@ -958,7 +978,7 @@ onMount(() => {
       {/if}
     {/key}
   {:else}
-    <StartScreen onopen={pickFiles} onopenpath={openRecent} />
+    <StartScreen onopen={pickFiles} onopenpath={openRecent} ontool={startTool} />
   {/if}
 
   {#if dragging}
@@ -967,6 +987,19 @@ onMount(() => {
     </div>
   {/if}
 </main>
+
+{#if merging}
+  <MergeDialog
+    current={active ? { docId: active.docId, path: active.path, name: active.fileName, pageCount: active.info.pageCount } : undefined}
+    oncancel={() => (merging = false)}
+    onerror={(e) => (error = e)}
+    onfinished={(path, openIt) => {
+      merging = false;
+      showFinished(i18n.t("merge-done", { file: fileName(path) }), path);
+      if (openIt) openFiles([path]);
+    }}
+  />
+{/if}
 
 {#if extracting}
   {@const tab = extracting}

@@ -338,7 +338,7 @@ fn find<'a>(others: &[(crate::DocId, &'a Document)], doc: crate::DocId) -> Resul
 
 /// Bookmarks with their pages renumbered; ones whose page was deleted are
 /// dropped, and their children move up a level.
-fn remap_outline(
+pub(crate) fn remap_outline(
     items: Vec<OutlineItem>,
     new_index: &dyn Fn(u32) -> Option<u32>,
 ) -> Vec<OutlineItem> {
