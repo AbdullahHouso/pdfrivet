@@ -61,7 +61,7 @@ objc2-core-foundation = { version = "0.3.2", default-features = false, features 
 objc2 = "0.6.5"
 objc2-foundation = { version = "0.3.2", features = ["std", "NSString", "NSURL", "NSGeometry", "NSDictionary"] }
 objc2-app-kit = { version = "0.3.2", features = ["std", "NSPrintInfo", "NSPrintOperation", "NSView", "NSResponder"] }
-objc2-web-kit = { version = "0.3.2", features = ["std", "objc2-app-kit", "WKWebView"] }
+objc2-web-kit = { version = "0.3.2", features = ["std", "objc2-app-kit", "WKWebView", "WKWebViewConfiguration", "WKPreferences"] }
 
 # Self-update exists only on desktop.
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]

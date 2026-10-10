@@ -36,6 +36,9 @@ pub(crate) fn read(pdfium: &Pdfium, doc: &PdfDocument) -> Rights {
     let handle = bindings.get_handle_from_document(doc);
     // SAFETY: `handle` belongs to the live document `doc`, borrowed for the
     // whole call; we're on the PDFium thread.
+    // (`c_ulong` is 32 bits on Windows and 64 elsewhere, so the cast is needed
+    // on some systems only.)
+    #[allow(clippy::unnecessary_cast)]
     let (revision, value) = unsafe {
         (
             bindings.FPDF_GetSecurityHandlerRevision(handle),

@@ -203,6 +203,7 @@ async fn tokio_sleep(duration: Duration) {
 }
 
 #[cfg(windows)]
+#[allow(unsafe_code)]
 mod platform {
     //! WebView2's own "print to PDF".
     use super::*;
@@ -330,10 +331,11 @@ mod platform {
 }
 
 #[cfg(target_os = "macos")]
+#[allow(unsafe_code)]
 mod platform {
     //! WKWebView's print operation, saved to a file without any panel.
     use super::*;
-    use objc2::rc::Retained;
+    use objc2::{rc::Retained, runtime::NSObjectProtocol, sel};
     use objc2_app_kit::{NSPaperOrientation, NSPrintInfo, NSPrintJobSavingURL, NSPrintSaveJob};
     use objc2_foundation::{NSSize, NSString, NSURL};
     use objc2_web_kit::WKWebView;
@@ -351,6 +353,11 @@ mod platform {
                 // thread, where AppKit and WebKit must be used.
                 let result = unsafe {
                     let view: &WKWebView = &*webview.inner().cast();
+                    // Background colours and pictures (macOS 13.3 and later).
+                    let preferences = view.configuration().preferences();
+                    if preferences.respondsToSelector(sel!(setShouldPrintBackgrounds:)) {
+                        preferences.setShouldPrintBackgrounds(options.backgrounds);
+                    }
                     let info = NSPrintInfo::new();
                     let (width, height) = options.inches();
                     info.setPaperSize(NSSize::new(width * 72.0, height * 72.0));

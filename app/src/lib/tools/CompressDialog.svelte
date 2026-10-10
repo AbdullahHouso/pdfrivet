@@ -31,7 +31,7 @@ async function run() {
   if (working) return;
   const base = tab.fileName.replace(/\.pdf$/i, "");
   const target = await save({
-    defaultPath: folderOf(tab.path) + separatorOf(tab.path) + i18n.t("compress-name", { name: base }) + ".pdf",
+    defaultPath: `${folderOf(tab.path)}${separatorOf(tab.path)}${i18n.t("compress-name", { name: base })}.pdf`,
     filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }],
   });
   if (!target) return;

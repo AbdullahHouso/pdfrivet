@@ -62,12 +62,14 @@ export function splitAtBookmarks(bookmarks: { title: string; page: number | null
   return parts;
 }
 
-/** Characters no file system allows in a name (and control characters). */
-const UNSAFE = /[\\/:*?"<>|\u0000-\u001f]/g;
+/** Characters no file system allows in a name. */
+const UNSAFE = /[\\/:*?"<>|]/g;
 
 /** A title made safe to use as a file name (empty if nothing is left). */
 export function safeFileName(title: string): string {
-  return title
+  // Control characters aren't allowed either.
+  const visible = [...title].map((c) => (c.charCodeAt(0) < 32 ? " " : c)).join("");
+  return visible
     .replace(UNSAFE, " ")
     .replace(/\s+/g, " ")
     .trim()

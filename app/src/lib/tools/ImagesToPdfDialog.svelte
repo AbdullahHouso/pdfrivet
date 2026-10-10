@@ -46,7 +46,7 @@ async function run() {
   if (!files.length || busy) return;
   const first = files[0].path;
   const target = await save({
-    defaultPath: folderOf(first) + separatorOf(first) + fileNameOf(first).replace(/\.[^.]+$/, "") + ".pdf",
+    defaultPath: `${folderOf(first)}${separatorOf(first)}${fileNameOf(first).replace(/\.[^.]+$/, "")}.pdf`,
     filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }],
   });
   if (!target) return;

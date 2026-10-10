@@ -624,7 +624,7 @@ async function repairFlow(from?: string) {
   if (typeof source !== "string") return;
   const name = fileName(source).replace(/\.pdf$/i, "");
   const target = await save({
-    defaultPath: source.slice(0, source.length - fileName(source).length) + i18n.t("repair-name", { name }) + ".pdf",
+    defaultPath: `${source.slice(0, source.length - fileName(source).length)}${i18n.t("repair-name", { name })}.pdf`,
     filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }],
   });
   if (!target) return;
@@ -661,7 +661,7 @@ async function extractFlow(tab: Tab, pages: number[], deleteAfter = false) {
   const name = tab.fileName.replace(/\.pdf$/i, "");
   const folder = tab.path.slice(0, tab.path.length - tab.fileName.length);
   const target = await save({
-    defaultPath: folder + i18n.t("extract-name", { name, pages: pageList(pages) }) + ".pdf",
+    defaultPath: `${folder}${i18n.t("extract-name", { name, pages: pageList(pages) })}.pdf`,
     filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }],
   });
   if (!target) return;

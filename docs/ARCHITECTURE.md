@@ -366,6 +366,54 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   cross-reference format (table or stream).
 - pdfium-render reads the modification date from the `ModDate` key (our upstream fix).
 
+## Page tools
+
+- **Engine tasks.** Most page tools are `Engine` methods built on a generic `Request::Task`
+  (a closure run on the PDFium thread), so new operations need no request variant. Work that
+  needs no PDFium (compressing, encoding images) runs on the calling (Tauri blocking) thread;
+  long jobs are driven page by page or file by file from the UI, for progress.
+- **Rearranging (`pages.rs`).** `Document::arrange` takes the whole new order as `PageSlot`s
+  (a page of this document, of another open one, or blank, plus quarter turns) and applies it
+  in place: unused pages deleted, new ones imported (`copy_page_from_document`; duplicates from
+  a second load of the document's own bytes), then one `FPDF_MovePages` puts everything in
+  order, then rotations. Forms, links and named destinations stay; bookmarks pointing at
+  deleted pages are dropped (others follow their page objects); deleted pages are pruned on
+  save, like redactions.
+- **Undo of structural changes.** The engine keeps `Snapshot`s (the bytes PDFium would save plus
+  the page-keyed bookkeeping) within 1 GB, oldest dropped first. A `pages` history step holds one
+  snapshot id; undo and redo *swap* it with the current state. Annotation ids are `/NM`, so they
+  survive the reload and earlier annotation steps stay valid. `Tab.reload` clears everything the
+  UI keeps per page index. Organize pages plans changes in the UI (`organize/plan.ts`, own undo)
+  and applies them with one `arrange` on Done.
+- **Merge, extract, split (`merge.rs`).** Pages are imported into a `new_document`, then
+  `merge::finish` writes bookmarks (per file, renumbered) and rebuilds `/AcroForm`, which
+  PDFium's import doesn't carry: the top-level fields of each file's widgets, with clashing
+  names renamed (`Name_2`) and the files' form resources copied (read with the fast
+  `incremental.rs` reader). Extraction is a one-file merge, so bookmarks and fields come along.
+- **Protection (`protect.rs`, `rights.rs`).** PDFium can't write encryption: a pending
+  `Protection` is applied on save — PDFium's bytes are decrypted with lopdf (when protected),
+  pruned and stamped, then encrypted with AES-256 (V5/R6). Changing a restricted file's
+  protection needs its owner password. Permissions are read straight from PDFium
+  (`FPDF_GetDocPermissions`): pdfium-render's checks fail for revisions 5–6.
+- **Compress (`compress.rs`).** lopdf only: identical streams merged, unused objects pruned,
+  object and xref streams; pictures over the target resolution scaled down and photos stored as
+  JPEG (8-bit gray/RGB only; drawings stay lossless; soft masks scaled along). Protected files
+  are refused.
+- **Images (`images.rs`).** JPEGs are embedded unchanged (turned upright first when EXIF says so);
+  other pictures are decoded, and opaque ones handed to PDFium as BGRx so no mask is stored.
+- **Flatten (`flatten.rs`).** `FPDFPage_Flatten` per page (no content regeneration), then the
+  document is reopened from its bytes and the empty `/AcroForm` dropped on save.
+- **Repair (`repair.rs`).** PDFium rebuilds broken xref tables when loading; files it rejects are
+  rebuilt by lopdf's reader first.
+- **Web pages and HTML (`app/src-tauri/src/html_pdf.rs`).** A hidden `html-render-*` window
+  (incognito, no new windows or downloads, http/https/file navigation only) loads the page, then
+  the system engine prints it: WebView2 `PrintToPdf`, WebKitGTK print-to-file, WKWebView's print
+  operation. These windows reach nothing in the app: the invoke handler rejects their commands
+  (Tauri's capabilities only gate plugin commands when the app has no command manifest) and the
+  `rivet://` protocol refuses them.
+- **UI.** `lib/tools/tools.ts` lists the tools (Tools menu, start page cards); each has a dialog
+  built on `ToolDialog.svelte`; `tools/files.ts` names output files without overwriting.
+
 ## Updates
 
 - `tauri-plugin-updater` checks
