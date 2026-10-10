@@ -453,6 +453,32 @@ impl Engine {
         })
     }
 
+    /// Adds a page with a picture on it at the end of a document.
+    pub fn add_image_page(
+        &self,
+        doc: DocId,
+        path: PathBuf,
+        layout: crate::ImageLayout,
+    ) -> Result<()> {
+        self.task(move |w| w.doc_mut(doc)?.add_image_page(&path, &layout))
+    }
+
+    /// Saves a page as a PNG or JPEG file. The page is rendered on the PDFium
+    /// thread; encoding the file happens on the calling thread, so other
+    /// documents keep rendering meanwhile.
+    pub fn export_page_image(
+        &self,
+        doc: DocId,
+        page: u32,
+        dpi: f32,
+        format: crate::ImageFormat,
+        quality: u8,
+        path: &Path,
+    ) -> Result<()> {
+        let rendered = self.task(move |w| w.doc(doc)?.render_for_export(page, dpi))?;
+        crate::save_image(&rendered, format, quality, path)
+    }
+
     /// Repairs a damaged PDF file into a new one (see `repair.rs`).
     pub fn repair(
         &self,

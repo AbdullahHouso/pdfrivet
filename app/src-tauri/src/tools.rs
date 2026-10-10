@@ -2,7 +2,8 @@
 //! Like the rest, they are thin wrappers around `rivet-core`.
 
 use rivet_core::{
-    DocId, DocInfo, Error, MergePart, PageSlot, Protection, RepairReport, SnapshotId,
+    DocId, DocInfo, Error, ImageFormat, ImageLayout, MergePart, PageSlot, Protection, RepairReport,
+    SnapshotId,
 };
 use serde::Serialize;
 use tauri::State;
@@ -82,6 +83,33 @@ pub(crate) async fn finish_merge(
 ) -> Result<(), Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.finish_merge(doc_id, parts, bookmark_files, path)).await
+}
+
+/// Adds a page with a picture on it at the end of a document.
+#[tauri::command]
+pub(crate) async fn add_image_page(
+    doc_id: DocId,
+    path: std::path::PathBuf,
+    layout: ImageLayout,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.add_image_page(doc_id, path, layout)).await
+}
+
+/// Saves a page as a PNG or JPEG file.
+#[tauri::command]
+pub(crate) async fn export_page_image(
+    doc_id: DocId,
+    page: u32,
+    dpi: f32,
+    format: ImageFormat,
+    quality: u8,
+    path: std::path::PathBuf,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.export_page_image(doc_id, page, dpi, format, quality, &path)).await
 }
 
 /// Repairs a damaged PDF into a new file.

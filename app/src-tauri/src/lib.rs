@@ -819,6 +819,8 @@ pub fn run() {
             tools::extract_pages,
             tools::finish_merge,
             tools::repair_pdf,
+            tools::add_image_page,
+            tools::export_page_image,
             tools::set_protection,
             tools::unlock_owner,
             tools::swap_snapshot,

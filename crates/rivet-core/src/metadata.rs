@@ -214,7 +214,11 @@ pub const PRODUCER: &str = concat!("PDFRivet ", env!("CARGO_PKG_VERSION"));
 /// Password-protected files are left as they are: their metadata would have
 /// to be encrypted, which isn't supported yet (changing their title or author
 /// is refused before this).
-pub(crate) fn stamp(bytes: Vec<u8>, edits: Option<&Metadata>) -> Result<(Vec<u8>, Option<String>)> {
+pub(crate) fn stamp(
+    bytes: Vec<u8>,
+    edits: Option<&Metadata>,
+    created: bool,
+) -> Result<(Vec<u8>, Option<String>)> {
     let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
     let pdf = Pdf::read(&bytes).map_err(|e| failed(&e))?;
     if pdf.trailer.has(b"Encrypt") {
@@ -249,6 +253,16 @@ pub(crate) fn stamp(bytes: Vec<u8>, edits: Option<&Metadata>) -> Result<(Vec<u8>
         }
     }
     info.set("Producer", text(PRODUCER));
+    // A document PDFRivet made (merged, from pictures…) was also created in it.
+    if created {
+        info.set("Creator", text(PRODUCER));
+        if !info.has(b"CreationDate") {
+            info.set(
+                "CreationDate",
+                Object::String(pdf_now.clone().into_bytes(), StringFormat::Literal),
+            );
+        }
+    }
     info.set(
         "ModDate",
         Object::String(pdf_now.clone().into_bytes(), StringFormat::Literal),
@@ -353,7 +367,7 @@ mod tests {
         let mut bytes = Vec::new();
         doc.save_to(&mut bytes).unwrap();
 
-        let (out, date) = stamp(bytes, None).unwrap();
+        let (out, date) = stamp(bytes, None, false).unwrap();
         assert!(date.is_some());
         let doc = lopdf::Document::load_mem(&out).unwrap();
         let info = doc

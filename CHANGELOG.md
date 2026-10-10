@@ -18,6 +18,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Split (Tools menu): into a file every few pages, one per page range ("1-3, 4-10"), or one per bookmark (named after it). Files go next to the document or into a folder you choose, and never overwrite existing ones.
 - Extracted and split files keep the document's title and author, and the bookmarks and form fields of their pages.
 
+### Convert
+- Export as images (Tools menu): save all or some pages as PNG or JPEG at 72–600 dpi, into a folder, with progress (Stop anytime).
+- Images to PDF (Tools menu, the start page, or drop pictures on the window): JPEG, PNG, WebP, BMP, GIF and TIFF pictures become pages, in the order you choose, on A4, US Letter or pages the size of each picture, with or without a margin. JPEG photos go in unchanged (no quality lost); phone photos taken sideways are turned upright.
+
 ### Repair
 - Repair a PDF (Tools menu, or "Try to repair" when a file won't open): saves a mended copy of a damaged file, with the pages that could be recovered.
 

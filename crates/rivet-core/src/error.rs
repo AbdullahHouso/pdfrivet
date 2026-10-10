@@ -41,6 +41,8 @@ pub enum ErrorCode {
     OwnerPasswordRequired,
     /// The file is too damaged to recover any pages from.
     NotRepairable,
+    /// A picture file isn't a kind PDFRivet reads, is damaged, or is too big.
+    UnsupportedImage,
     EngineStopped,
     /// A render was skipped because the page is no longer near the screen.
     Cancelled,

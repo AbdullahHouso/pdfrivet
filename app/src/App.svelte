@@ -76,7 +76,9 @@ import TabBar from "./lib/TabBar.svelte";
 import Toolbar from "./lib/Toolbar.svelte";
 import { type Tab, type TabState, tabs } from "./lib/tabs.svelte";
 import { isEmpty, toTextRange } from "./lib/textSelect";
+import ExportImagesDialog from "./lib/tools/ExportImagesDialog.svelte";
 import ExtractDialog from "./lib/tools/ExtractDialog.svelte";
+import ImagesToPdfDialog, { isImage } from "./lib/tools/ImagesToPdfDialog.svelte";
 import MergeDialog from "./lib/tools/MergeDialog.svelte";
 import ProtectDialog from "./lib/tools/ProtectDialog.svelte";
 import SplitDialog from "./lib/tools/SplitDialog.svelte";
@@ -563,6 +565,10 @@ let merging = $state(false);
 let splitting = $state<Tab | null>(null);
 /** The tab whose Password protection dialog is open. */
 let protecting = $state<Tab | null>(null);
+/** The tab whose Export as images dialog is open. */
+let exporting = $state<Tab | null>(null);
+/** Images to PDF is open (with these pictures to start with). */
+let imagesToPdf = $state<string[] | null>(null);
 
 /** A tool chosen from the Tools menu or the start page. */
 function runTool(tool: ToolId) {
@@ -571,6 +577,8 @@ function runTool(tool: ToolId) {
   else if (tool === "extract" && tab) extracting = tab;
   else if (tool === "split" && tab) splitting = tab;
   else if (tool === "protect" && tab) protecting = tab;
+  else if (tool === "export-images" && tab) exporting = tab;
+  else if (tool === "images-to-pdf") imagesToPdf = [];
   else if (tool === "merge") merging = true;
   else if (tool === "repair") repairFlow();
 }
@@ -851,6 +859,11 @@ onMount(() => {
       else if (p.type === "leave") dragging = false;
       else if (p.type === "drop") {
         dragging = false;
+        // Only pictures: make a PDF of them.
+        if (p.paths.length > 0 && p.paths.every(isImage)) {
+          imagesToPdf = p.paths;
+          return;
+        }
         await openFiles(p.paths.filter((x) => x.toLowerCase().endsWith(".pdf")));
       }
     }),
@@ -1045,6 +1058,31 @@ onMount(() => {
     onfinished={(path, openIt) => {
       merging = false;
       showFinished(i18n.t("merge-done", { file: fileName(path) }), path);
+      if (openIt) openFiles([path]);
+    }}
+  />
+{/if}
+
+{#if exporting}
+  <ExportImagesDialog
+    tab={exporting}
+    oncancel={() => (exporting = null)}
+    onerror={(e) => (error = e)}
+    onfinished={(count, first) => {
+      exporting = null;
+      showFinished(i18n.t("split-done", { count }), first);
+    }}
+  />
+{/if}
+
+{#if imagesToPdf}
+  <ImagesToPdfDialog
+    initial={imagesToPdf}
+    oncancel={() => (imagesToPdf = null)}
+    onerror={(e) => (error = e)}
+    onfinished={(path, openIt) => {
+      imagesToPdf = null;
+      showFinished(i18n.t("images-done", { file: fileName(path) }), path);
       if (openIt) openFiles([path]);
     }}
   />

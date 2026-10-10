@@ -9,6 +9,8 @@ import type { ErrorCode } from "./bindings/ErrorCode";
 import type { FieldChange } from "./bindings/FieldChange";
 import type { FontInfo } from "./bindings/FontInfo";
 import type { FormField } from "./bindings/FormField";
+import type { ImageFormat } from "./bindings/ImageFormat";
+import type { ImageLayout } from "./bindings/ImageLayout";
 import type { MergePart } from "./bindings/MergePart";
 import type { Metadata } from "./bindings/Metadata";
 import type { OutlineItem } from "./bindings/OutlineItem";
@@ -336,6 +338,23 @@ export function extractPages(docId: number, pages: number[], path: string): Prom
 /** Finishes a merged document (pages already imported): bookmarks, form fields; writes it. */
 export function finishMerge(docId: number, parts: MergePart[], bookmarkFiles: boolean, path: string): Promise<void> {
   return invoke("finish_merge", { docId, parts, bookmarkFiles, path });
+}
+
+/** Adds a page with the picture at `path` on it, at the end of a document. */
+export function addImagePage(docId: number, path: string, layout: ImageLayout): Promise<void> {
+  return invoke("add_image_page", { docId, path, layout });
+}
+
+/** Saves a page (0-based) as a PNG or JPEG file. */
+export function exportPageImage(
+  docId: number,
+  page: number,
+  dpi: number,
+  format: ImageFormat,
+  quality: number,
+  path: string,
+): Promise<void> {
+  return invoke("export_page_image", { docId, page, dpi, format, quality, path });
 }
 
 /** Repairs a damaged PDF into a new file. */

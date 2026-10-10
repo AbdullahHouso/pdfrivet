@@ -124,7 +124,7 @@ impl Pdf {
     /// (merging, splitting, images to PDF…).
     pub fn new_document(&self) -> Result<Document> {
         let inner = self.pdfium.create_new_pdf()?;
-        let doc = Document::new(
+        let mut doc = Document::new(
             self.pdfium,
             inner,
             Path::new(""),
@@ -132,6 +132,7 @@ impl Pdf {
             None,
         );
         doc.unsaved_changes.set(true);
+        doc.created_here = true;
         Ok(doc)
     }
 
@@ -312,6 +313,8 @@ pub struct Document {
     pub(crate) protection: Option<crate::protect::Protection>,
     /// The owner password, once typed in to change a protected file's protection.
     pub(crate) owner_password: Option<String>,
+    /// Made by PDFRivet (merged, images to PDF…): saving names it as the creator.
+    pub(crate) created_here: bool,
 }
 
 impl Document {
@@ -341,6 +344,7 @@ impl Document {
             has_text_boxes: Cell::new(false),
             protection: None,
             owner_password: None,
+            created_here: false,
         }
     }
 
@@ -871,7 +875,8 @@ impl Document {
         }
         // PDFium can't write metadata: PDFRivet as the producer, the date and
         // a changed title, author… are added here.
-        let (mut bytes, saved_at) = crate::metadata::stamp(bytes, self.new_metadata.as_ref())?;
+        let (mut bytes, saved_at) =
+            crate::metadata::stamp(bytes, self.new_metadata.as_ref(), self.created_here)?;
         if let Some(crate::protect::Protection::Set {
             open_password,
             owner_password,
