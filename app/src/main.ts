@@ -2,6 +2,7 @@ import "./fonts.css";
 import "./app.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
+import { installReveal } from "./lib/reveal";
 import { installTooltips } from "./lib/tooltip";
 
 // Release builds are an app, not a web page: no browser right-click menu
@@ -35,5 +36,6 @@ window.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && zoomKeys.has(e.code)) e.preventDefault();
 });
 
+installReveal();
 installTooltips();
 mount(App, { target: document.getElementById("app") as HTMLElement });

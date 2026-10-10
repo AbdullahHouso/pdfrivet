@@ -57,6 +57,7 @@ import {
 import { type PrintProgress, printDocument as printWithSystemDialog } from "./lib/print";
 import { printDocument } from "./lib/printing";
 import type { ZoomMode } from "./lib/recent";
+import { revealWindow } from "./lib/reveal";
 import SettingsDialog from "./lib/SettingsDialog.svelte";
 import Sidebar, { type SidebarPane } from "./lib/Sidebar.svelte";
 import Splitter from "./lib/Splitter.svelte";
@@ -668,14 +669,17 @@ onMount(() => {
     currentMode = settings.documentWindows;
     modeReady = true;
     const request = windowRequest();
+    let opening: Promise<unknown>;
     if (request.tab) {
-      adoptTab(request.tab);
+      opening = adoptTab(request.tab);
     } else if (request.file) {
-      openPath(request.file);
+      opening = openPath(request.file);
     } else {
-      openPending();
+      opening = openPending();
       updater.startAutomaticChecks();
     }
+    // The window is shown with its document already in it (see reveal.ts).
+    opening.finally(() => tick().then(revealWindow));
   });
   const unlisten = [
     // Ask before closing the window with unsaved changes, then close its

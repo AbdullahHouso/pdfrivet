@@ -31,6 +31,8 @@ async function openWindow(query: string, offset: number): Promise<void> {
     dragDropEnabled: true,
     // Lets touchpad pinches reach the page (see main.ts); WebView2 ties both to this.
     zoomHotkeysEnabled: true,
+    // Shown once its document is on screen (see reveal.ts).
+    visible: false,
   });
   window.once("tauri://error", (e) => console.warn("[windows] could not open a window", e));
 }

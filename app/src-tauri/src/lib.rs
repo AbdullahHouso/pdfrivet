@@ -20,6 +20,7 @@ use rivet_core::{
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State, http};
+use tauri_plugin_window_state::StateFlags;
 
 /// App-wide state. The engine is `None` if PDFium failed to load at startup.
 struct AppState {
@@ -707,11 +708,15 @@ pub fn run() {
         // Opens web links from PDFs in the default browser (http, https and mailto only).
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        // Remembers the main window's size and position. Windows opened for single
-        // documents ("Separate windows") are placed next to the one they came from.
+        // Remembers the main window's size, position and screen. Windows opened for
+        // single documents ("Separate windows") are placed next to the one they came
+        // from. Windows start hidden and the UI shows them once drawn (reveal.ts), so
+        // the plugin must not show them: that would show a blank window on the
+        // default screen before it moves to the remembered one.
         .plugin(
             tauri_plugin_window_state::Builder::new()
                 .with_filter(|label| label == "main")
+                .with_state_flags(StateFlags::all() - StateFlags::VISIBLE)
                 .build(),
         )
         // Restarts the app after an update.

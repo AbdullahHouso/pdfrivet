@@ -34,6 +34,9 @@
     "updater:default",
     "process:allow-restart",
     "core:webview:allow-create-webview-window",
-    "core:window:allow-set-focus"
+    "core:window:allow-set-focus",
+    "core:window:allow-show",
+    "core:window:allow-set-background-color",
+    "core:webview:allow-set-webview-background-color"
   ]
 }

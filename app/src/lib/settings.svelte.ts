@@ -5,6 +5,7 @@ import { load, type Store } from "@tauri-apps/plugin-store";
 import type { Color } from "./bindings/Color";
 import type { TextStyle } from "./bindings/TextStyle";
 import { type FileView, findRecent, type RecentFile, removeRecent, touchRecent, updateView } from "./recent";
+import { matchBackground } from "./reveal";
 import type { PageLayout } from "./tabs.svelte";
 import { defaultTextStyle } from "./textBox";
 
@@ -86,6 +87,7 @@ applyMotion(!lessMotion);
 function applyTheme(value: Theme) {
   if (value === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = value;
+  matchBackground();
 }
 
 async function save(key: string, value: unknown) {
