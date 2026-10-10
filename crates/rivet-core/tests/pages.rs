@@ -201,5 +201,13 @@ fn extracts_pages_into_a_new_file() {
     assert_eq!(extracted.page_count(), 2);
     assert!(page_text(&extracted, 0).contains("Page three"));
     assert!(page_text(&extracted, 1).contains("Page one"));
+    // The document's description carries over.
+    assert_eq!(
+        extracted.properties().metadata.title,
+        "Rivet fixture: basic"
+    );
+    // Their bookmarks come along, pointing at their new places.
+    let bookmarks: Vec<_> = extracted.outline().iter().map(|i| i.page).collect();
+    assert_eq!(bookmarks, [Some(1), Some(0)]);
     let _ = std::fs::remove_dir_all(&dir);
 }

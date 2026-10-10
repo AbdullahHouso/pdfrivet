@@ -15,6 +15,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Turning pages here changes the file; the toolbar's rotate button still only turns your view.
 - Merge PDFs (Tools menu or the start page): put files in order, take all or some pages of each, unlock password-protected ones, and get one PDF with a bookmark per file (each file's own bookmarks under it). Form fields keep working; fields with the same name in different files are renamed so they don't share a value.
 - The start page has the tools too.
+- Split (Tools menu): into a file every few pages, one per page range ("1-3, 4-10"), or one per bookmark (named after it). Files go next to the document or into a folder you choose, and never overwrite existing ones.
+- Extracted and split files keep the document's title and author, and the bookmarks and form fields of their pages.
 
 ### Added
 - PDFRivet offers to become your default PDF app when another app opens PDF files (once, after you open a file; "Not now" waits a week). Settings → General shows which app opens your PDFs. On Windows this opens PDFRivet's page in the Windows settings, and the installer's last page has a link to it.

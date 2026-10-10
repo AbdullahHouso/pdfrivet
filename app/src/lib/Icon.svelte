@@ -20,6 +20,8 @@ const paths = {
   // A page with an arrow leaving it (taking pages out into a new file).
   extract: "M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5M13 3v5h5M18 8v3M14 17h8M19 14l3 3-3 3",
   tools: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7",
+  // A page cut into parts.
+  split: "M4 3h16v7H4zM4 14h7v7H4zM13 14h7v7h-7zM12 10v2",
   // Two pages joining into one.
   merge: "M3 3h6v8H3zM15 3h6v8h-6zM6 11v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3v-2M12 16v5M9 18l3 3 3-3",
   menu: "M4 7h16M4 12h16M4 17h16",

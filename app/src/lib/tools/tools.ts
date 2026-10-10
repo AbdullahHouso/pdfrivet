@@ -4,7 +4,7 @@
 import type { ComponentProps } from "svelte";
 import type Icon from "../Icon.svelte";
 
-export type ToolId = "organize" | "extract" | "merge";
+export type ToolId = "organize" | "extract" | "split" | "merge";
 
 export interface ToolInfo {
   id: ToolId;
@@ -32,6 +32,14 @@ export const TOOLS: ToolInfo[] = [
     id: "extract",
     label: "extract-pages",
     icon: "extract",
+    group: "document",
+    needsDocument: true,
+    needsAssemble: true,
+  },
+  {
+    id: "split",
+    label: "split-tool",
+    icon: "split",
     group: "document",
     needsDocument: true,
     needsAssemble: true,

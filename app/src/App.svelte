@@ -77,6 +77,7 @@ import { type Tab, type TabState, tabs } from "./lib/tabs.svelte";
 import { isEmpty, toTextRange } from "./lib/textSelect";
 import ExtractDialog from "./lib/tools/ExtractDialog.svelte";
 import MergeDialog from "./lib/tools/MergeDialog.svelte";
+import SplitDialog from "./lib/tools/SplitDialog.svelte";
 import type { ToolId } from "./lib/tools/tools";
 import { TOOLS } from "./lib/tools/tools";
 import UpdateDialog from "./lib/UpdateDialog.svelte";
@@ -549,12 +550,15 @@ let extracting = $state<Tab | null>(null);
 
 /** The Merge PDFs dialog is open. */
 let merging = $state(false);
+/** The tab whose Split dialog is open. */
+let splitting = $state<Tab | null>(null);
 
 /** A tool chosen from the Tools menu or the start page. */
 function runTool(tool: ToolId) {
   const tab = active;
   if (tool === "organize" && tab) organize(tab);
   else if (tool === "extract" && tab) extracting = tab;
+  else if (tool === "split" && tab) splitting = tab;
   else if (tool === "merge") merging = true;
 }
 
@@ -997,6 +1001,18 @@ onMount(() => {
       merging = false;
       showFinished(i18n.t("merge-done", { file: fileName(path) }), path);
       if (openIt) openFiles([path]);
+    }}
+  />
+{/if}
+
+{#if splitting}
+  <SplitDialog
+    tab={splitting}
+    oncancel={() => (splitting = null)}
+    onerror={(e) => (error = e)}
+    onfinished={(count, first) => {
+      splitting = null;
+      showFinished(i18n.t("split-done", { count }), first);
     }}
   />
 {/if}

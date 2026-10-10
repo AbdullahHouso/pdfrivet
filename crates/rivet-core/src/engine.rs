@@ -455,12 +455,21 @@ impl Engine {
 
     /// Writes some pages of a document (as they are now, with unsaved changes)
     /// into a new PDF file at `path`.
+    /// The pages' bookmarks and form fields come along (see `merge.rs`).
     pub fn extract_pages(&self, doc: DocId, pages: Vec<u32>, path: PathBuf) -> Result<()> {
         self.task(move |w| {
             let source = w.doc(doc)?;
             let mut out = w.pdf.new_document()?;
             out.import_pages(source, &pages, 0)?;
-            out.save(&path)
+            // Part of the same document: same title, author, subject and keywords.
+            out.new_metadata = Some(source.properties().metadata);
+            let part = MergePart {
+                doc,
+                pages,
+                start: 0,
+                title: String::new(),
+            };
+            crate::merge::finish(&mut out, &[(part, source)], false, &path)
         })
     }
 

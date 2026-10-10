@@ -477,3 +477,26 @@ merge-open-after = فتح الملف المدمج
 merge-run = دمج…
 merge-name = ملف مدمج
 merge-done = دُمجت الملفات في { $file }.
+split-tool = تقسيم…
+split-title = تقسيم إلى عدة ملفات
+split-mode-every = كل عدد من الصفحات
+split-pages-per-file = عدد الصفحات في كل ملف
+split-mode-ranges = حسب نطاقات الصفحات
+split-ranges-hint = ملف لكل نطاق، مثال: 1-3، 4-10، 11
+split-mode-bookmarks = عند كل إشارة مرجعية
+split-no-bookmarks = لا يحتوي هذا المستند على إشارات مرجعية للتقسيم عندها.
+split-folder = المجلد
+split-choose-folder = اختيار…
+split-count = { $count ->
+    [one] سيُنشأ ملف واحد
+    [two] سيُنشأ ملفان
+    [few] سيُنشأ { $count } ملفات
+   *[other] سيُنشأ { $count } ملفًا
+}
+split-run = تقسيم
+split-done = { $count ->
+    [one] حُفظ ملف واحد.
+    [two] حُفظ ملفان.
+    [few] حُفظت { $count } ملفات.
+   *[other] حُفظ { $count } ملفًا.
+}

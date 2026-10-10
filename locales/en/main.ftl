@@ -472,3 +472,22 @@ merge-open-after = Open the merged file
 merge-run = Merge…
 merge-name = Merged
 merge-done = Merged into { $file }.
+split-tool = Split…
+split-title = Split into several files
+split-mode-every = Every few pages
+split-pages-per-file = Pages in each file
+split-mode-ranges = By page ranges
+split-ranges-hint = One file for each range, for example 1-3, 4-10, 11
+split-mode-bookmarks = At each bookmark
+split-no-bookmarks = This document has no bookmarks to split at.
+split-folder = Folder
+split-choose-folder = Choose…
+split-count = { $count ->
+    [one] Makes 1 file
+   *[other] Makes { $count } files
+}
+split-run = Split
+split-done = { $count ->
+    [one] Saved 1 file.
+   *[other] Saved { $count } files.
+}
