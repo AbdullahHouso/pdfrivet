@@ -45,6 +45,12 @@ pub enum ErrorCode {
     UnsupportedImage,
     /// Compressing a password-protected file isn't possible (remove the protection first).
     CompressProtected,
+    /// A web address that isn't one (or isn't http/https).
+    InvalidUrl,
+    /// A web page didn't finish loading in time.
+    HtmlTimeout,
+    /// Printing a web page to PDF failed.
+    HtmlFailed,
     EngineStopped,
     /// A render was skipped because the page is no longer near the screen.
     Cancelled,

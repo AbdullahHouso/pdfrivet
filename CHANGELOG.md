@@ -26,6 +26,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 
 - Compress (Tools menu): a smaller copy of the document. Lossless packs the file tighter and stores repeated fonts and drawings once (often a fifth smaller, nothing changes); Recommended and Strongest also scale pictures down to 150 or 100 dpi and store photos as JPEG. Drawings and screenshots stay sharp; pictures it can't redo faithfully are left as they are.
 
+- Web page or HTML to PDF (Tools menu): type a web address or pick an HTML file; it's printed to PDF by your system's own web engine (A4 or US Letter, portrait or landscape, margins, backgrounds). Web pages load the way a browser visit does, in a separate window without your browser's logins that can't reach anything in PDFRivet.
+
 ### Repair
 - Repair a PDF (Tools menu, or "Try to repair" when a file won't open): saves a mended copy of a damaged file, with the pages that could be recovered.
 

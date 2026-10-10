@@ -364,6 +364,20 @@ export function compressPdf(docId: number, level: CompressLevel, path: string): 
   return invoke("compress_pdf", { docId, level, path });
 }
 
+export type HtmlSource = { kind: "file"; path: string } | { kind: "url"; url: string };
+
+export interface HtmlOptions {
+  paper: "a4" | "letter";
+  landscape: boolean;
+  marginMm: number;
+  backgrounds: boolean;
+}
+
+/** Prints an HTML file or web page to a PDF file (in a hidden, sealed-off window). */
+export function htmlToPdf(source: HtmlSource, options: HtmlOptions, path: string): Promise<void> {
+  return invoke("html_to_pdf", { source, options, path });
+}
+
 /** Repairs a damaged PDF into a new file. */
 export function repairPdf(from: string, to: string, password?: string): Promise<RepairReport> {
   return invoke("repair_pdf", { from, to, password: password ?? null });

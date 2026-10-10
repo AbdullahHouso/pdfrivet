@@ -80,6 +80,7 @@ import CompressDialog from "./lib/tools/CompressDialog.svelte";
 import ExportImagesDialog from "./lib/tools/ExportImagesDialog.svelte";
 import ExtractDialog from "./lib/tools/ExtractDialog.svelte";
 import { formatSize } from "./lib/tools/files";
+import HtmlToPdfDialog from "./lib/tools/HtmlToPdfDialog.svelte";
 import ImagesToPdfDialog, { isImage } from "./lib/tools/ImagesToPdfDialog.svelte";
 import MergeDialog from "./lib/tools/MergeDialog.svelte";
 import ProtectDialog from "./lib/tools/ProtectDialog.svelte";
@@ -571,6 +572,8 @@ let protecting = $state<Tab | null>(null);
 let compressing = $state<Tab | null>(null);
 /** The tab whose Export as images dialog is open. */
 let exporting = $state<Tab | null>(null);
+/** Web page or HTML to PDF is open. */
+let htmlToPdfOpen = $state(false);
 /** Images to PDF is open (with these pictures to start with). */
 let imagesToPdf = $state<string[] | null>(null);
 
@@ -585,6 +588,7 @@ function runTool(tool: ToolId) {
   else if (tool === "compress" && tab) compressing = tab;
   else if (tool === "flatten" && tab) flattenFlow(tab);
   else if (tool === "images-to-pdf") imagesToPdf = [];
+  else if (tool === "html-to-pdf") htmlToPdfOpen = true;
   else if (tool === "merge") merging = true;
   else if (tool === "repair") repairFlow();
 }
@@ -1121,6 +1125,19 @@ onMount(() => {
     onfinished={(count, first) => {
       exporting = null;
       showFinished(i18n.t("split-done", { count }), first);
+    }}
+  />
+{/if}
+
+{#if htmlToPdfOpen}
+  <HtmlToPdfDialog
+    folder={active ? active.path.slice(0, active.path.length - active.fileName.length) : undefined}
+    oncancel={() => (htmlToPdfOpen = false)}
+    onerror={(e) => (error = e)}
+    onfinished={(path, openIt) => {
+      htmlToPdfOpen = false;
+      showFinished(i18n.t("images-done", { file: fileName(path) }), path);
+      if (openIt) openFiles([path]);
     }}
   />
 {/if}

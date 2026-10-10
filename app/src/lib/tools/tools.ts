@@ -14,6 +14,7 @@ export type ToolId =
   | "flatten"
   | "merge"
   | "images-to-pdf"
+  | "html-to-pdf"
   | "repair";
 
 export interface ToolInfo {
@@ -98,6 +99,14 @@ export const TOOLS: ToolInfo[] = [
     id: "images-to-pdf",
     label: "images-tool",
     icon: "image",
+    group: "create",
+    needsDocument: false,
+    needsAssemble: false,
+  },
+  {
+    id: "html-to-pdf",
+    label: "html-tool",
+    icon: "globe",
     group: "create",
     needsDocument: false,
     needsAssemble: false,

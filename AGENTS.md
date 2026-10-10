@@ -10,8 +10,9 @@ Read `docs/ARCHITECTURE.md` before larger changes, and `CONTRIBUTING.md` for the
 ## Product boundaries
 
 - A local desktop app: no telemetry, no analytics, no accounts, no hosted backend. Documents never
-  leave the machine. The only network access is the update check (GitHub releases) and links the
-  user clicks.
+  leave the machine. The only network access is the update check (GitHub releases), links the
+  user clicks, and web pages the user asks to turn into PDFs (loaded in a sealed-off window with
+  a throwaway profile; see `html_pdf.rs`).
 - Fast and light comes first. A feature that costs noticeable startup time, memory or install size
   needs a reason; measure before and after.
 - Do not broaden a task into adjacent features or a general refactor. Preserve existing user

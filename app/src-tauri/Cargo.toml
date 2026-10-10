@@ -46,10 +46,22 @@ windows = { version = "0.62.2", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
+# HTML to PDF: WebView2's "print to PDF" (src/html_pdf.rs); the version wry uses.
+webview2-com = "0.39.1"
+
+# HTML to PDF on Linux: WebKitGTK printing to a file (src/html_pdf.rs); the versions wry uses.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18.2"
+webkit2gtk = { version = "2.0.2", features = ["v2_38"] }
 
 # macOS: asking Launch Services which app opens PDFs (src/default_app.rs).
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFString"] }
+# HTML to PDF: WKWebView's print operation, saved without a panel (src/html_pdf.rs); the versions wry uses.
+objc2 = "0.6.5"
+objc2-foundation = { version = "0.3.2", features = ["std", "NSString", "NSURL", "NSGeometry", "NSDictionary"] }
+objc2-app-kit = { version = "0.3.2", features = ["std", "NSPrintInfo", "NSPrintOperation", "NSView", "NSResponder"] }
+objc2-web-kit = { version = "0.3.2", features = ["std", "objc2-app-kit", "WKWebView"] }
 
 # Self-update exists only on desktop.
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]

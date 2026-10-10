@@ -7,6 +7,7 @@
 //!   queued and announced to the UI with the `open-files` event.
 
 mod default_app;
+mod html_pdf;
 #[cfg(windows)]
 mod taskbar_tabs;
 mod tools;
@@ -763,6 +764,16 @@ pub fn run() {
             Ok(())
         })
         .register_asynchronous_uri_scheme_protocol("rivet", |ctx, request, responder| {
+            // Web pages being printed to PDF (html_pdf.rs) must not see open documents.
+            if html_pdf::is_render_window(ctx.webview_label()) {
+                responder.respond(
+                    http::Response::builder()
+                        .status(http::StatusCode::FORBIDDEN)
+                        .body(Vec::new())
+                        .unwrap(),
+                );
+                return;
+            }
             let Some(engine) = ctx.app_handle().state::<AppState>().engine.clone() else {
                 responder.respond(
                     http::Response::builder()
@@ -775,59 +786,73 @@ pub fn run() {
             // Render on another thread so the webview never waits on PDFium.
             std::thread::spawn(move || responder.respond(page_protocol(&engine, request.uri())));
         })
-        .invoke_handler(tauri::generate_handler![
-            open_document,
-            document_info,
-            get_outline,
-            get_links,
-            get_form_fields,
-            change_field,
-            get_text,
-            search_document,
-            user_name,
-            get_annotations,
-            add_annotation,
-            update_annotation,
-            delete_annotation,
-            add_image_stamp,
-            restore_annotation,
-            redact,
-            set_annotation_hidden,
-            save_document,
-            list_printers,
-            document_properties,
-            set_metadata,
-            set_outline,
-            get_annotations_from,
-            list_fonts,
-            measure_text,
-            print_placement,
-            printer_properties,
-            print_document,
-            set_visible_pages,
-            close_document,
-            take_pending_files,
-            set_taskbar_tabs,
-            capture_taskbar_tab,
-            files_exist,
-            is_default_pdf_app,
-            make_default_pdf_app,
-            tools::new_document,
-            tools::arrange_pages,
-            tools::rotate_pages,
-            tools::import_pages,
-            tools::extract_pages,
-            tools::finish_merge,
-            tools::repair_pdf,
-            tools::compress_pdf,
-            tools::flatten_document,
-            tools::add_image_page,
-            tools::export_page_image,
-            tools::set_protection,
-            tools::unlock_owner,
-            tools::swap_snapshot,
-            tools::drop_snapshots
-        ])
+        .invoke_handler({
+            let commands: Box<dyn Fn(tauri::ipc::Invoke) -> bool + Send + Sync> =
+                Box::new(tauri::generate_handler![
+                    open_document,
+                    document_info,
+                    get_outline,
+                    get_links,
+                    get_form_fields,
+                    change_field,
+                    get_text,
+                    search_document,
+                    user_name,
+                    get_annotations,
+                    add_annotation,
+                    update_annotation,
+                    delete_annotation,
+                    add_image_stamp,
+                    restore_annotation,
+                    redact,
+                    set_annotation_hidden,
+                    save_document,
+                    list_printers,
+                    document_properties,
+                    set_metadata,
+                    set_outline,
+                    get_annotations_from,
+                    list_fonts,
+                    measure_text,
+                    print_placement,
+                    printer_properties,
+                    print_document,
+                    set_visible_pages,
+                    close_document,
+                    take_pending_files,
+                    set_taskbar_tabs,
+                    capture_taskbar_tab,
+                    files_exist,
+                    is_default_pdf_app,
+                    make_default_pdf_app,
+                    tools::new_document,
+                    tools::arrange_pages,
+                    tools::rotate_pages,
+                    tools::import_pages,
+                    tools::extract_pages,
+                    tools::finish_merge,
+                    tools::repair_pdf,
+                    tools::compress_pdf,
+                    tools::flatten_document,
+                    html_pdf::html_to_pdf,
+                    tools::add_image_page,
+                    tools::export_page_image,
+                    tools::set_protection,
+                    tools::unlock_owner,
+                    tools::swap_snapshot,
+                    tools::drop_snapshots
+                ]);
+            // Web pages being printed to PDF run in their own windows
+            // (html_pdf.rs) and may call none of the app's commands. (Tauri's
+            // permissions only cover plugins here; app commands need this check.)
+            move |invoke| {
+                if html_pdf::is_render_window(invoke.message.webview_ref().label()) {
+                    invoke.resolver.reject("not allowed");
+                    return true;
+                }
+                commands(invoke)
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building PDFRivet")
         .run(|_app, _event| {
