@@ -27,6 +27,7 @@ mod redact;
 mod search;
 mod text;
 mod textlayout;
+mod textstrings;
 
 pub use annotations::{
     Annotation, AnnotationBatch, AnnotationKind, Color, MarkupStyle, PageAnnotations, PagePoint,

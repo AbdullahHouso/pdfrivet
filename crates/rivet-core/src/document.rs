@@ -1,5 +1,5 @@
 use std::{
-    cell::{Cell, RefCell},
+    cell::{Cell, OnceCell, RefCell},
     collections::BTreeSet,
     io::Cursor,
     path::Path,
@@ -98,6 +98,7 @@ impl Pdf {
             redacted: RefCell::new(BTreeSet::new()),
             edited_outline: None,
             has_replies: Cell::new(false),
+            stored_strings: OnceCell::new(),
             has_text_boxes: Cell::new(false),
         })
     }
@@ -265,6 +266,9 @@ pub struct Document {
     edited_outline: Option<Vec<OutlineItem>>,
     /// Replies were added: saving links them to the annotations they answer.
     has_replies: Cell<bool>,
+    /// The file's UTF-8 text strings, collected when one PDFium misread
+    /// needs looking up (see `textstrings.rs`).
+    stored_strings: OnceCell<Vec<Vec<u8>>>,
     /// Text boxes were added or changed: saving writes their `/IT` name.
     has_text_boxes: Cell<bool>,
 }
@@ -284,13 +288,7 @@ impl Document {
     }
 
     pub fn info(&self) -> Result<DocInfo> {
-        let meta = |tag| {
-            self.inner
-                .metadata()
-                .get(tag)
-                .map(|t| t.value().trim().to_owned())
-                .filter(|v| !v.is_empty())
-        };
+        let meta = |tag| Some(self.metadata_text(tag)).filter(|v| !v.is_empty());
         let page_sizes = (0..self.page_count())
             .map(|i| self.page_size(i))
             .collect::<Result<_>>()?;
@@ -320,7 +318,7 @@ impl Document {
     /// The annotations on a page (highlights, drawings, notes…), in drawing order.
     pub fn annotations(&self, index: u32) -> Result<Vec<crate::Annotation>> {
         let page = self.load_page(index)?;
-        Ok(crate::annotations::read(self.pdfium, &page))
+        Ok(crate::annotations::read(self.pdfium, &page, &self.texts()))
     }
 
     /// The annotations of the pages from `first` on, a batch at a time (so
@@ -370,7 +368,7 @@ impl Document {
     pub fn update_annotation(&self, index: u32, annotation: &crate::Annotation) -> Result<String> {
         self.check_can_annotate()?;
         let page = self.load_page(index)?;
-        let id = crate::annotations::update(self.pdfium, &page, annotation)?;
+        let id = crate::annotations::update(self.pdfium, &page, annotation, &self.texts())?;
         self.unsaved_changes.set(true);
         self.note_text_box(annotation);
         Ok(id)
@@ -469,7 +467,7 @@ impl Document {
     pub fn outline(&self) -> Vec<OutlineItem> {
         match &self.edited_outline {
             Some(items) => items.clone(),
-            None => outline::read(&self.inner),
+            None => outline::read(&self.inner, &self.texts()),
         }
     }
 
@@ -546,16 +544,42 @@ impl Document {
         })
     }
 
+    /// One of the document's descriptive texts (title, author…), trimmed;
+    /// empty if missing.
+    fn metadata_text(&self, tag: PdfDocumentMetadataTagType) -> String {
+        let Some(value) = self.inner.metadata().get(tag).map(|t| t.value().to_owned()) else {
+            return String::new();
+        };
+        let key: &[u8] = match tag {
+            PdfDocumentMetadataTagType::Title => b"Title",
+            PdfDocumentMetadataTagType::Author => b"Author",
+            PdfDocumentMetadataTagType::Subject => b"Subject",
+            PdfDocumentMetadataTagType::Keywords => b"Keywords",
+            PdfDocumentMetadataTagType::Creator => b"Creator",
+            PdfDocumentMetadataTagType::Producer => b"Producer",
+            PdfDocumentMetadataTagType::CreationDate => b"CreationDate",
+            PdfDocumentMetadataTagType::ModificationDate => b"ModDate",
+        };
+        self.texts().repair_info(value, key).trim().to_owned()
+    }
+
+    /// Repairs text strings PDFium misreads (see `textstrings.rs`).
+    fn texts(&self) -> crate::textstrings::Texts<'_> {
+        crate::textstrings::Texts {
+            stored: &self.stored_strings,
+            bytes: match &self.source {
+                Source::Memory(bytes) => Some(bytes),
+                Source::File => None,
+            },
+            path: &self.path,
+            password: self.password.as_deref(),
+        }
+    }
+
     /// Everything shown in the Document properties dialog.
     pub fn properties(&self) -> crate::metadata::DocProperties {
         use crate::metadata::{DocProperties, Metadata, Permissions, pdf_date_to_iso};
-        let tag = |t| {
-            self.inner
-                .metadata()
-                .get(t)
-                .map(|m| m.value().trim().to_owned())
-                .unwrap_or_default()
-        };
+        let tag = |t| self.metadata_text(t);
         let stored = Metadata {
             title: tag(PdfDocumentMetadataTagType::Title),
             author: tag(PdfDocumentMetadataTagType::Author),
@@ -627,7 +651,7 @@ impl Document {
     /// The interactive form fields on a page (empty if it has none).
     pub fn form_fields(&self, index: u32) -> Result<Vec<FormField>> {
         let page = self.load_page(index)?;
-        Ok(forms::read(&page))
+        Ok(forms::read(&page, &self.texts()))
     }
 
     /// Changes a form field (see [`FieldChange`]).

@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - The interface's labels and buttons can no longer be selected like text.
 
 ### Fixed
+- Titles, authors, bookmarks, comments and form fields that another app saved in the wrong text encoding (UTF-8 without a marker) no longer show as garbled letters like "Ø¬Ù‘Ù–Ù—": they show in their own language, Arabic or any other, in password-protected files too. Changing the document's description no longer saves such a garbled title back into the file.
 - Opening PDFRivet (or a PDF with it) no longer flashes a white window, then the start page, before the document; with two screens, the window no longer appears on one screen and jumps to the other. It now appears once, where you left it, with the document in it.
 - After jumping to a page with small pages in view, the page you jumped to is the one highlighted in the thumbnails.
 - Shortcuts no longer act on the document behind an open dialog (Ctrl+A in Settings selected the page's text; Ctrl+O opened a file).

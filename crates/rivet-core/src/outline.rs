@@ -13,6 +13,8 @@ use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::textstrings::Texts;
+
 /// One entry in the outline. `page` is `None` when the entry doesn't point
 /// to a page in this document (for example, a web link).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -32,10 +34,10 @@ pub struct OutlineItem {
 const MAX_DEPTH: usize = 32;
 const MAX_ITEMS: usize = 20_000;
 
-pub(crate) fn read(doc: &PdfDocument) -> Vec<OutlineItem> {
+pub(crate) fn read(doc: &PdfDocument, texts: &Texts) -> Vec<OutlineItem> {
     let mut walk = Walk::default();
     match doc.bookmarks().root() {
-        Some(first) => siblings(first, 0, &mut walk),
+        Some(first) => siblings(first, 0, &mut walk, texts),
         None => Vec::new(),
     }
 }
@@ -46,7 +48,7 @@ struct Walk {
     seen: u32,
 }
 
-fn siblings(first: PdfBookmark, depth: usize, walk: &mut Walk) -> Vec<OutlineItem> {
+fn siblings(first: PdfBookmark, depth: usize, walk: &mut Walk, texts: &Texts) -> Vec<OutlineItem> {
     let mut items = Vec::new();
     let mut current = Some(first);
     while let Some(bookmark) = current {
@@ -56,11 +58,14 @@ fn siblings(first: PdfBookmark, depth: usize, walk: &mut Walk) -> Vec<OutlineIte
         let origin = walk.seen;
         walk.seen += 1;
         let children = match bookmark.first_child() {
-            Some(child) if depth < MAX_DEPTH => siblings(child, depth + 1, walk),
+            Some(child) if depth < MAX_DEPTH => siblings(child, depth + 1, walk, texts),
             _ => Vec::new(),
         };
         items.push(OutlineItem {
-            title: bookmark.title().unwrap_or_default().trim().to_owned(),
+            title: texts
+                .repair_title(bookmark.title().unwrap_or_default())
+                .trim()
+                .to_owned(),
             page: bookmark
                 .destination()
                 .and_then(|d| d.page_index().ok())

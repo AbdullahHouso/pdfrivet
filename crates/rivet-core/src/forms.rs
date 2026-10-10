@@ -20,7 +20,7 @@ use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{Error, ErrorCode, Result, geometry::PageGeometry};
+use crate::{Error, ErrorCode, Result, geometry::PageGeometry, textstrings::Texts};
 
 /// What kind of field this is, with its current value.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
@@ -77,7 +77,7 @@ pub enum FieldChange {
     Select { option: u32 },
 }
 
-pub(crate) fn read(page: &PdfPage) -> Vec<FormField> {
+pub(crate) fn read(page: &PdfPage, texts: &Texts) -> Vec<FormField> {
     let Some(geometry) = PageGeometry::new(page) else {
         return Vec::new();
     };
@@ -89,22 +89,22 @@ pub(crate) fn read(page: &PdfPage) -> Vec<FormField> {
             let rect = geometry.to_fraction(&annotation.bounds().ok()?)?;
             Some(FormField {
                 index: index as u32,
-                name: field.name(),
+                name: field.name().map(|n| texts.repair_dotted(n)),
                 read_only: field.is_read_only(),
                 left: rect.left,
                 top: rect.top,
                 right: rect.right,
                 bottom: rect.bottom,
-                field: kind_of(field),
+                field: kind_of(field, texts),
             })
         })
         .collect()
 }
 
-fn kind_of(field: &PdfFormField) -> FieldKind {
+fn kind_of(field: &PdfFormField, texts: &Texts) -> FieldKind {
     match field {
         PdfFormField::Text(text) => FieldKind::Text {
-            value: text.value().unwrap_or_default(),
+            value: texts.repair(text.value().unwrap_or_default()),
             multiline: text.is_multiline(),
             password: text.is_password(),
         },
@@ -114,20 +114,20 @@ fn kind_of(field: &PdfFormField) -> FieldKind {
         PdfFormField::RadioButton(radio) => FieldKind::Radio {
             checked: radio.is_checked().unwrap_or(false),
         },
-        PdfFormField::ComboBox(combo) => choice(combo.options()),
-        PdfFormField::ListBox(list) => choice(list.options()),
+        PdfFormField::ComboBox(combo) => choice(combo.options(), texts),
+        PdfFormField::ListBox(list) => choice(list.options(), texts),
         _ => FieldKind::Other,
     }
 }
 
-fn choice(options: &PdfFormFieldOptions) -> FieldKind {
+fn choice(options: &PdfFormFieldOptions, texts: &Texts) -> FieldKind {
     let mut labels = Vec::new();
     let mut selected = None;
     for option in options.iter() {
         if option.is_set() {
             selected = Some(labels.len() as u32);
         }
-        labels.push(option.label().cloned().unwrap_or_default());
+        labels.push(texts.repair(option.label().cloned().unwrap_or_default()));
     }
     FieldKind::Choice {
         options: labels,

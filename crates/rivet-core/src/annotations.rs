@@ -47,6 +47,7 @@ use crate::{
     fonts::TextFont,
     geometry::{Affine, PageGeometry},
     textlayout::{self, TEXT_PADDING, TextAlign, TextDirection, TextStyle, VerticalAlign},
+    textstrings::Texts,
 };
 
 /// A point as fractions (0..1) of the page, top-left origin, before view rotation.
@@ -215,7 +216,7 @@ pub(crate) const REPLY_KEY: &str = "PDFRivetReplyTo";
 
 /// Reads the annotations of a page, in the order they are drawn. Links, form
 /// fields and pop-up windows are left out (they're handled elsewhere).
-pub(crate) fn read(pdfium: &Pdfium, page: &PdfPage) -> Vec<Annotation> {
+pub(crate) fn read(pdfium: &Pdfium, page: &PdfPage, texts: &Texts) -> Vec<Annotation> {
     let Some(map) = Mapping::new(page) else {
         return Vec::new();
     };
@@ -226,7 +227,7 @@ pub(crate) fn read(pdfium: &Pdfium, page: &PdfPage) -> Vec<Annotation> {
             if annot.is_deleted() {
                 return None;
             }
-            let mut model = annot_to_model(&annot, index, &map)?;
+            let mut model = annot_to_model(&annot, index, &map, texts)?;
             model.reply_to = annots.reply_target(&annot);
             Some(model)
         })
@@ -369,13 +370,18 @@ pub(crate) fn image_matrix(map: &Mapping, rect: &PageRect) -> FS_MATRIX {
 
 /// Changes an annotation (shape, colour, opacity, width, text); returns its id
 /// (an annotation from another app gets one the first time it's changed).
-pub(crate) fn update(pdfium: &Pdfium, page: &PdfPage, annotation: &Annotation) -> Result<String> {
+pub(crate) fn update(
+    pdfium: &Pdfium,
+    page: &PdfPage,
+    annotation: &Annotation,
+    texts: &Texts,
+) -> Result<String> {
     let map = Mapping::new(page).ok_or_else(|| internal("page has no size"))?;
     let annots = PageAnnots::new(pdfium, page);
     let (index, annot) = annots
         .find(&annotation.id)
         .ok_or_else(|| Error::new(ErrorCode::AnnotationNotFound, annotation.id.clone()))?;
-    let current = annot_to_model(&annot, index, &map)
+    let current = annot_to_model(&annot, index, &map, texts)
         .ok_or_else(|| Error::new(ErrorCode::AnnotationNotFound, annotation.id.clone()))?;
     if !current.editable
         || std::mem::discriminant(&current.kind) != std::mem::discriminant(&annotation.kind)
@@ -673,7 +679,7 @@ impl Mapping {
     }
 }
 
-fn annot_to_model(annot: &Annot, index: i32, map: &Mapping) -> Option<Annotation> {
+fn annot_to_model(annot: &Annot, index: i32, map: &Mapping, texts: &Texts) -> Option<Annotation> {
     let subtype = annot.subtype() as u32;
     let mut editable = true;
     let mut text_color = None;
@@ -717,7 +723,7 @@ fn annot_to_model(annot: &Annot, index: i32, map: &Mapping) -> Option<Annotation
         FPDF_ANNOT_TEXT => AnnotationKind::Note,
         FPDF_ANNOT_FREETEXT => {
             let rect = annot.rect().map(|r| map.rect(&r))?;
-            let (kind, color) = read_text_box(annot, &rect, map);
+            let (kind, color) = read_text_box(annot, &rect, map, texts);
             text_color = color;
             kind
         }
@@ -756,8 +762,8 @@ fn annot_to_model(annot: &Annot, index: i32, map: &Mapping) -> Option<Annotation
             .unwrap_or(1.0)
             .clamp(0.0, 1.0),
         width: annot.border_width().unwrap_or(1.0),
-        contents: annot.string("Contents").unwrap_or_default(),
-        author: annot.string("T").unwrap_or_default(),
+        contents: annot.text("Contents", texts).unwrap_or_default(),
+        author: annot.text("T", texts).unwrap_or_default(),
         modified: annot
             .string("M")
             .and_then(|m| crate::metadata::pdf_date_to_iso(&m)),
@@ -969,9 +975,14 @@ fn write_text_box(annot: &Annot, text: &str, style: &TextStyle, color: Color) {
 
 /// A text box written by another app: its text, and its style as far as its
 /// `/DS`, `/RC` or `/DA` tell.
-fn read_text_box(annot: &Annot, rect: &PageRect, map: &Mapping) -> (AnnotationKind, Option<Color>) {
+fn read_text_box(
+    annot: &Annot,
+    rect: &PageRect,
+    map: &Mapping,
+    texts: &Texts,
+) -> (AnnotationKind, Option<Color>) {
     let text = annot
-        .string("Contents")
+        .text("Contents", texts)
         .unwrap_or_default()
         .replace('\r', "\n");
     if let Some(saved) = annot
@@ -1580,7 +1591,22 @@ impl<'a> Annot<'a> {
         };
     }
 
+    /// A string value, up to the first U+0000.
     fn string(&self, key: &str) -> Option<String> {
+        let mut value = self.whole_string(key)?;
+        value.truncate(value.find('\0').unwrap_or(value.len()));
+        Some(value)
+    }
+
+    /// A text string (contents, author…) as its author meant it, repaired if
+    /// PDFium misread it (see `textstrings.rs`).
+    fn text(&self, key: &str, texts: &Texts) -> Option<String> {
+        self.whole_string(key).map(|value| texts.repair(value))
+    }
+
+    /// A string value with any U+0000 inside it, which may stand for a byte
+    /// PDFium couldn't decode (see `textstrings.rs`).
+    fn whole_string(&self, key: &str) -> Option<String> {
         // SAFETY: see `subtype`. The first call asks for the length in bytes
         // (including the terminating NUL); the second fills a buffer that size.
         unsafe {
@@ -1601,7 +1627,7 @@ impl<'a> Annot<'a> {
                 buffer.as_mut_ptr(),
                 bytes as _,
             );
-            let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+            let len = buffer.iter().rposition(|&c| c != 0).map_or(0, |i| i + 1);
             Some(String::from_utf16_lossy(&buffer[..len]))
         }
     }

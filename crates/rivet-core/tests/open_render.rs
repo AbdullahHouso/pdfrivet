@@ -1724,3 +1724,213 @@ fn renders_one_area_like_the_whole_page() {
         }
     }
 }
+
+/// Text that apps wrongly stored as UTF-8 without a byte order mark, which
+/// PDFium alone shows as `Ø¬Ù‘Ù–Ù—`. Covers bytes PDFium loses (0x9F, 0xAD:
+/// `ح`, `؟`, `П`), at the end of a string too, in many languages.
+const MISENCODED: [&str; 12] = [
+    "جُمّل.pdf",
+    "محمد حسن",
+    "أين الملح",
+    "ماذا؟",
+    "Привет, мир",
+    "Παράδειγμα",
+    "שלום עולם",
+    "日本語のタイトル",
+    "中文标题",
+    "한국어 제목",
+    "हिन्दी शीर्षक",
+    "emoji 📄✅",
+];
+
+/// A one-page PDF whose title, bookmarks, note (contents and author), form
+/// field names, values and options are all UTF-8 without a byte order mark,
+/// plus one correctly encoded (UTF-16) bookmark. Optionally password-protected.
+fn misencoded_pdf(path: &std::path::Path, password: Option<&str>) {
+    use lopdf::{Dictionary, Object, StringFormat, dictionary};
+    let raw = |s: &str| Object::String(s.as_bytes().to_vec(), StringFormat::Literal);
+    let mut doc = lopdf::Document::with_version("1.7");
+    let pages_id = doc.new_object_id();
+    let page_id = doc.new_object_id();
+
+    let note = doc.add_object(dictionary! {
+        "Type" => "Annot", "Subtype" => "Text",
+        "Rect" => vec![50.into(), 700.into(), 70.into(), 720.into()],
+        "Contents" => raw("ملاحظة: صحيح؟"),
+        "T" => raw("Пётр Иванович"),
+    });
+    let text_field = doc.add_object(dictionary! {
+        "Type" => "Annot", "Subtype" => "Widget", "FT" => "Tx",
+        "Rect" => vec![50.into(), 600.into(), 250.into(), 620.into()],
+        "T" => raw("الاسم"),
+        "V" => raw("حسن الحربي"),
+        "DA" => Object::string_literal("/Helv 12 Tf 0 g"),
+        "P" => page_id,
+    });
+    let parent = doc.new_object_id();
+    let child = doc.add_object(dictionary! {
+        "Type" => "Annot", "Subtype" => "Widget", "FT" => "Ch", "Ff" => 131072,
+        "Rect" => vec![50.into(), 500.into(), 250.into(), 520.into()],
+        "T" => raw("المدينة"),
+        "Opt" => vec![raw("الأحساء"), raw("Москва"), raw("東京")],
+        "V" => raw("Москва"),
+        "DA" => Object::string_literal("/Helv 12 Tf 0 g"),
+        "P" => page_id,
+        "Parent" => parent,
+    });
+    doc.objects.insert(
+        parent,
+        Object::Dictionary(dictionary! {
+            "T" => raw("العنوان"),
+            "Kids" => vec![child.into()],
+        }),
+    );
+    let helv = doc.add_object(dictionary! {
+        "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica",
+    });
+    let acroform = doc.add_object(dictionary! {
+        "Fields" => vec![text_field.into(), parent.into()],
+        "DR" => dictionary! { "Font" => dictionary! { "Helv" => helv } },
+        "DA" => Object::string_literal("/Helv 12 Tf 0 g"),
+    });
+    let content = doc.add_object(lopdf::Stream::new(Dictionary::new(), Vec::new()));
+    doc.objects.insert(
+        page_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Page", "Parent" => pages_id, "Contents" => content,
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Annots" => vec![note.into(), text_field.into(), child.into()],
+        }),
+    );
+    doc.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages", "Kids" => vec![page_id.into()], "Count" => 1,
+        }),
+    );
+
+    // Bookmarks: every sample, the last one nested under the first,
+    // followed by a correctly encoded one.
+    let outlines = doc.new_object_id();
+    let mut titles: Vec<Object> = MISENCODED.iter().map(|s| raw(s)).collect();
+    titles.push(lopdf::text_string("عنوان صحيح"));
+    let ids: Vec<_> = titles.iter().map(|_| doc.new_object_id()).collect();
+    let nested = ids[ids.len() - 2];
+    let top: Vec<_> = ids.iter().copied().filter(|id| *id != nested).collect();
+    for (id, title) in ids.iter().zip(titles) {
+        let mut item = dictionary! {
+            "Title" => title,
+            "Dest" => vec![page_id.into(), "Fit".into()],
+            "Parent" => outlines,
+        };
+        if *id == nested {
+            item.set("Parent", top[0]);
+        } else {
+            let at = top.iter().position(|t| t == id).unwrap();
+            if at > 0 {
+                item.set("Prev", top[at - 1]);
+            }
+            if let Some(next) = top.get(at + 1) {
+                item.set("Next", *next);
+            }
+            if at == 0 {
+                item.set("First", nested);
+                item.set("Last", nested);
+                item.set("Count", 1);
+            }
+        }
+        doc.objects.insert(*id, Object::Dictionary(item));
+    }
+    doc.objects.insert(
+        outlines,
+        Object::Dictionary(dictionary! {
+            "Type" => "Outlines", "First" => top[0], "Last" => *top.last().unwrap(),
+            "Count" => top.len() as i64,
+        }),
+    );
+
+    let catalog = doc.add_object(dictionary! {
+        "Type" => "Catalog", "Pages" => pages_id, "Outlines" => outlines,
+        "AcroForm" => acroform,
+    });
+    let info = doc.add_object(dictionary! {
+        "Title" => raw(MISENCODED[0]),
+        "Author" => raw("حسن الحربي"),
+        "Subject" => raw("Тема документа"),
+    });
+    doc.trailer.set("Root", catalog);
+    doc.trailer.set("Info", info);
+    doc.trailer.set(
+        "ID",
+        vec![
+            Object::String(b"0123456789abcdef".to_vec(), StringFormat::Hexadecimal),
+            Object::String(b"0123456789abcdef".to_vec(), StringFormat::Hexadecimal),
+        ],
+    );
+    if let Some(password) = password {
+        let state = lopdf::EncryptionState::try_from(lopdf::EncryptionVersion::V2 {
+            document: &doc,
+            owner_password: "owner",
+            user_password: password,
+            key_length: 128,
+            permissions: lopdf::Permissions::all(),
+        })
+        .unwrap();
+        doc.encrypt(&state).unwrap();
+    }
+    doc.save(path).unwrap();
+}
+
+fn check_misencoded(doc: &rivet_core::Document) {
+    let props = doc.properties();
+    assert_eq!(props.metadata.title, MISENCODED[0]);
+    assert_eq!(props.metadata.author, "حسن الحربي");
+    assert_eq!(props.metadata.subject, "Тема документа");
+    assert_eq!(doc.info().unwrap().title.as_deref(), Some(MISENCODED[0]));
+
+    let outline = doc.outline();
+    let mut top: Vec<&str> = outline.iter().map(|i| i.title.as_str()).collect();
+    let nested: Vec<&str> = outline[0]
+        .children
+        .iter()
+        .map(|i| i.title.as_str())
+        .collect();
+    assert_eq!(nested, [MISENCODED[MISENCODED.len() - 1]]);
+    assert_eq!(top.pop(), Some("عنوان صحيح"));
+    assert_eq!(top, MISENCODED[..MISENCODED.len() - 1]);
+
+    let notes = doc.annotations(0).unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].contents, "ملاحظة: صحيح؟");
+    assert_eq!(notes[0].author, "Пётр Иванович");
+
+    let fields = doc.form_fields(0).unwrap();
+    let name = field(&fields, "الاسم");
+    assert!(matches!(&name.field, FieldKind::Text { value, .. } if value == "حسن الحربي"));
+    let city = field(&fields, "العنوان.المدينة");
+    assert!(
+        matches!(&city.field, FieldKind::Choice { options, .. } if options == &["الأحساء", "Москва", "東京"]),
+        "{:?}",
+        city.field
+    );
+}
+
+#[test]
+fn reads_text_stored_as_utf8_without_a_byte_order_mark() {
+    let _serial = serial();
+    let dir = temp_dir("utf8");
+    let path = dir.join("utf8.pdf");
+    misencoded_pdf(&path, None);
+    check_misencoded(&pdf().open(&path, None).unwrap());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn reads_misencoded_text_in_password_protected_files() {
+    let _serial = serial();
+    let dir = temp_dir("utf8-password");
+    let path = dir.join("utf8.pdf");
+    misencoded_pdf(&path, Some("rivet"));
+    check_misencoded(&pdf().open(&path, Some("rivet")).unwrap());
+    let _ = std::fs::remove_dir_all(&dir);
+}
