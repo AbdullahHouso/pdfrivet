@@ -1,7 +1,7 @@
 //! Commands for the page tools: organizing, merging, splitting, converting…
 //! Like the rest, they are thin wrappers around `rivet-core`.
 
-use rivet_core::{DocId, DocInfo, Error, MergePart, PageSlot, SnapshotId};
+use rivet_core::{DocId, DocInfo, Error, MergePart, PageSlot, Protection, SnapshotId};
 use serde::Serialize;
 use tauri::State;
 
@@ -80,6 +80,28 @@ pub(crate) async fn finish_merge(
 ) -> Result<(), Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.finish_merge(doc_id, parts, bookmark_files, path)).await
+}
+
+/// Adds, changes or removes password protection on the next save.
+#[tauri::command]
+pub(crate) async fn set_protection(
+    doc_id: DocId,
+    protection: Protection,
+    state: State<'_, AppState>,
+) -> Result<(), Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.set_protection(doc_id, protection)).await
+}
+
+/// Checks a protected file's owner password; true if it was right.
+#[tauri::command]
+pub(crate) async fn unlock_owner(
+    doc_id: DocId,
+    password: String,
+    state: State<'_, AppState>,
+) -> Result<bool, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.unlock_owner(doc_id, password)).await
 }
 
 /// Undo or redo of a page change (see `Engine::swap_snapshot`).

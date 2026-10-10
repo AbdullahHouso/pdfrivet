@@ -18,6 +18,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Split (Tools menu): into a file every few pages, one per page range ("1-3, 4-10"), or one per bookmark (named after it). Files go next to the document or into a folder you choose, and never overwrite existing ones.
 - Extracted and split files keep the document's title and author, and the bookmarks and form fields of their pages.
 
+### Protect
+- Password protection (Tools menu): require a password to open the file, restrict printing, copying, changes, forms and comments (with a separate permissions password), or remove the protection. Files are protected with AES-256. Changing a restricted file's protection asks for its permissions password, as in Acrobat.
+
 ### Added
 - PDFRivet offers to become your default PDF app when another app opens PDF files (once, after you open a file; "Not now" waits a week). Settings → General shows which app opens your PDFs. On Windows this opens PDFRivet's page in the Windows settings, and the installer's last page has a link to it.
 
@@ -27,6 +30,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - The interface's labels and buttons can no longer be selected like text.
 
 ### Fixed
+- Restrictions set by a document's author (no copying, no comments, no printing) were ignored in files protected with AES-256, the most common kind today. They are now respected, and Print is disabled when printing isn't allowed.
 - Titles, authors, bookmarks, comments and form fields that another app saved in the wrong text encoding (UTF-8 without a marker) no longer show as garbled letters like "Ø¬Ù‘Ù–Ù—": they show in their own language, Arabic or any other, in password-protected files too. Changing the document's description no longer saves such a garbled title back into the file.
 - Opening PDFRivet (or a PDF with it) no longer flashes a white window, then the start page, before the document; with two screens, the window no longer appears on one screen and jumps to the other. It now appears once, where you left it, with the document in it.
 - After jumping to a page with small pages in view, the page you jumped to is the one highlighted in the thumbnails.

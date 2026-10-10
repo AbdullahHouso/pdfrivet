@@ -122,7 +122,8 @@ function run(command: () => void) {
       <button class="icon" onclick={props.onsave} disabled={!tab.dirty} aria-label={i18n.t("save")} title={i18n.t("save")} data-shortcut="Ctrl+S">
         <Icon name="save" />
       </button>
-      <button class="icon" onclick={props.onprint} aria-label={i18n.t("print")} title={i18n.t("print")} data-shortcut="Ctrl+P">
+      <button class="icon" onclick={props.onprint} disabled={!tab.info.canPrint} aria-label={i18n.t("print")}
+        title={tab.info.canPrint ? i18n.t("print") : i18n.t("print-not-allowed")} data-shortcut="Ctrl+P">
         <Icon name="print" />
       </button>
     {/if}
@@ -296,7 +297,7 @@ function run(command: () => void) {
         <button class="menu-item command" onclick={() => run(props.onsaveas)}>
           <span>{i18n.t("save-as")}</span><kbd dir="ltr">{formatShortcut("Ctrl+Shift+S")}</kbd>
         </button>
-        <button class="menu-item command" onclick={() => run(props.onprint)}>
+        <button class="menu-item command" disabled={!tab.info.canPrint} onclick={() => run(props.onprint)}>
           <span>{i18n.t("print")}</span><kbd dir="ltr">{formatShortcut("Ctrl+P")}</kbd>
         </button>
         <button class="menu-item command" onclick={() => run(props.onproperties)}>

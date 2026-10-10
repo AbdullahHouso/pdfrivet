@@ -13,4 +13,17 @@ created: string | null, modified: string | null, pdfVersion: string, pageCount: 
 /**
  * Title, author… can be changed (not for password-protected files yet).
  */
-canEditMetadata: boolean, };
+canEditMetadata: boolean, 
+/**
+ * Opening the file needs a password (not only its restrictions).
+ */
+needsOpenPassword: boolean, 
+/**
+ * The protection can be changed or removed: the file isn't protected, or
+ * it was opened with (or unlocked by) its owner password.
+ */
+canChangeProtection: boolean, 
+/**
+ * A change to the protection waits for the next save.
+ */
+protectionPending: boolean, };

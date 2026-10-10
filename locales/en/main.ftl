@@ -491,3 +491,28 @@ split-done = { $count ->
     [one] Saved 1 file.
    *[other] Saved { $count } files.
 }
+print-not-allowed = The document's author doesn't allow printing it.
+protect-tool = Password protection…
+protect-title = Password protection
+protect-need-open = Require a password to open the file
+protect-repeat = Type it again
+protect-weak = Short passwords are easy to guess; 8 characters or more is better.
+protect-restrict = Restrict printing, copying and changes
+protect-owner-password = Permissions password
+protect-owner-hint = Needed to change these restrictions or the protection later. It must differ from the password to open.
+protect-allow-print = Allow printing
+protect-allow-copy = Allow copying text and images
+protect-allow-edit = Allow changing pages and content
+protect-allow-forms = Allow filling in forms
+protect-allow-comments = Allow comments and annotations
+protect-choose-one = Choose a password to open, restrictions, or both.
+protect-mismatch = The passwords don't match.
+protect-same = The permissions password must differ from the password to open.
+protect-keep-safe = Keep your passwords somewhere safe: a forgotten password can't be recovered.
+protect-run = Protect and save
+protect-remove = Remove protection
+protect-now-password = This file needs a password to open. Setting new protection replaces it.
+protect-now-restricted = This file has restrictions. Setting new protection replaces them.
+protect-locked = Someone restricted what can be done with this file. Type its permissions password to change or remove the protection.
+protect-done = Saved with the new protection.
+error-owner-password-required = Changing this file's protection needs its permissions password.

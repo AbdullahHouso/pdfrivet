@@ -453,6 +453,16 @@ impl Engine {
         })
     }
 
+    /// Adds, changes or removes password protection on the next save.
+    pub fn set_protection(&self, doc: DocId, protection: crate::Protection) -> Result<()> {
+        self.task(move |w| w.doc_mut(doc)?.set_protection(protection))
+    }
+
+    /// Checks a protected file's owner password (see [`Document::unlock_owner`]).
+    pub fn unlock_owner(&self, doc: DocId, password: String) -> Result<bool> {
+        self.task(move |w| w.doc_mut(doc)?.unlock_owner(&password))
+    }
+
     /// Writes some pages of a document (as they are now, with unsaved changes)
     /// into a new PDF file at `path`.
     /// The pages' bookmarks and form fields come along (see `merge.rs`).

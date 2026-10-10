@@ -15,6 +15,7 @@ import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageLink } from "./bindings/PageLink";
 import type { PageRect } from "./bindings/PageRect";
 import type { PageSlot } from "./bindings/PageSlot";
+import type { Protection } from "./bindings/Protection";
 import type { SearchBatch } from "./bindings/SearchBatch";
 import type { SearchQuery } from "./bindings/SearchQuery";
 import type { TextBoxSize } from "./bindings/TextBoxSize";
@@ -334,6 +335,16 @@ export function extractPages(docId: number, pages: number[], path: string): Prom
 /** Finishes a merged document (pages already imported): bookmarks, form fields; writes it. */
 export function finishMerge(docId: number, parts: MergePart[], bookmarkFiles: boolean, path: string): Promise<void> {
   return invoke("finish_merge", { docId, parts, bookmarkFiles, path });
+}
+
+/** Adds, changes or removes password protection; applied by the next save. */
+export function setProtection(docId: number, protection: Protection): Promise<void> {
+  return invoke("set_protection", { docId, protection });
+}
+
+/** Checks a protected file's owner password (true if right); then its protection can change. */
+export function unlockOwner(docId: number, password: string): Promise<boolean> {
+  return invoke("unlock_owner", { docId, password });
 }
 
 /** Undo/redo of a page change: back to a kept state; returns the state it replaced. */

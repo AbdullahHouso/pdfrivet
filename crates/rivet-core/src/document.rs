@@ -226,6 +226,8 @@ pub struct DocInfo {
     /// Pages can be moved, rotated, deleted, inserted and taken out into other
     /// files (the author's permissions allow assembling the document).
     pub can_assemble: bool,
+    /// The document's author allows printing it.
+    pub can_print: bool,
 }
 
 /// Clockwise view rotation. Only affects rendering; the file is never changed.
@@ -302,6 +304,10 @@ pub struct Document {
     pub(crate) stored_strings: OnceCell<Vec<Vec<u8>>>,
     /// Text boxes were added or changed: saving writes their `/IT` name.
     pub(crate) has_text_boxes: Cell<bool>,
+    /// Passwords to add, change or take off on the next save (see `protect.rs`).
+    pub(crate) protection: Option<crate::protect::Protection>,
+    /// The owner password, once typed in to change a protected file's protection.
+    pub(crate) owner_password: Option<String>,
 }
 
 impl Document {
@@ -329,6 +335,8 @@ impl Document {
             has_replies: Cell::new(false),
             stored_strings: OnceCell::new(),
             has_text_boxes: Cell::new(false),
+            protection: None,
+            owner_password: None,
         }
     }
 
@@ -364,7 +372,40 @@ impl Document {
             can_edit_outline: self.can_edit_outline(),
             can_reply: self.can_annotate() && self.can_edit_outline(),
             can_assemble: self.can_assemble(),
+            can_print: self.rights().print,
         })
+    }
+
+    /// Every permission is granted: the file isn't restricted, it was opened
+    /// with its owner password, or that password was typed in since.
+    fn has_owner_rights(&self) -> bool {
+        self.owner_password.is_some() || self.rights().full
+    }
+
+    /// Changes the protection on the next save (see `protect.rs`).
+    pub fn set_protection(&mut self, protection: crate::protect::Protection) -> Result<()> {
+        if self.properties().encrypted && !self.has_owner_rights() {
+            return Err(Error::new(
+                ErrorCode::OwnerPasswordRequired,
+                "restricted file",
+            ));
+        }
+        self.protection = Some(protection);
+        self.unsaved_changes.set(true);
+        Ok(())
+    }
+
+    /// Checks a protected file's owner password; once it is right, the
+    /// protection can be changed. Returns whether it was right.
+    pub fn unlock_owner(&mut self, password: &str) -> Result<bool> {
+        let right = match load(self.pdfium, &self.source, &self.path, Some(password)) {
+            Ok(doc) => crate::rights::read(self.pdfium, &doc).full,
+            Err(_) => false,
+        };
+        if right {
+            self.owner_password = Some(password.to_owned());
+        }
+        Ok(right)
     }
 
     /// The file's bytes as opened (or last saved), when they're kept in memory.
@@ -377,16 +418,16 @@ impl Document {
 
     /// The author's permissions allow changing the pages (see [`DocInfo::can_assemble`]).
     pub(crate) fn can_assemble(&self) -> bool {
-        let permissions = self.inner.permissions();
-        permissions.can_assemble_document().unwrap_or(true)
-            || permissions.can_modify_document_content().unwrap_or(true)
+        self.rights().assemble
     }
 
     fn can_annotate(&self) -> bool {
-        self.inner
-            .permissions()
-            .can_add_or_modify_text_annotations()
-            .unwrap_or(true)
+        self.rights().annotate
+    }
+
+    /// What the document's author allows (see `rights.rs`).
+    pub(crate) fn rights(&self) -> crate::rights::Rights {
+        crate::rights::read(self.pdfium, &self.inner)
     }
 
     /// The annotations on a page (highlights, drawings, notes…), in drawing order.
@@ -531,10 +572,7 @@ impl Document {
     }
 
     fn can_copy(&self) -> bool {
-        self.inner
-            .permissions()
-            .can_extract_text_and_graphics()
-            .unwrap_or(true)
+        self.rights().copy
     }
 
     /// The document's table of contents (bookmarks), as edited. Empty if it has none.
@@ -660,13 +698,8 @@ impl Document {
             subject: tag(PdfDocumentMetadataTagType::Subject),
             keywords: tag(PdfDocumentMetadataTagType::Keywords),
         };
-        let permissions = self.inner.permissions();
-        // Newer encryption (AES-256, revisions 5–6) isn't in pdfium-render's list and
-        // comes back as an error, so anything but a clear "unprotected" counts as encrypted.
-        let encrypted = !matches!(
-            permissions.security_handler_revision(),
-            Ok(PdfSecurityHandlerRevision::Unprotected)
-        );
+        let rights = self.rights();
+        let encrypted = rights.encrypted;
         let version = format!("{:?}", self.inner.version());
         DocProperties {
             metadata: self.new_metadata.clone().unwrap_or(stored),
@@ -697,16 +730,16 @@ impl Document {
             tagged: self.inner.catalog().is_tagged(),
             encrypted,
             permissions: Permissions {
-                print: permissions.can_print_high_quality().unwrap_or(true)
-                    || permissions.can_print_only_low_quality().unwrap_or(false),
-                copy: self.can_copy(),
-                modify: permissions.can_modify_document_content().unwrap_or(true),
-                fill_forms: permissions
-                    .can_fill_existing_interactive_form_fields()
-                    .unwrap_or(true),
-                annotate: self.can_annotate(),
+                print: rights.print,
+                copy: rights.copy,
+                modify: rights.modify,
+                fill_forms: rights.fill_forms,
+                annotate: rights.annotate,
             },
             can_edit_metadata: !encrypted,
+            needs_open_password: encrypted && self.password.is_some(),
+            can_change_protection: !encrypted || self.has_owner_rights(),
+            protection_pending: self.protection.is_some(),
         }
     }
 
@@ -755,6 +788,32 @@ impl Document {
             self.source = Source::Memory(Arc::new(bytes));
             self.unsaved_changes.set(false);
         }
+        if let Some(protection) = self.protection.take() {
+            // The saved file opens with its new password (or none).
+            self.password = match protection {
+                crate::protect::Protection::Set { open_password, .. }
+                    if !open_password.is_empty() =>
+                {
+                    Some(open_password)
+                }
+                _ => None,
+            };
+            self.owner_password = None;
+            // Show the document as saved, protected or not (unless deleted
+            // annotations are kept hidden for undo: they're not in the file).
+            if self.deleted_on.borrow().is_empty()
+                && matches!(self.source, Source::Memory(_))
+                && let Ok(fresh) = load(
+                    self.pdfium,
+                    &self.source,
+                    &self.path,
+                    self.password.as_deref(),
+                )
+            {
+                self.inner = fresh;
+                self.pages_loaded.set(0);
+            }
+        }
         Ok(())
     }
 
@@ -768,6 +827,11 @@ impl Document {
             .inner
             .save_to_bytes()
             .map_err(|e| failed(&format!("{e:?}")))?;
+        // Changing a protected file's protection: start from its unprotected bytes.
+        if self.protection.is_some() && self.properties().encrypted {
+            let password = self.owner_password.as_deref().or(self.password.as_deref());
+            bytes = crate::protect::decrypt(&bytes, password.unwrap_or(""))?;
+        }
         let outline = self.edited_outline.as_deref();
         let replies = self.has_replies.get();
         let text_boxes = self.has_text_boxes.get();
@@ -803,7 +867,16 @@ impl Document {
         }
         // PDFium can't write metadata: PDFRivet as the producer, the date and
         // a changed title, author… are added here.
-        crate::metadata::stamp(bytes, self.new_metadata.as_ref())
+        let (mut bytes, saved_at) = crate::metadata::stamp(bytes, self.new_metadata.as_ref())?;
+        if let Some(crate::protect::Protection::Set {
+            open_password,
+            owner_password,
+            allowed,
+        }) = &self.protection
+        {
+            bytes = crate::protect::encrypt(&bytes, open_password, owner_password, *allowed)?;
+        }
+        Ok((bytes, saved_at))
     }
 }
 

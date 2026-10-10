@@ -37,6 +37,8 @@ pub enum ErrorCode {
     AssembleNotAllowed,
     /// An earlier state of the document is no longer kept, so it can't be undone.
     UndoUnavailable,
+    /// Changing a protected file's protection needs its owner (permissions) password.
+    OwnerPasswordRequired,
     EngineStopped,
     /// A render was skipped because the page is no longer near the screen.
     Cancelled,

@@ -59,6 +59,13 @@ pub struct DocProperties {
     pub permissions: Permissions,
     /// Title, author… can be changed (not for password-protected files yet).
     pub can_edit_metadata: bool,
+    /// Opening the file needs a password (not only its restrictions).
+    pub needs_open_password: bool,
+    /// The protection can be changed or removed: the file isn't protected, or
+    /// it was opened with (or unlocked by) its owner password.
+    pub can_change_protection: bool,
+    /// A change to the protection waits for the next save.
+    pub protection_pending: bool,
 }
 
 /// Converts a PDF date (`D:20260913202156+03'00'`) to ISO 8601.

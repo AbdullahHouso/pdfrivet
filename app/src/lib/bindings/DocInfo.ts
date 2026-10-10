@@ -33,4 +33,8 @@ canReply: boolean,
  * Pages can be moved, rotated, deleted, inserted and taken out into other
  * files (the author's permissions allow assembling the document).
  */
-canAssemble: boolean, };
+canAssemble: boolean, 
+/**
+ * The document's author allows printing it.
+ */
+canPrint: boolean, };

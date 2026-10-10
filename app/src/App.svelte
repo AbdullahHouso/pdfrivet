@@ -77,6 +77,7 @@ import { type Tab, type TabState, tabs } from "./lib/tabs.svelte";
 import { isEmpty, toTextRange } from "./lib/textSelect";
 import ExtractDialog from "./lib/tools/ExtractDialog.svelte";
 import MergeDialog from "./lib/tools/MergeDialog.svelte";
+import ProtectDialog from "./lib/tools/ProtectDialog.svelte";
 import SplitDialog from "./lib/tools/SplitDialog.svelte";
 import type { ToolId } from "./lib/tools/tools";
 import { TOOLS } from "./lib/tools/tools";
@@ -317,6 +318,10 @@ async function applyMetadata(tab: Tab, metadata: Metadata) {
 let printChoice = $state(false);
 
 function printActive() {
+  if (active && !active.info.canPrint) {
+    showFinished(i18n.t("print-not-allowed"));
+    return;
+  }
   if (active && !printing) printChoice = true;
 }
 
@@ -552,6 +557,8 @@ let extracting = $state<Tab | null>(null);
 let merging = $state(false);
 /** The tab whose Split dialog is open. */
 let splitting = $state<Tab | null>(null);
+/** The tab whose Password protection dialog is open. */
+let protecting = $state<Tab | null>(null);
 
 /** A tool chosen from the Tools menu or the start page. */
 function runTool(tool: ToolId) {
@@ -559,6 +566,7 @@ function runTool(tool: ToolId) {
   if (tool === "organize" && tab) organize(tab);
   else if (tool === "extract" && tab) extracting = tab;
   else if (tool === "split" && tab) splitting = tab;
+  else if (tool === "protect" && tab) protecting = tab;
   else if (tool === "merge") merging = true;
 }
 
@@ -1001,6 +1009,23 @@ onMount(() => {
       merging = false;
       showFinished(i18n.t("merge-done", { file: fileName(path) }), path);
       if (openIt) openFiles([path]);
+    }}
+  />
+{/if}
+
+{#if protecting}
+  {@const tab = protecting}
+  <ProtectDialog
+    {tab}
+    oncancel={() => (protecting = null)}
+    onerror={(e) => (error = e)}
+    ondone={async () => {
+      protecting = null;
+      // Protection is written by saving; the file then has its new permissions.
+      if (await saveTab(tab)) {
+        tab.info = await documentInfo(tab.docId);
+        showFinished(i18n.t("protect-done"));
+      }
     }}
   />
 {/if}

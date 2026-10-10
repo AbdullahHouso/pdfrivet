@@ -500,3 +500,28 @@ split-done = { $count ->
     [few] حُفظت { $count } ملفات.
    *[other] حُفظ { $count } ملفًا.
 }
+print-not-allowed = لا يسمح مؤلف المستند بطباعته.
+protect-tool = الحماية بكلمة مرور…
+protect-title = الحماية بكلمة مرور
+protect-need-open = طلب كلمة مرور لفتح الملف
+protect-repeat = اكتبها مرة أخرى
+protect-weak = كلمات المرور القصيرة سهلة التخمين؛ الأفضل 8 أحرف أو أكثر.
+protect-restrict = تقييد الطباعة والنسخ والتعديل
+protect-owner-password = كلمة مرور الأذونات
+protect-owner-hint = تحتاجها لتغيير هذه القيود أو الحماية لاحقًا، ويجب أن تختلف عن كلمة مرور الفتح.
+protect-allow-print = السماح بالطباعة
+protect-allow-copy = السماح بنسخ النصوص والصور
+protect-allow-edit = السماح بتغيير الصفحات والمحتوى
+protect-allow-forms = السماح بتعبئة النماذج
+protect-allow-comments = السماح بالتعليقات والتعليقات التوضيحية
+protect-choose-one = اختر كلمة مرور للفتح أو قيودًا أو كليهما.
+protect-mismatch = كلمتا المرور غير متطابقتين.
+protect-same = يجب أن تختلف كلمة مرور الأذونات عن كلمة مرور الفتح.
+protect-keep-safe = احفظ كلمات المرور في مكان آمن: لا يمكن استعادة كلمة مرور منسية.
+protect-run = حماية وحفظ
+protect-remove = إزالة الحماية
+protect-now-password = يحتاج هذا الملف إلى كلمة مرور لفتحه. تحلّ الحماية الجديدة محلها.
+protect-now-restricted = على هذا الملف قيود. تحلّ الحماية الجديدة محلها.
+protect-locked = قيّد أحدهم ما يمكن فعله بهذا الملف. اكتب كلمة مرور الأذونات لتغيير الحماية أو إزالتها.
+protect-done = حُفظ الملف بالحماية الجديدة.
+error-owner-password-required = تغيير حماية هذا الملف يحتاج إلى كلمة مرور الأذونات.

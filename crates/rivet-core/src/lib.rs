@@ -24,8 +24,10 @@ pub mod metadata;
 mod outline;
 mod pages;
 pub mod print;
+mod protect;
 mod prune;
 mod redact;
+mod rights;
 mod search;
 mod text;
 mod textlayout;
@@ -44,6 +46,7 @@ pub use links::{LinkTarget, PageLink};
 pub use merge::MergePart;
 pub use outline::OutlineItem;
 pub use pages::{PageSlot, PageSource, Snapshot};
+pub use protect::{Allowed, Protection};
 pub use search::{SearchBatch, SearchHit, SearchQuery};
 pub use text::{CHAR_GENERATED, CHAR_NO_BOX, PageText, TextChar, TextRange};
 pub use textlayout::{

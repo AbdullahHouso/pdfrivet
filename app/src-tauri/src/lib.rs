@@ -818,6 +818,8 @@ pub fn run() {
             tools::import_pages,
             tools::extract_pages,
             tools::finish_merge,
+            tools::set_protection,
+            tools::unlock_owner,
             tools::swap_snapshot,
             tools::drop_snapshots
         ])

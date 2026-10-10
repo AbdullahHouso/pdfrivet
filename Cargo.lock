@@ -3542,6 +3542,7 @@ dependencies = [
 name = "rivet-core"
 version = "0.2.0"
 dependencies = [
+ "getrandom 0.4.3",
  "harfrust",
  "image",
  "lopdf",
