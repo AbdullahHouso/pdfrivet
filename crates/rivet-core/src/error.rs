@@ -32,6 +32,11 @@ pub enum ErrorCode {
     /// Redaction isn't possible in password-protected PDFs yet.
     RedactProtected,
     DocumentNotOpen,
+    /// The document's author doesn't allow changing its pages (moving,
+    /// deleting, inserting, rotating, taking them out into other files).
+    AssembleNotAllowed,
+    /// An earlier state of the document is no longer kept, so it can't be undone.
+    UndoUnavailable,
     EngineStopped,
     /// A render was skipped because the page is no longer near the screen.
     Cancelled,

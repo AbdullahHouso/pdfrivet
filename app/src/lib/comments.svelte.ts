@@ -186,6 +186,15 @@ export class DocComments {
     }
   }
 
+  /** The document's pages changed (see `Tab.reload`): reads everything again. */
+  reset() {
+    const wasLoaded = this.#started;
+    this.pages.clear();
+    this.#readAt.clear();
+    this.#started = false;
+    if (wasLoaded) this.load();
+  }
+
   /** Reads again the pages whose annotations changed. Reactive: call it from an effect. */
   sync() {
     for (const [page, revision] of this.#tab.pageRevisions) {

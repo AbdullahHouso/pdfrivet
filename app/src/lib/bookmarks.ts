@@ -1,25 +1,14 @@
 // Adding and changing bookmarks (the PDF outline). The engine keeps the
 // edited tree and writes it into the file on save; every change is one undo step.
 
+export { forgetBookmarks, loadBookmarks } from "./outlineLoad";
+
 import { i18n } from "./i18n.svelte";
-import { type Bookmark, copyTree, insertAt, newBookmark, placeForPage, withKeys } from "./outlineTree";
-import { getOutline, getText, setOutline } from "./pdf";
+import { loadBookmarks } from "./outlineLoad";
+import { type Bookmark, copyTree, insertAt, newBookmark, placeForPage } from "./outlineTree";
+import { getText, setOutline } from "./pdf";
 import type { Tab } from "./tabs.svelte";
 import { isEmpty, ordered, toTextRange } from "./textSelect";
-
-/** Loads the bookmarks once (later calls wait for the same load). */
-const loading = new WeakMap<Tab, Promise<Bookmark[]>>();
-export function loadBookmarks(tab: Tab): Promise<Bookmark[]> {
-  if (tab.outline) return Promise.resolve(tab.outline);
-  let request = loading.get(tab);
-  if (!request) {
-    request = getOutline(tab.docId)
-      .then((items) => (tab.outline ??= withKeys(items)))
-      .catch(() => (tab.outline ??= []));
-    loading.set(tab, request);
-  }
-  return request;
-}
 
 /**
  * Changes the bookmarks: `change` edits a copy of the tree (and returns false

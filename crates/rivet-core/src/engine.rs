@@ -10,7 +10,7 @@
 //!   looking at now wins over pages you scrolled past.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     path::{Path, PathBuf},
     sync::mpsc,
     thread,
@@ -18,7 +18,8 @@ use std::{
 
 use crate::{
     Annotation, DocInfo, Document, Error, ErrorCode, FieldChange, FormField, OutlineItem, PageLink,
-    PageText, Pdf, RenderedPage, Result, Rotation, SearchBatch, SearchQuery, StampImage, TextRange,
+    PageSlot, PageText, Pdf, RenderedPage, Result, Rotation, SearchBatch, SearchQuery, Snapshot,
+    StampImage, TextRange,
     cache::{Key, RenderCache},
     metadata::{DocProperties, Metadata},
     print::PrintSettings,
@@ -32,6 +33,13 @@ const CACHE_BUDGET_BYTES: usize = 48 * 1024 * 1024;
 
 /// Pages this far outside the visible range are not rendered.
 const VISIBLE_MARGIN: u32 = 2;
+
+/// Memory for earlier states of documents kept for undo (see [`Snapshot`]).
+/// Beyond it the oldest are let go, and those changes can no longer be undone.
+const SNAPSHOT_BUDGET_BYTES: usize = 1024 * 1024 * 1024;
+
+/// Identifies a [`Snapshot`] kept by the engine.
+pub type SnapshotId = u32;
 
 type Reply<T> = mpsc::Sender<Result<T>>;
 
@@ -85,6 +93,9 @@ enum Request {
     Render(RenderRequest),
     SetVisible(DocId, u32, u32),
     Close(DocId),
+    /// Any other work on the worker's documents (page tools and the like): a
+    /// closure that replies itself, so each new operation needs no variant.
+    Task(Box<dyn FnOnce(&mut Worker) + Send>),
 }
 
 /// A cheap, cloneable handle to the PDFium worker thread.
@@ -346,6 +357,122 @@ impl Engine {
         let _ = self.tx.send(Request::Close(doc));
     }
 
+    /// A new, empty document in memory (for merging, splitting, images to PDF…).
+    pub fn new_document(&self) -> Result<(DocId, DocInfo)> {
+        self.task(|w| {
+            let doc = w.pdf.new_document()?;
+            let info = doc.info()?;
+            Ok((w.add(doc), info))
+        })
+    }
+
+    /// The document with all its changes, as saving would write it.
+    pub fn final_bytes(&self, doc: DocId) -> Result<Vec<u8>> {
+        self.task(move |w| w.doc_mut(doc)?.final_bytes().map(|(bytes, _)| bytes))
+    }
+
+    /// Rearranges a document's pages (see [`Document::arrange`]). Returns the
+    /// state before, for undo (see [`Engine::swap_snapshot`]), and the new facts.
+    /// If anything fails, the document is left as it was.
+    pub fn arrange(&self, doc: DocId, slots: Vec<PageSlot>) -> Result<(SnapshotId, DocInfo)> {
+        self.task(move |w| {
+            let mut target = w.docs.remove(&doc).ok_or_else(|| not_open(doc))?;
+            let others: Vec<(DocId, &Document)> = w.docs.iter().map(|(id, d)| (*id, d)).collect();
+            let result = target.snapshot().and_then(|before| {
+                match target.arrange(&slots, &others) {
+                    Ok(()) => Ok(before),
+                    Err(e) => {
+                        // Put back what was done before the failure.
+                        let _ = target.restore(before);
+                        Err(e)
+                    }
+                }
+            });
+            w.docs.insert(doc, target);
+            w.structure_changed(doc);
+            let before = result?;
+            Ok((w.keep_snapshot(doc, before), w.doc(doc)?.info()?))
+        })
+    }
+
+    /// Turns pages by quarter turns (clockwise; negative: counter-clockwise).
+    pub fn rotate_pages(&self, doc: DocId, pages: Vec<u32>, turns: i32) -> Result<DocInfo> {
+        self.task(move |w| {
+            w.doc_mut(doc)?.rotate_pages(&pages, turns)?;
+            w.structure_changed(doc);
+            w.doc(doc)?.info()
+        })
+    }
+
+    /// Copies pages of document `source` into `doc`, starting at page `at`.
+    pub fn import_pages(
+        &self,
+        doc: DocId,
+        source: DocId,
+        pages: Vec<u32>,
+        at: u32,
+    ) -> Result<DocInfo> {
+        self.task(move |w| {
+            if doc == source {
+                return Err(Error::new(
+                    ErrorCode::Internal,
+                    "importing a document into itself",
+                ));
+            }
+            let mut target = w.docs.remove(&doc).ok_or_else(|| not_open(doc))?;
+            let result = w
+                .doc(source)
+                .and_then(|from| target.import_pages(from, &pages, at));
+            w.docs.insert(doc, target);
+            w.structure_changed(doc);
+            result?;
+            w.doc(doc)?.info()
+        })
+    }
+
+    /// Undo and redo of page changes: puts the document back to a kept state,
+    /// and keeps the state it replaces instead (returned, for going back again).
+    pub fn swap_snapshot(&self, doc: DocId, id: SnapshotId) -> Result<(SnapshotId, DocInfo)> {
+        self.task(move |w| {
+            let (owner, snapshot) = w
+                .snapshots
+                .take(id)
+                .ok_or_else(|| Error::new(ErrorCode::UndoUnavailable, format!("snapshot {id}")))?;
+            if owner != doc {
+                return Err(Error::new(
+                    ErrorCode::Internal,
+                    "snapshot of another document",
+                ));
+            }
+            let target = w.doc_mut(doc)?;
+            let now = target.snapshot()?;
+            target.restore(snapshot)?;
+            w.structure_changed(doc);
+            Ok((w.keep_snapshot(doc, now), w.doc(doc)?.info()?))
+        })
+    }
+
+    /// Lets go of kept states (their changes can no longer be undone).
+    pub fn drop_snapshots(&self, ids: Vec<SnapshotId>) {
+        let _ = self.tx.send(Request::Task(Box::new(move |w| {
+            for id in ids {
+                w.snapshots.take(id);
+            }
+        })));
+    }
+
+    /// Runs `work` on the worker thread and waits for its result.
+    fn task<T: Send + 'static>(
+        &self,
+        work: impl FnOnce(&mut Worker) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
+        self.call(|reply| {
+            Request::Task(Box::new(move |worker| {
+                let _ = reply.send(work(worker));
+            }))
+        })
+    }
+
     fn call<T>(&self, make: impl FnOnce(Reply<T>) -> Request) -> Result<T> {
         let stopped = || Error::new(ErrorCode::EngineStopped, "PDFium worker is not running");
         let (reply_tx, reply_rx) = mpsc::channel();
@@ -360,6 +487,46 @@ struct Worker {
     visible: HashMap<DocId, (u32, u32)>,
     cache: RenderCache,
     next_id: DocId,
+    snapshots: Snapshots,
+}
+
+/// Earlier states of documents, oldest first, within [`SNAPSHOT_BUDGET_BYTES`].
+#[derive(Default)]
+struct Snapshots {
+    kept: VecDeque<(SnapshotId, DocId, Snapshot)>,
+    bytes: usize,
+    next_id: SnapshotId,
+}
+
+impl Snapshots {
+    fn add(&mut self, doc: DocId, snapshot: Snapshot) -> SnapshotId {
+        self.next_id += 1;
+        self.bytes += snapshot.size();
+        self.kept.push_back((self.next_id, doc, snapshot));
+        // Keep at least the newest one, even if it alone is over budget.
+        while self.bytes > SNAPSHOT_BUDGET_BYTES && self.kept.len() > 1 {
+            if let Some((_, _, old)) = self.kept.pop_front() {
+                self.bytes -= old.size();
+            }
+        }
+        self.next_id
+    }
+
+    fn take(&mut self, id: SnapshotId) -> Option<(DocId, Snapshot)> {
+        let at = self.kept.iter().position(|(i, _, _)| *i == id)?;
+        let (_, doc, snapshot) = self.kept.remove(at)?;
+        self.bytes -= snapshot.size();
+        Some((doc, snapshot))
+    }
+
+    fn forget_doc(&mut self, doc: DocId) {
+        self.kept.retain(|(_, d, _)| *d != doc);
+        self.bytes = self.kept.iter().map(|(_, _, s)| s.size()).sum();
+    }
+}
+
+fn not_open(id: DocId) -> Error {
+    Error::new(ErrorCode::DocumentNotOpen, format!("document {id}"))
 }
 
 impl Worker {
@@ -370,7 +537,25 @@ impl Worker {
             visible: HashMap::new(),
             cache: RenderCache::new(CACHE_BUDGET_BYTES),
             next_id: 1,
+            snapshots: Snapshots::default(),
         }
+    }
+
+    fn add(&mut self, doc: Document) -> DocId {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.docs.insert(id, doc);
+        id
+    }
+
+    fn keep_snapshot(&mut self, doc: DocId, snapshot: Snapshot) -> SnapshotId {
+        self.snapshots.add(doc, snapshot)
+    }
+
+    /// Pages moved, appeared or went: every render of the document is stale.
+    fn structure_changed(&mut self, doc: DocId) {
+        self.cache.remove_doc(doc);
+        self.visible.remove(&doc);
     }
 
     /// Runs until every [`Engine`] handle has been dropped.
@@ -411,10 +596,7 @@ impl Worker {
             Request::Open(path, password, reply) => {
                 let result = self.pdf.open(&path, password.as_deref()).and_then(|doc| {
                     let info = doc.info()?;
-                    let id = self.next_id;
-                    self.next_id += 1;
-                    self.docs.insert(id, doc);
-                    Ok((id, info))
+                    Ok((self.add(doc), info))
                 });
                 let _ = reply.send(result);
             }
@@ -555,7 +737,9 @@ impl Worker {
                 self.docs.remove(&id);
                 self.visible.remove(&id);
                 self.cache.remove_doc(id);
+                self.snapshots.forget_doc(id);
             }
+            Request::Task(work) => work(self),
             Request::Render(_) => unreachable!("renders are handled separately"),
         }
     }
@@ -597,8 +781,10 @@ impl Worker {
     }
 
     fn doc(&self, id: DocId) -> Result<&Document> {
-        self.docs
-            .get(&id)
-            .ok_or_else(|| Error::new(ErrorCode::DocumentNotOpen, format!("document {id}")))
+        self.docs.get(&id).ok_or_else(|| not_open(id))
+    }
+
+    fn doc_mut(&mut self, id: DocId) -> Result<&mut Document> {
+        self.docs.get_mut(&id).ok_or_else(|| not_open(id))
     }
 }

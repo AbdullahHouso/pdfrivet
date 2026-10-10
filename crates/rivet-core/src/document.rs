@@ -107,24 +107,28 @@ impl Pdf {
                 err
             }
         })?;
-        Ok(Document {
-            pdfium: self.pdfium,
+        Ok(Document::new(
+            self.pdfium,
             inner,
-            path: path.to_path_buf(),
-            new_metadata: None,
-            saved_at: None,
+            path,
             source,
-            password: password.map(str::to_owned),
-            pages_loaded: Cell::new(0),
-            unsaved_changes: Cell::new(false),
-            deleted_on: RefCell::new(BTreeSet::new()),
-            needs_prune: Cell::new(false),
-            redacted: RefCell::new(BTreeSet::new()),
-            edited_outline: None,
-            has_replies: Cell::new(false),
-            stored_strings: OnceCell::new(),
-            has_text_boxes: Cell::new(false),
-        })
+            password.map(str::to_owned),
+        ))
+    }
+
+    /// A new, empty document that lives only in memory until it is saved
+    /// (merging, splitting, images to PDF…).
+    pub fn new_document(&self) -> Result<Document> {
+        let inner = self.pdfium.create_new_pdf()?;
+        let doc = Document::new(
+            self.pdfium,
+            inner,
+            Path::new(""),
+            Source::Memory(Arc::new(Vec::new())),
+            None,
+        );
+        doc.unsaved_changes.set(true);
+        Ok(doc)
     }
 
     /// Writes a simple PDF with `pages` numbered A4 pages. Used to create large
@@ -160,7 +164,7 @@ impl Pdf {
 }
 
 /// Where a document's bytes come from, so it can be opened again.
-enum Source {
+pub(crate) enum Source {
     /// Read into memory once; every reopening shares these bytes.
     Memory(Arc<Vec<u8>>),
     /// Too big to keep in memory; read from `Document::path` as needed.
@@ -176,7 +180,7 @@ impl AsRef<[u8]> for SharedBytes {
     }
 }
 
-fn load(
+pub(crate) fn load(
     pdfium: &'static Pdfium,
     source: &Source,
     path: &Path,
@@ -219,6 +223,9 @@ pub struct DocInfo {
     pub can_edit_outline: bool,
     /// Comments can be answered (replies need the same rewrite as bookmarks).
     pub can_reply: bool,
+    /// Pages can be moved, rotated, deleted, inserted and taken out into other
+    /// files (the author's permissions allow assembling the document).
+    pub can_assemble: bool,
 }
 
 /// Clockwise view rotation. Only affects rendering; the file is never changed.
@@ -264,40 +271,67 @@ pub struct RenderedPage {
 
 /// One open PDF document.
 pub struct Document {
-    pdfium: &'static Pdfium,
-    inner: PdfDocument<'static>,
-    path: std::path::PathBuf,
+    pub(crate) pdfium: &'static Pdfium,
+    pub(crate) inner: PdfDocument<'static>,
+    pub(crate) path: std::path::PathBuf,
     /// Title/author/… changed by the user, written into the file on save.
-    new_metadata: Option<crate::metadata::Metadata>,
+    pub(crate) new_metadata: Option<crate::metadata::Metadata>,
     /// When PDFRivet last saved the file (a PDF date). PDFium keeps showing the
     /// producer and date the file was opened with, so the properties use this.
-    saved_at: Option<String>,
-    source: Source,
-    password: Option<String>,
+    pub(crate) saved_at: Option<String>,
+    pub(crate) source: Source,
+    pub(crate) password: Option<String>,
     /// Pages PDFium has loaded since the document was (re)opened.
-    pages_loaded: Cell<u32>,
+    pub(crate) pages_loaded: Cell<u32>,
     /// Filled-in form fields and annotations live only inside PDFium until
     /// they're saved, so the document must not be reopened while there are any.
-    unsaved_changes: Cell<bool>,
+    pub(crate) unsaved_changes: Cell<bool>,
     /// Pages with deleted annotations still waiting (hidden) to be removed on save.
-    deleted_on: RefCell<BTreeSet<u32>>,
+    pub(crate) deleted_on: RefCell<BTreeSet<u32>>,
     /// Something was removed (deleted annotations, redactions): the next save
     /// rewrites the file without the leftovers (see `prune.rs`).
-    needs_prune: Cell<bool>,
+    pub(crate) needs_prune: Cell<bool>,
     /// Redacted pages: when saving, they keep only the resources still used.
-    redacted: RefCell<BTreeSet<u32>>,
+    pub(crate) redacted: RefCell<BTreeSet<u32>>,
     /// Bookmarks as edited in PDFRivet (PDFium can't change them); written on save.
-    edited_outline: Option<Vec<OutlineItem>>,
+    pub(crate) edited_outline: Option<Vec<OutlineItem>>,
     /// Replies were added: saving links them to the annotations they answer.
-    has_replies: Cell<bool>,
+    pub(crate) has_replies: Cell<bool>,
     /// The file's UTF-8 text strings, collected when one PDFium misread
     /// needs looking up (see `textstrings.rs`).
-    stored_strings: OnceCell<Vec<Vec<u8>>>,
+    pub(crate) stored_strings: OnceCell<Vec<Vec<u8>>>,
     /// Text boxes were added or changed: saving writes their `/IT` name.
-    has_text_boxes: Cell<bool>,
+    pub(crate) has_text_boxes: Cell<bool>,
 }
 
 impl Document {
+    fn new(
+        pdfium: &'static Pdfium,
+        inner: PdfDocument<'static>,
+        path: &Path,
+        source: Source,
+        password: Option<String>,
+    ) -> Self {
+        Document {
+            pdfium,
+            inner,
+            path: path.to_path_buf(),
+            new_metadata: None,
+            saved_at: None,
+            source,
+            password,
+            pages_loaded: Cell::new(0),
+            unsaved_changes: Cell::new(false),
+            deleted_on: RefCell::new(BTreeSet::new()),
+            needs_prune: Cell::new(false),
+            redacted: RefCell::new(BTreeSet::new()),
+            edited_outline: None,
+            has_replies: Cell::new(false),
+            stored_strings: OnceCell::new(),
+            has_text_boxes: Cell::new(false),
+        }
+    }
+
     pub fn page_count(&self) -> u32 {
         self.inner.pages().len().max(0) as u32
     }
@@ -329,7 +363,15 @@ impl Document {
             can_annotate: self.can_annotate(),
             can_edit_outline: self.can_edit_outline(),
             can_reply: self.can_annotate() && self.can_edit_outline(),
+            can_assemble: self.can_assemble(),
         })
+    }
+
+    /// The author's permissions allow changing the pages (see [`DocInfo::can_assemble`]).
+    pub(crate) fn can_assemble(&self) -> bool {
+        let permissions = self.inner.permissions();
+        permissions.can_assemble_document().unwrap_or(true)
+            || permissions.can_modify_document_content().unwrap_or(true)
     }
 
     fn can_annotate(&self) -> bool {
@@ -510,7 +552,7 @@ impl Document {
     }
 
     /// Bookmarks can be changed (lopdf, which writes them, can't write encrypted files).
-    fn can_edit_outline(&self) -> bool {
+    pub(crate) fn can_edit_outline(&self) -> bool {
         self.properties().can_edit_metadata
     }
 
@@ -691,6 +733,27 @@ impl Document {
     /// The new file is written next to the target first and then moved into
     /// place, so a crash or full disk never leaves a half-written PDF behind.
     pub fn save(&mut self, path: &Path) -> Result<()> {
+        let (bytes, saved_at) = self.final_bytes()?;
+        write_atomically(path, &bytes)?;
+        // The saved bytes now hold every change, so reopening is safe again.
+        // Redacted leftovers aren't in the saved file; later saves needn't prune
+        // for them. (Deleted annotations are left out of every save until undone.)
+        if saved_at.is_some() {
+            self.saved_at = saved_at;
+        }
+        self.needs_prune.set(false);
+        self.redacted.borrow_mut().clear();
+        if let Source::Memory(_) = self.source {
+            self.source = Source::Memory(Arc::new(bytes));
+            self.unsaved_changes.set(false);
+        }
+        Ok(())
+    }
+
+    /// The document as it would be saved, with every change: what [`Document::save`]
+    /// writes, and what tools working on an open document (split, compress…) read.
+    /// Also returns the modification date written into it, if any.
+    pub fn final_bytes(&mut self) -> Result<(Vec<u8>, Option<String>)> {
         let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
         let has_deleted = !self.deleted_on.borrow().is_empty();
         let mut bytes = self
@@ -732,43 +795,36 @@ impl Document {
         }
         // PDFium can't write metadata: PDFRivet as the producer, the date and
         // a changed title, author… are added here.
-        let (stamped, saved_at) = crate::metadata::stamp(bytes, self.new_metadata.as_ref())?;
-        bytes = stamped;
-        let dir = path
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .unwrap_or(Path::new("."));
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let temp = dir.join(format!(".{name}.rivet-saving"));
-        let write = || -> std::io::Result<()> {
-            use std::io::Write;
-            let mut file = std::fs::File::create(&temp)?;
-            file.write_all(&bytes)?;
-            file.sync_all()?;
-            std::fs::rename(&temp, path)
-        };
-        write().map_err(|e| {
-            let _ = std::fs::remove_file(&temp);
-            failed(&e)
-        })?;
-        // The saved bytes now hold every change, so reopening is safe again.
-        // Redacted leftovers aren't in the saved file; later saves needn't prune
-        // for them. (Deleted annotations are left out of every save until undone.)
-        if saved_at.is_some() {
-            self.saved_at = saved_at;
-        }
-        self.needs_prune.set(false);
-        self.redacted.borrow_mut().clear();
-        if let Source::Memory(_) = self.source {
-            self.source = Source::Memory(Arc::new(bytes));
-            self.unsaved_changes.set(false);
-        }
-        Ok(())
+        crate::metadata::stamp(bytes, self.new_metadata.as_ref())
     }
+}
 
+/// Writes `bytes` next to `path` first and then moves them into place, so a
+/// crash or full disk never leaves a half-written file behind.
+pub(crate) fn write_atomically(path: &Path, bytes: &[u8]) -> Result<()> {
+    let dir = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let temp = dir.join(format!(".{name}.rivet-saving"));
+    let write = || -> std::io::Result<()> {
+        use std::io::Write;
+        let mut file = std::fs::File::create(&temp)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        std::fs::rename(&temp, path)
+    };
+    write().map_err(|e| {
+        let _ = std::fs::remove_file(&temp);
+        Error::new(ErrorCode::SaveFailed, e.to_string())
+    })
+}
+
+impl Document {
     /// Whether [`Document::release_memory`] would free a worthwhile amount.
     pub fn should_release_memory(&self) -> bool {
         self.pages_loaded.get() >= RELEASE_AFTER_PAGES && !self.unsaved_changes.get()
@@ -872,14 +928,14 @@ impl Document {
 
     // `'static` like the document itself (pdfium-render hands pages out that way);
     // pages are only used within one call, never kept.
-    fn load_page(&self, index: u32) -> Result<PdfPage<'static>> {
+    pub(crate) fn load_page(&self, index: u32) -> Result<PdfPage<'static>> {
         self.check_index(index)?;
         self.pages_loaded
             .set(self.pages_loaded.get().saturating_add(1));
         Ok(self.inner.pages().get(index as PdfPageIndex)?)
     }
 
-    fn check_index(&self, index: u32) -> Result<()> {
+    pub(crate) fn check_index(&self, index: u32) -> Result<()> {
         if index < self.page_count() {
             Ok(())
         } else {

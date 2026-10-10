@@ -9,6 +9,7 @@
 mod default_app;
 #[cfg(windows)]
 mod taskbar_tabs;
+mod tools;
 
 use std::{
     path::{Path, PathBuf},
@@ -24,7 +25,7 @@ use tauri::{AppHandle, Emitter, Manager, State, http};
 use tauri_plugin_window_state::StateFlags;
 
 /// App-wide state. The engine is `None` if PDFium failed to load at startup.
-struct AppState {
+pub(crate) struct AppState {
     engine: Option<Engine>,
     startup_error: Option<String>,
     /// PDFs passed in by the OS before the UI was ready to receive them.
@@ -32,7 +33,7 @@ struct AppState {
 }
 
 impl AppState {
-    fn engine(&self) -> Result<&Engine, Error> {
+    pub(crate) fn engine(&self) -> Result<&Engine, Error> {
         self.engine.as_ref().ok_or_else(|| {
             Error::new(
                 ErrorCode::LibraryNotFound,
@@ -44,13 +45,13 @@ impl AppState {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct OpenedDocument {
-    doc_id: DocId,
-    info: DocInfo,
+pub(crate) struct OpenedDocument {
+    pub(crate) doc_id: DocId,
+    pub(crate) info: DocInfo,
 }
 
 /// Runs a blocking engine call off the async runtime.
-async fn blocking<T: Send + 'static>(
+pub(crate) async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> Result<T, Error> + Send + 'static,
 ) -> Result<T, Error> {
     tauri::async_runtime::spawn_blocking(f)
@@ -810,7 +811,13 @@ pub fn run() {
             capture_taskbar_tab,
             files_exist,
             is_default_pdf_app,
-            make_default_pdf_app
+            make_default_pdf_app,
+            tools::new_document,
+            tools::arrange_pages,
+            tools::rotate_pages,
+            tools::import_pages,
+            tools::swap_snapshot,
+            tools::drop_snapshots
         ])
         .build(tauri::generate_context!())
         .expect("error while building PDFRivet")

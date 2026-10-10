@@ -8,6 +8,7 @@ import type { PagePoint } from "./bindings/PagePoint";
 import type { PageRect } from "./bindings/PageRect";
 import type { TextStyle } from "./bindings/TextStyle";
 import { type Bookmark, copyTree } from "./outlineTree";
+import { applyPageStep } from "./pageEdits";
 import { forgetPageText, loadPageText } from "./pageText";
 import {
   addAnnotation,
@@ -325,15 +326,16 @@ async function apply(tab: Tab, page: number, from: Annotation | null, to: Annota
   changed(tab, page);
 }
 
-/** Undoes the last change; returns the page it was on (null for bookmark changes). */
+/** Undoes the last change; returns the page it was on (null for bookmark and page changes). */
 export async function undo(tab: Tab): Promise<number | null> {
   const steps = tab.history.undo();
   if (!steps) return null;
   for (const step of [...steps].reverse()) {
     if (step.kind === "outline") await applyOutline(tab, step.before);
+    else if (step.kind) await applyPageStep(tab, step, false);
     else await apply(tab, step.page, step.after, step.before);
   }
-  return steps[0].kind === "outline" ? null : steps[0].page;
+  return steps[0].kind ? null : steps[0].page;
 }
 
 export async function redo(tab: Tab): Promise<number | null> {
@@ -341,9 +343,10 @@ export async function redo(tab: Tab): Promise<number | null> {
   if (!steps) return null;
   for (const step of steps) {
     if (step.kind === "outline") await applyOutline(tab, step.after);
+    else if (step.kind) await applyPageStep(tab, step, true);
     else await apply(tab, step.page, step.before, step.after);
   }
-  return steps[0].kind === "outline" ? null : steps[0].page;
+  return steps[0].kind ? null : steps[0].page;
 }
 
 const MARKUP_STYLE = { highlight: "highlight", underline: "underline", strikeout: "strikeout" } as const;

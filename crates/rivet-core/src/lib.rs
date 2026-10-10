@@ -21,6 +21,7 @@ mod incremental;
 mod links;
 pub mod metadata;
 mod outline;
+mod pages;
 pub mod print;
 mod prune;
 mod redact;
@@ -34,12 +35,13 @@ pub use annotations::{
     PageRect, StampImage,
 };
 pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, Rotation, pdfium_platform};
-pub use engine::{DocId, Engine};
+pub use engine::{DocId, Engine, SnapshotId};
 pub use error::{Error, ErrorCode, Result};
 pub use fonts::{FontInfo, TextFont};
 pub use forms::{FieldChange, FieldKind, FormField};
 pub use links::{LinkTarget, PageLink};
 pub use outline::OutlineItem;
+pub use pages::{PageSlot, PageSource, Snapshot};
 pub use search::{SearchBatch, SearchHit, SearchQuery};
 pub use text::{CHAR_GENERATED, CHAR_NO_BOX, PageText, TextChar, TextRange};
 pub use textlayout::{

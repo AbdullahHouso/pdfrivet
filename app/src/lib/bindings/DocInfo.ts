@@ -28,4 +28,9 @@ canEditOutline: boolean,
 /**
  * Comments can be answered (replies need the same rewrite as bookmarks).
  */
-canReply: boolean, };
+canReply: boolean, 
+/**
+ * Pages can be moved, rotated, deleted, inserted and taken out into other
+ * files (the author's permissions allow assembling the document).
+ */
+canAssemble: boolean, };

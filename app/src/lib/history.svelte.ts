@@ -3,7 +3,8 @@
 // null), deleted (after = null) or changed (both); or the whole bookmark tree
 // before and after. Undoing applies the step backwards.
 // Changes made in one gesture (everything one eraser stroke touched) form a
-// group that is undone and redone together.
+// group that is undone and redone together. Page changes (rearranging,
+// rotating) are steps too, so one Ctrl+Z goes back through everything in order.
 
 import type { Annotation } from "./bindings/Annotation";
 import type { Bookmark } from "./outlineTree";
@@ -21,12 +22,35 @@ export interface OutlineStep {
   after: Bookmark[];
 }
 
-export type Step = AnnotationStep | OutlineStep;
+/**
+ * Pages were rearranged, deleted or inserted: undo and redo swap the document
+ * with a state the engine keeps (`snapshot`, updated on every swap).
+ */
+export interface PagesStep {
+  kind: "pages";
+  snapshot: number;
+}
+
+/** Pages were turned (undone by turning them back). */
+export interface RotateStep {
+  kind: "rotate";
+  pages: number[];
+  turns: number;
+}
+
+export type Step = AnnotationStep | OutlineStep | PagesStep | RotateStep;
 
 /** How many steps are kept. */
 const LIMIT = 200;
 
 export class History {
+  /** Called with steps that can no longer be undone or redone (to free what they keep). */
+  readonly #forget: (steps: Step[]) => void;
+
+  constructor(forget: (steps: Step[]) => void = () => {}) {
+    this.#forget = forget;
+  }
+
   // Replaced (not changed in place), so the Undo and Redo buttons follow them.
   #done = $state.raw<Step[][]>([]);
   #undone = $state.raw<Step[][]>([]);
@@ -49,9 +73,12 @@ export class History {
       const last = this.#done.at(-1) ?? [];
       this.#done = [...this.#done.slice(0, -1), [...last, step]];
     } else {
-      this.#done = [...this.#done, [step]].slice(-LIMIT);
+      const done = [...this.#done, [step]];
+      this.#forget(done.slice(0, -LIMIT).flat());
+      this.#done = done.slice(-LIMIT);
       this.#groupHasEntry = this.#grouping;
     }
+    this.#forget(this.#undone.flat());
     this.#undone = [];
   }
 
@@ -98,13 +125,14 @@ export class History {
   rename(oldId: string, newId: string) {
     if (oldId === newId) return;
     for (const step of [...this.#done, ...this.#undone].flat()) {
-      if (step.kind === "outline") continue;
+      if (step.kind) continue;
       if (step.before?.id === oldId) step.before = { ...step.before, id: newId };
       if (step.after?.id === oldId) step.after = { ...step.after, id: newId };
     }
   }
 
   clear() {
+    this.#forget([...this.#done, ...this.#undone].flat());
     this.#done = [];
     this.#undone = [];
   }

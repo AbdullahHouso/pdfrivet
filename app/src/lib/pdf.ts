@@ -13,6 +13,7 @@ import type { Metadata } from "./bindings/Metadata";
 import type { OutlineItem } from "./bindings/OutlineItem";
 import type { PageLink } from "./bindings/PageLink";
 import type { PageRect } from "./bindings/PageRect";
+import type { PageSlot } from "./bindings/PageSlot";
 import type { SearchBatch } from "./bindings/SearchBatch";
 import type { SearchQuery } from "./bindings/SearchQuery";
 import type { TextBoxSize } from "./bindings/TextBoxSize";
@@ -294,4 +295,42 @@ export async function fetchPageText(docId: number, page: number): Promise<ArrayB
     throw await response.json().catch(() => ({ code: "internal", detail: response.statusText }));
   }
   return response.arrayBuffer();
+}
+
+// --- Page tools ---------------------------------------------------------------
+
+/** A page change that can be undone: the kept state before it, and the document now. */
+export interface PagesChanged {
+  snapshot: number;
+  info: DocInfo;
+}
+
+/** A new, empty document in memory (merging, images to PDF…). */
+export function newDocument(): Promise<OpenedDocument> {
+  return invoke("new_document");
+}
+
+/** Rearranges pages: order, rotation, deleted and inserted pages (see pages.rs). */
+export function arrangePages(docId: number, slots: PageSlot[]): Promise<PagesChanged> {
+  return invoke("arrange_pages", { docId, slots });
+}
+
+/** Turns pages by quarter turns (clockwise; negative: counter-clockwise). */
+export function rotatePages(docId: number, pages: number[], turns: number): Promise<DocInfo> {
+  return invoke("rotate_pages", { docId, pages, turns });
+}
+
+/** Copies pages of another open document into this one, starting at page `at`. */
+export function importPages(docId: number, source: number, pages: number[], at: number): Promise<DocInfo> {
+  return invoke("import_pages", { docId, source, pages, at });
+}
+
+/** Undo/redo of a page change: back to a kept state; returns the state it replaced. */
+export function swapSnapshot(docId: number, snapshot: number): Promise<PagesChanged> {
+  return invoke("swap_snapshot", { docId, snapshot });
+}
+
+/** Lets go of kept states that can no longer be reached by undo or redo. */
+export function dropSnapshots(snapshots: number[]): Promise<void> {
+  return invoke("drop_snapshots", { snapshots });
 }

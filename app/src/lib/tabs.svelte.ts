@@ -23,7 +23,7 @@ import type { Degrees } from "./layout";
 import type { Bookmark } from "./outlineTree";
 import { forgetPages } from "./pageCanvasCache";
 import { forgetPageText } from "./pageText";
-import { closeDocument } from "./pdf";
+import { closeDocument, dropSnapshots } from "./pdf";
 import type { FileView, ZoomMode } from "./recent";
 import { DocSearch } from "./search.svelte";
 import type { PageTone } from "./settings.svelte";
@@ -84,8 +84,12 @@ export class Tab {
   readonly search: DocSearch;
   /** The find bar is open. */
   findOpen = $state(false);
-  /** Undo and redo of annotation changes. */
-  readonly history = new History();
+  /** Undo and redo of annotation, bookmark and page changes. */
+  readonly history = new History((steps) => {
+    // Page steps keep a whole earlier state in the engine; free it once unreachable.
+    const kept = steps.flatMap((s) => (s.kind === "pages" ? [s.snapshot] : []));
+    if (kept.length) dropSnapshots(kept).catch(() => {});
+  });
   /** Goes up per page when its annotations change, so only that page re-renders. */
   readonly pageRevisions = new SvelteMap<number, number>();
   /** Annotations of the pages on screen, without replies (loaded by AnnotationLayer, used to click them). */
@@ -157,6 +161,26 @@ export class Tab {
       return null;
     }
     return lift(rect, hide);
+  }
+
+  /**
+   * The document's pages changed (rearranged, rotated, inserted, deleted):
+   * everything kept per page index is stale. Pages render again from scratch.
+   */
+  reload(info: DocInfo) {
+    this.info = info;
+    this.revision++;
+    this.pageRevisions.clear();
+    this.annotations.clear();
+    this.#painted.clear();
+    for (const w of this.#waiting) w.done();
+    this.#waiting = [];
+    this.selection = null;
+    this.selectedAnnotation = null;
+    this.search.clear();
+    forgetPageText(this.docId);
+    forgetPages(this.docId);
+    this.page = Math.max(0, Math.min(this.page, info.pageCount - 1));
   }
 
   /** Marks a page as changed, so it and its thumbnail render again. */

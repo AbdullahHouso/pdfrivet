@@ -16,6 +16,7 @@ const info: DocInfo = {
   canAnnotate: true,
   canEditOutline: true,
   canReply: true,
+  canAssemble: true,
 };
 
 describe("moving tabs between windows", () => {
