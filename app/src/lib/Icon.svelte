@@ -20,6 +20,7 @@ const paths = {
   // A page with an arrow leaving it (taking pages out into a new file).
   extract: "M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5M13 3v5h5M18 8v3M14 17h8M19 14l3 3-3 3",
   tools: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7",
+  wrench: "M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-2-2 6.3-6.3a4 4 0 0 1-5-5L9 4l2-2 2 2zM4 20l5-5",
   // A page cut into parts.
   split: "M4 3h16v7H4zM4 14h7v7H4zM13 14h7v7h-7zM12 10v2",
   // Two pages joining into one.

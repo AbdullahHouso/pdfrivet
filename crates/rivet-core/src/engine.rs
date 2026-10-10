@@ -453,6 +453,16 @@ impl Engine {
         })
     }
 
+    /// Repairs a damaged PDF file into a new one (see `repair.rs`).
+    pub fn repair(
+        &self,
+        from: PathBuf,
+        to: PathBuf,
+        password: Option<String>,
+    ) -> Result<crate::RepairReport> {
+        self.task(move |w| w.pdf.repair(&from, &to, password.as_deref()))
+    }
+
     /// Adds, changes or removes password protection on the next save.
     pub fn set_protection(&self, doc: DocId, protection: crate::Protection) -> Result<()> {
         self.task(move |w| w.doc_mut(doc)?.set_protection(protection))

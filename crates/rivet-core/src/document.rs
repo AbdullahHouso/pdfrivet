@@ -116,6 +116,10 @@ impl Pdf {
         ))
     }
 
+    pub(crate) fn pdfium(&self) -> &'static Pdfium {
+        self.pdfium
+    }
+
     /// A new, empty document that lives only in memory until it is saved
     /// (merging, splitting, images to PDF…).
     pub fn new_document(&self) -> Result<Document> {

@@ -1,7 +1,9 @@
 //! Commands for the page tools: organizing, merging, splitting, converting…
 //! Like the rest, they are thin wrappers around `rivet-core`.
 
-use rivet_core::{DocId, DocInfo, Error, MergePart, PageSlot, Protection, SnapshotId};
+use rivet_core::{
+    DocId, DocInfo, Error, MergePart, PageSlot, Protection, RepairReport, SnapshotId,
+};
 use serde::Serialize;
 use tauri::State;
 
@@ -80,6 +82,18 @@ pub(crate) async fn finish_merge(
 ) -> Result<(), Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.finish_merge(doc_id, parts, bookmark_files, path)).await
+}
+
+/// Repairs a damaged PDF into a new file.
+#[tauri::command]
+pub(crate) async fn repair_pdf(
+    from: std::path::PathBuf,
+    to: std::path::PathBuf,
+    password: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<RepairReport, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.repair(from, to, password)).await
 }
 
 /// Adds, changes or removes password protection on the next save.

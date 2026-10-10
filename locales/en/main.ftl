@@ -516,3 +516,11 @@ protect-now-restricted = This file has restrictions. Setting new protection repl
 protect-locked = Someone restricted what can be done with this file. Type its permissions password to change or remove the protection.
 protect-done = Saved with the new protection.
 error-owner-password-required = Changing this file's protection needs its permissions password.
+repair-tool = Repair a PDF…
+repair-name = { $name } (repaired)
+repair-done = { $pages ->
+    [one] Repaired: 1 page saved to { $file }.
+   *[other] Repaired: { $pages } pages saved to { $file }.
+}
+repair-try = Try to repair
+error-not-repairable = The file is too damaged: no pages could be recovered.

@@ -16,6 +16,7 @@ import type { PageLink } from "./bindings/PageLink";
 import type { PageRect } from "./bindings/PageRect";
 import type { PageSlot } from "./bindings/PageSlot";
 import type { Protection } from "./bindings/Protection";
+import type { RepairReport } from "./bindings/RepairReport";
 import type { SearchBatch } from "./bindings/SearchBatch";
 import type { SearchQuery } from "./bindings/SearchQuery";
 import type { TextBoxSize } from "./bindings/TextBoxSize";
@@ -335,6 +336,11 @@ export function extractPages(docId: number, pages: number[], path: string): Prom
 /** Finishes a merged document (pages already imported): bookmarks, form fields; writes it. */
 export function finishMerge(docId: number, parts: MergePart[], bookmarkFiles: boolean, path: string): Promise<void> {
   return invoke("finish_merge", { docId, parts, bookmarkFiles, path });
+}
+
+/** Repairs a damaged PDF into a new file. */
+export function repairPdf(from: string, to: string, password?: string): Promise<RepairReport> {
+  return invoke("repair_pdf", { from, to, password: password ?? null });
 }
 
 /** Adds, changes or removes password protection; applied by the next save. */

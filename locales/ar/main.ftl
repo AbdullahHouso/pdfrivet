@@ -525,3 +525,13 @@ protect-now-restricted = على هذا الملف قيود. تحلّ الحما�
 protect-locked = قيّد أحدهم ما يمكن فعله بهذا الملف. اكتب كلمة مرور الأذونات لتغيير الحماية أو إزالتها.
 protect-done = حُفظ الملف بالحماية الجديدة.
 error-owner-password-required = تغيير حماية هذا الملف يحتاج إلى كلمة مرور الأذونات.
+repair-tool = إصلاح ملف PDF…
+repair-name = { $name } (مُصلَح)
+repair-done = { $pages ->
+    [one] أُصلح الملف: حُفظت صفحة واحدة في { $file }.
+    [two] أُصلح الملف: حُفظت صفحتان في { $file }.
+    [few] أُصلح الملف: حُفظت { $pages } صفحات في { $file }.
+   *[other] أُصلح الملف: حُفظت { $pages } صفحة في { $file }.
+}
+repair-try = محاولة الإصلاح
+error-not-repairable = الملف تالف جدًا: لم يمكن استعادة أي صفحة.

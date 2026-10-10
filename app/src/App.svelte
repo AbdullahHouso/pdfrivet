@@ -56,6 +56,7 @@ import {
   getText,
   openDocument,
   type RivetError,
+  repairPdf,
   saveDocument,
   setMetadata,
   setTaskbarTabs,
@@ -182,6 +183,9 @@ async function openPath(path: string, password?: string) {
     const err = toRivetError(e);
     if (err.code === "password-required" || err.code === "wrong-password") {
       passwordFor = { path, wrong: err.code === "wrong-password" };
+    } else if (err.code === "invalid-pdf") {
+      repairable = path;
+      error = err;
     } else if (err.code === "file-not-found" && settings.findRecent(path)) {
       await recentFileMissing(path);
     } else {
@@ -568,6 +572,33 @@ function runTool(tool: ToolId) {
   else if (tool === "split" && tab) splitting = tab;
   else if (tool === "protect" && tab) protecting = tab;
   else if (tool === "merge") merging = true;
+  else if (tool === "repair") repairFlow();
+}
+
+/** A file that failed to open as damaged, offered for repair in the error message. */
+let repairable = $state<string | null>(null);
+
+/** Repairs a damaged PDF (asked for when not given) into a new file the user names. */
+async function repairFlow(from?: string) {
+  const source =
+    from ??
+    (await open({ multiple: false, directory: false, filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }] }));
+  if (typeof source !== "string") return;
+  const name = fileName(source).replace(/\.pdf$/i, "");
+  const target = await save({
+    defaultPath: source.slice(0, source.length - fileName(source).length) + i18n.t("repair-name", { name }) + ".pdf",
+    filters: [{ name: i18n.t("pdf-files"), extensions: ["pdf"] }],
+  });
+  if (!target) return;
+  const path = /\.pdf$/i.test(target) ? target : `${target}.pdf`;
+  try {
+    const report = await repairPdf(source, path);
+    error = null;
+    repairable = null;
+    showFinished(i18n.t("repair-done", { pages: report.pages, file: fileName(path) }), path);
+  } catch (e) {
+    error = toRivetError(e);
+  }
 }
 
 /** A tool card on the start page: tools for a document ask for one first. */
@@ -890,7 +921,13 @@ onMount(() => {
 {#if error}
   <div class="error" role="alert" in:rise out:out>
     <span>{i18n.t(`error-${error.code}`)}</span>
-    <button onclick={() => (error = null)}>{i18n.t("dismiss")}</button>
+    <span class="error-actions">
+      {#if error.code === "invalid-pdf" && repairable}
+        {@const path = repairable}
+        <button onclick={() => repairFlow(path)}>{i18n.t("repair-try")}</button>
+      {/if}
+      <button onclick={() => (error = null)}>{i18n.t("dismiss")}</button>
+    </span>
   </div>
 {/if}
 
@@ -1152,6 +1189,10 @@ onMount(() => {
     padding-inline: 16px;
     background: var(--error-bg);
     color: var(--error-fg);
+  }
+  .error-actions {
+    display: flex;
+    gap: 8px;
   }
   .print-progress {
     position: fixed;

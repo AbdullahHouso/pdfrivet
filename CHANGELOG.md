@@ -18,6 +18,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Split (Tools menu): into a file every few pages, one per page range ("1-3, 4-10"), or one per bookmark (named after it). Files go next to the document or into a folder you choose, and never overwrite existing ones.
 - Extracted and split files keep the document's title and author, and the bookmarks and form fields of their pages.
 
+### Repair
+- Repair a PDF (Tools menu, or "Try to repair" when a file won't open): saves a mended copy of a damaged file, with the pages that could be recovered.
+
 ### Protect
 - Password protection (Tools menu): require a password to open the file, restrict printing, copying, changes, forms and comments (with a separate permissions password), or remove the protection. Files are protected with AES-256. Changing a restricted file's protection asks for its permissions password, as in Acrobat.
 
