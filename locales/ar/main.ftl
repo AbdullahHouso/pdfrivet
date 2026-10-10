@@ -405,3 +405,16 @@ reply-edit = تعديل الرد
 reply-delete = حذف الرد
 more-actions = إجراءات أخرى
 just-now = الآن
+
+## Default PDF app
+default-app = برنامج PDF الافتراضي
+default-app-title = هل تريد فتح ملفات PDF في PDFRivet؟
+default-app-text = ملفات PDF تُفتح الآن في برنامج آخر. اجعل PDFRivet البرنامج الافتراضي لتُفتح فيه.
+default-app-make = اجعله الافتراضي
+default-app-not-now = ليس الآن
+default-app-never = لا تسألني مرة أخرى
+default-app-windows-steps = في إعدادات Windows التي فُتحت، اضغط على {"‎"}.pdf واختر PDFRivet.
+default-app-open-settings = افتح الإعدادات مرة أخرى
+default-app-is-default = ملفات PDF تُفتح في PDFRivet.
+default-app-not-default = ملفات PDF تُفتح في برنامج آخر.
+default-app-ask = اقترح جعل PDFRivet البرنامج الافتراضي

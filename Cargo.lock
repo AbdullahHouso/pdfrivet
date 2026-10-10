@@ -3511,6 +3511,7 @@ name = "rivet-app"
 version = "0.2.0"
 dependencies = [
  "image",
+ "objc2-core-foundation",
  "rivet-core",
  "serde",
  "serde_json",

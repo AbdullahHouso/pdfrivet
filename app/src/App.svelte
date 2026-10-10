@@ -21,6 +21,8 @@ import CommentsPanel from "./lib/CommentsPanel.svelte";
 import ConfirmDialog, { type Choice } from "./lib/ConfirmDialog.svelte";
 import ContextMenu, { type MenuItem } from "./lib/ContextMenu.svelte";
 import { writeClipboard } from "./lib/clipboard";
+import DefaultAppCard from "./lib/DefaultAppCard.svelte";
+import { defaultApp } from "./lib/defaultApp.svelte";
 import { hasOtherWindows, moveToNewWindow, openInNewWindow, tabsWindowLabel, windowRequest } from "./lib/docWindows";
 import FindBar from "./lib/FindBar.svelte";
 import { i18n } from "./lib/i18n.svelte";
@@ -163,6 +165,7 @@ async function openPath(path: string, password?: string) {
       }
     }
     settings.touchRecent({ path, title: tab.title, lastOpened: Date.now(), ...tab.view() });
+    defaultApp.offer();
   } catch (e) {
     const err = toRivetError(e);
     if (err.code === "password-required" || err.code === "wrong-password") {
@@ -922,7 +925,15 @@ onMount(() => {
 {/if}
 
 {#if showSettings}
-  <SettingsDialog onclose={() => (showSettings = false)} oncheckupdates={() => updater.check(true)} />
+  <SettingsDialog
+    onclose={() => (showSettings = false)}
+    oncheckupdates={() => updater.check(true)}
+    onerror={(e) => (error = toRivetError(e))}
+  />
+{/if}
+
+{#if defaultApp.card}
+  <DefaultAppCard onerror={(e) => (error = e)} />
 {/if}
 
 {#if contextMenu}

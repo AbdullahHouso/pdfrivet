@@ -2,18 +2,20 @@
 // Settings: preferences you set once, grouped in a few sections. Every change
 // applies at once and is saved; there's nothing to confirm, only Close.
 import { getVersion } from "@tauri-apps/api/app";
+import { defaultApp } from "./defaultApp.svelte";
 import Icon from "./Icon.svelte";
 import { i18n, languages } from "./i18n.svelte";
 import { dialogOut } from "./motion";
-import { userName } from "./pdf";
+import { type RivetError, userName } from "./pdf";
 import { type DefaultZoom, type DocumentWindows, PAGE_TONES, settings, type Theme } from "./settings.svelte";
 import type { PageLayout } from "./tabs.svelte";
 
 interface Props {
   onclose: () => void;
   oncheckupdates: () => void;
+  onerror: (e: RivetError) => void;
 }
-let { onclose, oncheckupdates }: Props = $props();
+let { onclose, oncheckupdates, onerror }: Props = $props();
 
 type Section = "general" | "appearance" | "reading";
 const sections: { id: Section; icon: "sliders" | "contrast" | "book" }[] = [
@@ -48,6 +50,7 @@ $effect(() => {
   getVersion()
     .then((v) => (version = v))
     .catch(() => {});
+  defaultApp.check();
   return () => dialog.close();
 });
 
@@ -126,6 +129,21 @@ function zoomLabel(zoom: DefaultZoom): string {
           <input id="settings-author" class="author" dir="auto" bind:value={settings.author} placeholder={osUser} />
         </div>
         <p class="hint">{i18n.t("author-name-hint")}</p>
+
+        <!-- Hidden where it can't be told or changed (e.g. a development build on Linux). -->
+        {#if defaultApp.isDefault !== null}
+          <h3>{i18n.t("default-app")}</h3>
+          <div class="row">
+            <span>{i18n.t(defaultApp.isDefault ? "default-app-is-default" : "default-app-not-default")}</span>
+            {#if !defaultApp.isDefault}
+              <button onclick={() => defaultApp.make().catch(onerror)}>{i18n.t("default-app-make")}</button>
+            {/if}
+          </div>
+          <label class="check">
+            <input type="checkbox" bind:checked={settings.defaultAppAsk} />
+            {i18n.t("default-app-ask")}
+          </label>
+        {/if}
 
         <h3>{i18n.t("updates")}</h3>
         <label class="check">

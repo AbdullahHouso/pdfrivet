@@ -126,6 +126,9 @@ CI (`.github/workflows/ci.yml`) runs them on Linux and Windows on every push to 
 - **Handlers read `{@const}` values when they run, not when rendered:** inside
   `{#if x}{@const a = x}`, an `onblur` that fires after a click cleared `x` sees `a` as null.
   Keep what a handler needs from when it was set up (see the comment box in `AnnotationLayer`).
+- **Windows doesn't let apps make themselves the default PDF app** (since Windows 8; the choice is
+  hash-protected). Send the user to Settings (`default_app.rs`); never write `UserChoice` keys.
+  The installer registers PDFRivet under `RegisteredApplications` so it has a page there.
 - **Windows-only Rust can't be checked from Linux** (ring needs `lib.exe`); rely on CI's Windows job.
 
 ## Dependencies to know

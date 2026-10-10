@@ -6,6 +6,7 @@
 //! - Files opened from the OS ("Open with", double-click, a second launch) are
 //!   queued and announced to the UI with the `open-files` event.
 
+mod default_app;
 #[cfg(windows)]
 mod taskbar_tabs;
 
@@ -434,6 +435,23 @@ fn files_exist(paths: Vec<PathBuf>) -> Vec<bool> {
     paths.iter().map(|p| p.is_file()).collect()
 }
 
+/// Whether PDFRivet opens PDF files by default; `None` if that can't be told or
+/// changed here (a development build on Linux, for one).
+#[tauri::command]
+async fn is_default_pdf_app(app: AppHandle) -> Result<Option<bool>, Error> {
+    blocking(move || Ok(default_app::is_default(&app))).await
+}
+
+/// Makes PDFRivet the default for PDF files, or opens the system settings where
+/// the user can (Windows).
+#[tauri::command]
+async fn make_default_pdf_app(app: AppHandle) -> Result<default_app::Outcome, Error> {
+    blocking(move || {
+        default_app::make_default(&app).map_err(|e| Error::new(ErrorCode::Internal, e))
+    })
+    .await
+}
+
 /// Keeps only existing files from command-line style arguments.
 fn files_from_args(args: impl IntoIterator<Item = String>, cwd: &Path) -> Vec<PathBuf> {
     args.into_iter()
@@ -790,7 +808,9 @@ pub fn run() {
             take_pending_files,
             set_taskbar_tabs,
             capture_taskbar_tab,
-            files_exist
+            files_exist,
+            is_default_pdf_app,
+            make_default_pdf_app
         ])
         .build(tauri::generate_context!())
         .expect("error while building PDFRivet")

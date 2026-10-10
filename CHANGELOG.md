@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 
 ## [Unreleased]
 
+### Added
+- PDFRivet offers to become your default PDF app when another app opens PDF files (once, after you open a file; "Not now" waits a week). Settings → General shows which app opens your PDFs. On Windows this opens PDFRivet's page in the Windows settings, and the installer's last page has a link to it.
+
 ### Changed
 - Saved files name PDFRivet as their producer and get an updated modification date. The program the document was made in (Creator) is kept.
 - Pinch to zoom on a touchpad zooms the pages.

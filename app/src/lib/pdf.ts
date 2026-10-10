@@ -99,6 +99,19 @@ export function userName(): Promise<string> {
   return invoke("user_name");
 }
 
+/** Whether PDFRivet opens PDF files by default; null if that can't be told here. */
+export function isDefaultPdfApp(): Promise<boolean | null> {
+  return invoke("is_default_pdf_app");
+}
+
+/**
+ * Makes PDFRivet the default PDF app ("done"), or opens the system settings
+ * where the user can (Windows, which doesn't let apps do it themselves).
+ */
+export function makeDefaultPdfApp(): Promise<"done" | "opened-settings"> {
+  return invoke("make_default_pdf_app");
+}
+
 export function getAnnotations(docId: number, page: number): Promise<Annotation[]> {
   return invoke("get_annotations", { docId, page });
 }

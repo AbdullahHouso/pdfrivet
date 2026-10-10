@@ -66,6 +66,9 @@ let taskbarTabs = $state(true);
 let autoUpdate = $state(true);
 let lastUpdateCheck = 0;
 let skippedVersion = $state<string | null>(null);
+// Offer to become the default PDF app, unless declined for good or for now (until a time in ms).
+let defaultAppAsk = $state(true);
+let defaultAppSnooze = 0;
 let author = $state("");
 // Animations start off when the system asks for reduced motion.
 const lessMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -142,6 +145,12 @@ function apply(key: string, value: unknown) {
     case "lastUpdateCheck":
       lastUpdateCheck = value as number;
       break;
+    case "defaultAppAsk":
+      defaultAppAsk = value as boolean;
+      break;
+    case "defaultAppSnooze":
+      defaultAppSnooze = value as number;
+      break;
     case "author":
       author = value as string;
       break;
@@ -187,6 +196,8 @@ export const settings = {
       autoUpdate = (await store.get<boolean>("autoUpdate")) ?? true;
       lastUpdateCheck = (await store.get<number>("lastUpdateCheck")) ?? 0;
       skippedVersion = (await store.get<string>("skippedVersion")) ?? null;
+      defaultAppAsk = (await store.get<boolean>("defaultAppAsk")) ?? true;
+      defaultAppSnooze = (await store.get<number>("defaultAppSnooze")) ?? 0;
       author = (await store.get<string>("author")) ?? "";
       animations = (await store.get<boolean>("animations")) ?? animations;
       toolStyles = (await store.get<Record<string, ToolStyle>>("toolStyles")) ?? {};
@@ -296,6 +307,23 @@ export const settings = {
   set skippedVersion(value: string | null) {
     skippedVersion = value;
     save("skippedVersion", value);
+  },
+
+  /** Offer to make PDFRivet the default PDF app when it isn't. */
+  get defaultAppAsk() {
+    return defaultAppAsk;
+  },
+  set defaultAppAsk(value: boolean) {
+    defaultAppAsk = value;
+    save("defaultAppAsk", value);
+  },
+  /** Until when (ms since 1970) the offer stays away after "Not now". */
+  get defaultAppSnooze() {
+    return defaultAppSnooze;
+  },
+  set defaultAppSnooze(value: number) {
+    defaultAppSnooze = value;
+    save("defaultAppSnooze", value);
   },
 
   /** Menus, dialogs and tooltips animate in and out. */
