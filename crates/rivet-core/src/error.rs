@@ -43,6 +43,8 @@ pub enum ErrorCode {
     NotRepairable,
     /// A picture file isn't a kind PDFRivet reads, is damaged, or is too big.
     UnsupportedImage,
+    /// Compressing a password-protected file isn't possible (remove the protection first).
+    CompressProtected,
     EngineStopped,
     /// A render was skipped because the page is no longer near the screen.
     Cancelled,

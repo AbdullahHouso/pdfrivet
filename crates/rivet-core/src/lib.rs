@@ -10,6 +10,7 @@
 
 mod annotations;
 mod cache;
+mod compress;
 mod direction;
 mod document;
 mod engine;
@@ -39,6 +40,7 @@ pub use annotations::{
     Annotation, AnnotationBatch, AnnotationKind, Color, MarkupStyle, PageAnnotations, PagePoint,
     PageRect, StampImage,
 };
+pub use compress::{CompressLevel, CompressReport, compress};
 pub use document::{DocInfo, Document, PageSize, Pdf, RenderedPage, Rotation, pdfium_platform};
 pub use engine::{DocId, Engine, SnapshotId};
 pub use error::{Error, ErrorCode, Result};

@@ -147,7 +147,10 @@ impl Document {
             Picture::Jpeg { bytes, .. } => {
                 PdfPageImageObject::new_from_jpeg_reader(&self.inner, Cursor::new(bytes))?
             }
-            Picture::Pixels(image) => PdfPageImageObject::new(&self.inner, &image)?,
+            Picture::Pixels(image) if image.color().has_alpha() => {
+                PdfPageImageObject::new(&self.inner, &image)?
+            }
+            Picture::Pixels(image) => opaque_image(&self.inner, &image)?,
         };
         object.apply_matrix(PdfMatrix::new(w, 0.0, 0.0, h, x, y))?;
         page.objects_mut().add_image_object(object)?;
@@ -165,6 +168,30 @@ impl Document {
         }
         self.render_page(index, scale, crate::Rotation::None)
     }
+}
+
+/// An image object for a picture without transparency. pdfium-render always
+/// hands pictures over with an alpha channel, and PDFium then stores a
+/// transparency mask with them, which only makes the file bigger; given
+/// pixels without alpha (BGRx), it stores just the colours.
+fn opaque_image<'a>(
+    document: &PdfDocument<'a>,
+    image: &DynamicImage,
+) -> Result<PdfPageImageObject<'a>> {
+    let rgb = image.to_rgb8();
+    let (width, height) = (rgb.width(), rgb.height());
+    let mut bgrx: Vec<u8> = rgb.pixels().flat_map(|p| [p[2], p[1], p[0], 255]).collect();
+    let too_big = || Error::new(ErrorCode::UnsupportedImage, "picture too big");
+    let bitmap = PdfBitmap::from_bytes(
+        width.try_into().map_err(|_| too_big())?,
+        height.try_into().map_err(|_| too_big())?,
+        PdfBitmapFormat::BGRx,
+        &mut bgrx,
+    )?;
+    // Made from a 1×1 picture, then given the real pixels.
+    let mut object = PdfPageImageObject::new(document, &DynamicImage::new_rgb8(1, 1))?;
+    object.set_bitmap(&bitmap)?;
+    Ok(object)
 }
 
 /// Saves rendered pixels as a PNG or JPEG file (`quality` 1–100, for JPEG).

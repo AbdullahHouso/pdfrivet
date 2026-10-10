@@ -119,3 +119,52 @@ fn saves_pages_as_pictures() {
     assert_eq!((w, h), (842, 595), "the landscape page at 72 dpi");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn keeps_the_colours_of_opaque_pictures() {
+    let _serial = serial();
+    let dir = temp_dir("images-colours");
+    // Left half red, right half blue: swapped channels would show at once.
+    let picture = image::RgbImage::from_fn(200, 100, |x, _| {
+        if x < 100 {
+            image::Rgb([220, 20, 20])
+        } else {
+            image::Rgb([20, 20, 220])
+        }
+    });
+    let path = dir.join("flag.png");
+    picture.save(&path).unwrap();
+    let engine = Engine::start(&pdfium_dir()).unwrap();
+    let (doc, _) = engine.new_document().unwrap();
+    let own = ImageLayout {
+        paper: PagePaper::Image,
+        margin: 0.0,
+    };
+    engine.add_image_page(doc, path, own).unwrap();
+    let out = dir.join("flag.pdf");
+    engine.save(doc, &out).unwrap();
+
+    let saved = pdf().open(&out, None).unwrap();
+    let page = saved
+        .render_page(0, 1.0, rivet_core::Rotation::None)
+        .unwrap();
+    let at = |x: u32, y: u32| {
+        let i = ((y * page.width + x) * 4) as usize;
+        [page.rgba[i], page.rgba[i + 1], page.rgba[i + 2]]
+    };
+    let (w, h) = (page.width, page.height);
+    let left = at(w / 4, h / 2);
+    let right = at(w * 3 / 4, h / 2);
+    assert!(left[0] > 180 && left[2] < 60, "left is red: {left:?}");
+    assert!(right[2] > 180 && right[0] < 60, "right is blue: {right:?}");
+    // And no transparency mask was stored for it.
+    let file = lopdf::Document::load(&out).unwrap();
+    assert!(
+        !file
+            .objects
+            .values()
+            .filter_map(|o| o.as_stream().ok())
+            .any(|s| s.dict.has(b"SMask"))
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -4,4 +4,4 @@
  * Stable error codes. The UI turns these into translated messages, so no
  * user-facing English text ever comes from Rust.
  */
-export type ErrorCode = "library-not-found" | "file-not-found" | "password-required" | "wrong-password" | "invalid-pdf" | "page-out-of-range" | "read-only-field" | "save-failed" | "print-failed" | "copy-not-allowed" | "annotate-not-allowed" | "annotation-not-found" | "read-only-annotation" | "redact-protected" | "document-not-open" | "assemble-not-allowed" | "undo-unavailable" | "owner-password-required" | "not-repairable" | "unsupported-image" | "engine-stopped" | "cancelled" | "io" | "internal";
+export type ErrorCode = "library-not-found" | "file-not-found" | "password-required" | "wrong-password" | "invalid-pdf" | "page-out-of-range" | "read-only-field" | "save-failed" | "print-failed" | "copy-not-allowed" | "annotate-not-allowed" | "annotation-not-found" | "read-only-annotation" | "redact-protected" | "document-not-open" | "assemble-not-allowed" | "undo-unavailable" | "owner-password-required" | "not-repairable" | "unsupported-image" | "compress-protected" | "engine-stopped" | "cancelled" | "io" | "internal";

@@ -2,8 +2,8 @@
 //! Like the rest, they are thin wrappers around `rivet-core`.
 
 use rivet_core::{
-    DocId, DocInfo, Error, ImageFormat, ImageLayout, MergePart, PageSlot, Protection, RepairReport,
-    SnapshotId,
+    CompressLevel, CompressReport, DocId, DocInfo, Error, ImageFormat, ImageLayout, MergePart,
+    PageSlot, Protection, RepairReport, SnapshotId,
 };
 use serde::Serialize;
 use tauri::State;
@@ -110,6 +110,18 @@ pub(crate) async fn export_page_image(
 ) -> Result<(), Error> {
     let engine = state.engine()?.clone();
     blocking(move || engine.export_page_image(doc_id, page, dpi, format, quality, &path)).await
+}
+
+/// Writes a smaller copy of a document, if it can be made smaller.
+#[tauri::command]
+pub(crate) async fn compress_pdf(
+    doc_id: DocId,
+    level: CompressLevel,
+    path: std::path::PathBuf,
+    state: State<'_, AppState>,
+) -> Result<CompressReport, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.compress(doc_id, level, &path)).await
 }
 
 /// Repairs a damaged PDF into a new file.

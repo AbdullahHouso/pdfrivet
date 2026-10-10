@@ -8,6 +8,7 @@ export type ToolId =
   | "organize"
   | "extract"
   | "split"
+  | "compress"
   | "export-images"
   | "protect"
   | "merge"
@@ -51,6 +52,14 @@ export const TOOLS: ToolInfo[] = [
     group: "document",
     needsDocument: true,
     needsAssemble: true,
+  },
+  {
+    id: "compress",
+    label: "compress-tool",
+    icon: "compress",
+    group: "document",
+    needsDocument: true,
+    needsAssemble: false,
   },
   {
     id: "export-images",

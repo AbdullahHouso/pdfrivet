@@ -3,6 +3,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Annotation } from "./bindings/Annotation";
 import type { AnnotationBatch } from "./bindings/AnnotationBatch";
+import type { CompressLevel } from "./bindings/CompressLevel";
+import type { CompressReport } from "./bindings/CompressReport";
 import type { DocInfo } from "./bindings/DocInfo";
 import type { DocProperties } from "./bindings/DocProperties";
 import type { ErrorCode } from "./bindings/ErrorCode";
@@ -355,6 +357,11 @@ export function exportPageImage(
   path: string,
 ): Promise<void> {
   return invoke("export_page_image", { docId, page, dpi, format, quality, path });
+}
+
+/** Writes a smaller copy of a document to `path` (not written when it can't be made smaller). */
+export function compressPdf(docId: number, level: CompressLevel, path: string): Promise<CompressReport> {
+  return invoke("compress_pdf", { docId, level, path });
 }
 
 /** Repairs a damaged PDF into a new file. */

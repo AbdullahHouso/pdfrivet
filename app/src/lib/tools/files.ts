@@ -47,3 +47,15 @@ export function pageImageNames(base: string, pages: number[], pageCount: number,
   const width = String(pageCount).length;
   return pages.map((p) => `${base}-p${String(p + 1).padStart(width, "0")}.${ext}`);
 }
+
+/** A file size for people: "12.4 MB", "830 KB", in their language's digits. */
+export function formatSize(bytes: number, locale: string): string {
+  const [value, unit] =
+    bytes >= 1_000_000 ? [bytes / 1_000_000, "megabyte"] : bytes >= 1000 ? [bytes / 1000, "kilobyte"] : [bytes, "byte"];
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit,
+    unitDisplay: "short",
+    maximumFractionDigits: value < 10 ? 1 : 0,
+  }).format(value);
+}

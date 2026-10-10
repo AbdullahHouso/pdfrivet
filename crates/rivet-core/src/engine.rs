@@ -479,6 +479,24 @@ impl Engine {
         crate::save_image(&rendered, format, quality, path)
     }
 
+    /// Writes a smaller copy of a document (as it is now) to `path`, if it
+    /// can be made smaller. The work happens on the calling thread, so other
+    /// documents keep rendering.
+    pub fn compress(
+        &self,
+        doc: DocId,
+        level: crate::CompressLevel,
+        path: &Path,
+    ) -> Result<crate::CompressReport> {
+        let bytes = self.final_bytes(doc)?;
+        let (smaller, report) = crate::compress(&bytes, level)?;
+        // Nothing gained: no copy is written.
+        if report.after < report.before {
+            crate::document::write_atomically(path, &smaller)?;
+        }
+        Ok(report)
+    }
+
     /// Repairs a damaged PDF file into a new one (see `repair.rs`).
     pub fn repair(
         &self,

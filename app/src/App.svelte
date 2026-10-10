@@ -76,8 +76,10 @@ import TabBar from "./lib/TabBar.svelte";
 import Toolbar from "./lib/Toolbar.svelte";
 import { type Tab, type TabState, tabs } from "./lib/tabs.svelte";
 import { isEmpty, toTextRange } from "./lib/textSelect";
+import CompressDialog from "./lib/tools/CompressDialog.svelte";
 import ExportImagesDialog from "./lib/tools/ExportImagesDialog.svelte";
 import ExtractDialog from "./lib/tools/ExtractDialog.svelte";
+import { formatSize } from "./lib/tools/files";
 import ImagesToPdfDialog, { isImage } from "./lib/tools/ImagesToPdfDialog.svelte";
 import MergeDialog from "./lib/tools/MergeDialog.svelte";
 import ProtectDialog from "./lib/tools/ProtectDialog.svelte";
@@ -565,6 +567,8 @@ let merging = $state(false);
 let splitting = $state<Tab | null>(null);
 /** The tab whose Password protection dialog is open. */
 let protecting = $state<Tab | null>(null);
+/** The tab whose Compress dialog is open. */
+let compressing = $state<Tab | null>(null);
 /** The tab whose Export as images dialog is open. */
 let exporting = $state<Tab | null>(null);
 /** Images to PDF is open (with these pictures to start with). */
@@ -578,6 +582,7 @@ function runTool(tool: ToolId) {
   else if (tool === "split" && tab) splitting = tab;
   else if (tool === "protect" && tab) protecting = tab;
   else if (tool === "export-images" && tab) exporting = tab;
+  else if (tool === "compress" && tab) compressing = tab;
   else if (tool === "images-to-pdf") imagesToPdf = [];
   else if (tool === "merge") merging = true;
   else if (tool === "repair") repairFlow();
@@ -1059,6 +1064,30 @@ onMount(() => {
       merging = false;
       showFinished(i18n.t("merge-done", { file: fileName(path) }), path);
       if (openIt) openFiles([path]);
+    }}
+  />
+{/if}
+
+{#if compressing}
+  <CompressDialog
+    tab={compressing}
+    oncancel={() => (compressing = null)}
+    onerror={(e) => (error = e)}
+    onfinished={(report, path) => {
+      compressing = null;
+      if (!path) {
+        showFinished(i18n.t("compress-no-gain"));
+        return;
+      }
+      const percent = Math.round((1 - report.after / report.before) * 100);
+      showFinished(
+        i18n.t("compress-done", {
+          before: formatSize(report.before, i18n.locale),
+          after: formatSize(report.after, i18n.locale),
+          percent,
+        }),
+        path,
+      );
     }}
   />
 {/if}

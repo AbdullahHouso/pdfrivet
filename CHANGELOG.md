@@ -22,6 +22,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Export as images (Tools menu): save all or some pages as PNG or JPEG at 72–600 dpi, into a folder, with progress (Stop anytime).
 - Images to PDF (Tools menu, the start page, or drop pictures on the window): JPEG, PNG, WebP, BMP, GIF and TIFF pictures become pages, in the order you choose, on A4, US Letter or pages the size of each picture, with or without a margin. JPEG photos go in unchanged (no quality lost); phone photos taken sideways are turned upright.
 
+- Compress (Tools menu): a smaller copy of the document. Lossless packs the file tighter and stores repeated fonts and drawings once (often a fifth smaller, nothing changes); Recommended and Strongest also scale pictures down to 150 or 100 dpi and store photos as JPEG. Drawings and screenshots stay sharp; pictures it can't redo faithfully are left as they are.
+
 ### Repair
 - Repair a PDF (Tools menu, or "Try to repair" when a file won't open): saves a mended copy of a damaged file, with the pages that could be recovered.
 
