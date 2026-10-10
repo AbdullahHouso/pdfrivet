@@ -11,6 +11,7 @@
 
 #![allow(unsafe_code)]
 
+use crate::document::RawBindings;
 use pdfium_render::prelude::*;
 use serde::Serialize;
 use ts_rs::TS;
@@ -452,7 +453,16 @@ pub(crate) fn print_document(
             if StartPage(dc.0) <= 0 {
                 false
             } else {
-                bindings.FPDF_RenderPage(dc.0, page.page_handle(), x, y, w, h, 0, flags);
+                bindings.FPDF_RenderPage(
+                    dc.0,
+                    bindings.get_handle_from_page(&page),
+                    x,
+                    y,
+                    w,
+                    h,
+                    0,
+                    flags,
+                );
                 EndPage(dc.0) > 0
             }
         };

@@ -31,8 +31,8 @@ codegen-units = 1
 strip = true
 panic = "abort"
 
-# pdfium-render with a small patch that exposes raw PDFium handles (needed for form filling).
-# Fork: https://github.com/AbdullahHouso/pdfium-render/tree/rivet/expose-raw-handles
-# Remove this once the change is available in an official pdfium-render release.
+# pdfium-render from upstream's main branch: it has the raw-handle accessors
+# (`PdfiumLibraryBindings::get_handle_from_*`, our PRs #276/#277, merged) that
+# form filling and page moves need. Switch back to crates.io once 0.9.5 is out.
 [patch.crates-io]
-pdfium-render = { git = "https://github.com/AbdullahHouso/pdfium-render", rev = "6b12ee53f3365d63c1054f7b2075d801626ce124" }
+pdfium-render = { git = "https://github.com/ajrcarey/pdfium-render", rev = "ea2961cb8ac777bb1a06dddb8efd272d34d74f18" }

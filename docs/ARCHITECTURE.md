@@ -105,10 +105,11 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   Chrome's PDF viewer): a checkbox is "clicked", a text field is focused and its text
   replaced, an option is selected. PDFium applies each field type's rules and regenerates
   the field's appearance, so results look right in other readers too.
-- pdfium-render doesn't expose the raw handles these functions need, so PDFRivet uses a fork
-  with a tiny patch (`[patch.crates-io]` in `Cargo.toml`;
-  https://github.com/AbdullahHouso/pdfium-render, branch `rivet/expose-raw-handles`).
-  `forms.rs` is the only module allowed to use `unsafe`; each call explains why it's safe.
+- These functions need raw PDFium handles. pdfium-render's `get_handle_from_*` accessors
+  (our upstream PRs, on its main branch until 0.9.5 is released; `[patch.crates-io]` in
+  `Cargo.toml`) give them, and `RawBindings` (`document.rs`) is a second binding to the same
+  loaded library, because pdfium-render keeps its own private. Each `unsafe` call explains
+  why it's safe.
 - In the UI, `FormLayer.svelte` puts invisible controls over the fields PDFium draws. Text
   fields open a real `<input>`, so typing Arabic and using input methods work normally.
   After each change the tab's `revision` goes up and the page re-renders.
@@ -363,7 +364,7 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   sections and the objects it needs (about 50 ms on a 42 MB file, where a full lopdf parse took
   0.7 s), uses lopdf to parse single objects and decode streams, and matches the file's
   cross-reference format (table or stream).
-- The pdfium-render fork also fixes reading the modification date (`ModDate` key).
+- pdfium-render reads the modification date from the `ModDate` key (our upstream fix).
 
 ## Updates
 

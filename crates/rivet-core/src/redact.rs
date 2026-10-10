@@ -23,6 +23,7 @@
 
 use std::io::Cursor;
 
+use crate::document::RawBindings;
 use pdfium_render::prelude::*;
 
 use crate::{
@@ -161,7 +162,7 @@ impl<'a> PageObjects<'a> {
     fn new(pdfium: &'a Pdfium, page: &'a PdfPage) -> Self {
         Self {
             bindings: pdfium.bindings(),
-            page: page.page_handle(),
+            page: pdfium.bindings().get_handle_from_page(page),
         }
     }
 

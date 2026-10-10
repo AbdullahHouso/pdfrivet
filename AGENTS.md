@@ -133,9 +133,10 @@ CI (`.github/workflows/ci.yml`) runs them on Linux and Windows on every push to 
 
 ## Dependencies to know
 
-- pdfium-render comes from a fork via `[patch.crates-io]` in the root `Cargo.toml` (raw form handle).
-  The upstream PRs (#276, #277) are merged; when **pdfium-render 0.9.5** is released, drop the patch
-  and use `PdfiumLibraryBindings::get_handle_from_form()`.
+- pdfium-render comes from upstream's main branch via `[patch.crates-io]` in the root `Cargo.toml`
+  (our merged PRs #276, #277: raw handles, `ModDate`). When **pdfium-render 0.9.5** is released,
+  drop the patch. Raw PDFium calls go through `RawBindings` (`document.rs`): `pdfium.bindings()`
+  and `bindings.get_handle_from_page/form/document(…)`.
 
 ## Development environment
 

@@ -17,6 +17,7 @@
 
 use std::marker::PhantomData;
 
+use crate::document::RawBindings;
 use pdfium_render::prelude::*;
 use serde::Deserialize;
 use ts_rs::TS;
@@ -214,7 +215,7 @@ impl<'p> TextPage<'p> {
         let bindings = pdfium.bindings();
         // SAFETY: the page handle belongs to a live PdfPage that outlives this
         // TextPage (tied by the lifetime); we're on the PDFium thread.
-        let handle = unsafe { bindings.FPDFText_LoadPage(page.page_handle()) };
+        let handle = unsafe { bindings.FPDFText_LoadPage(bindings.get_handle_from_page(page)) };
         (!handle.is_null()).then_some(Self {
             bindings,
             handle,

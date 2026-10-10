@@ -16,6 +16,7 @@
 
 #![allow(unsafe_code)]
 
+use crate::document::RawBindings;
 use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -161,7 +162,11 @@ pub(crate) fn apply(
         .form()
         .ok_or_else(|| Error::new(ErrorCode::Internal, "document has no form"))?;
 
-    let session = FormSession::start(pdfium, form.handle(), page.page_handle());
+    let session = FormSession::start(
+        pdfium,
+        pdfium.bindings().get_handle_from_form(form),
+        pdfium.bindings().get_handle_from_page(page),
+    );
     let ok = match change {
         FieldChange::Toggle => {
             // Click the middle of the widget, exactly as a mouse would.

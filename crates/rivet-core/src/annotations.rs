@@ -38,6 +38,7 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use crate::document::RawBindings;
 use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -1343,7 +1344,7 @@ impl<'a> PageAnnots<'a> {
     fn new(pdfium: &'a Pdfium, page: &'a PdfPage) -> Self {
         Self {
             bindings: pdfium.bindings(),
-            page: page.page_handle(),
+            page: pdfium.bindings().get_handle_from_page(page),
         }
     }
 

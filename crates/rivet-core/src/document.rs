@@ -23,6 +23,22 @@ pub const IN_MEMORY_LIMIT: u64 = 512 * 1024 * 1024;
 /// opened again, which lets go of all that (see [`Document::release_memory`]).
 const RELEASE_AFTER_PAGES: u32 = 100;
 
+static RAW: OnceLock<&'static dyn PdfiumLibraryBindings> = OnceLock::new();
+
+/// PDFium's C functions, for what pdfium-render doesn't wrap (forms, raw
+/// annotation access, page moves…): `pdfium.bindings()`, and the raw handles
+/// of documents, pages and forms through them. Only valid after [`Pdf::load`].
+pub(crate) trait RawBindings {
+    fn bindings(&self) -> &'static dyn PdfiumLibraryBindings;
+}
+
+impl RawBindings for Pdfium {
+    fn bindings(&self) -> &'static dyn PdfiumLibraryBindings {
+        *RAW.get()
+            .expect("PDFium is loaded before any document exists")
+    }
+}
+
 /// The loaded PDFium library. Create one per process with [`Pdf::load`].
 ///
 /// PDFium is not thread-safe: use a `Pdf` and its documents from one thread
@@ -44,12 +60,20 @@ impl Pdf {
             return Ok(Self { pdfium });
         }
         let path = Pdfium::pdfium_platform_library_name_at_path(lib_dir);
-        let bindings = Pdfium::bind_to_library(&path).map_err(|e| {
-            Error::new(
-                ErrorCode::LibraryNotFound,
-                format!("{}: {e:?}", path.display()),
-            )
-        })?;
+        let bind = || {
+            Pdfium::bind_to_library(&path).map_err(|e| {
+                Error::new(
+                    ErrorCode::LibraryNotFound,
+                    format!("{}: {e:?}", path.display()),
+                )
+            })
+        };
+        // pdfium-render keeps its bindings to itself; a second set (to the same
+        // loaded library) is ours for the PDFium functions it doesn't wrap. Both
+        // must be made before `Pdfium::new`, which refuses binding again.
+        let bindings = bind()?;
+        let raw = bind()?;
+        RAW.get_or_init(|| Box::leak(raw));
         let pdfium = *LOADED.get_or_init(|| Box::leak(Box::new(Pdfium::new(bindings))));
         Ok(Self { pdfium })
     }
