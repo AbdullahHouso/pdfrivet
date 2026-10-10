@@ -820,6 +820,7 @@ pub fn run() {
             tools::finish_merge,
             tools::repair_pdf,
             tools::compress_pdf,
+            tools::flatten_document,
             tools::add_image_page,
             tools::export_page_image,
             tools::set_protection,

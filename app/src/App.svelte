@@ -45,7 +45,7 @@ import OrganizeView from "./lib/organize/OrganizeView.svelte";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
 import PropertiesDialog from "./lib/PropertiesDialog.svelte";
-import { arrange } from "./lib/pageEdits";
+import { arrange, flatten } from "./lib/pageEdits";
 import { pageList } from "./lib/pageRange";
 import {
   captureTaskbarTab,
@@ -583,9 +583,30 @@ function runTool(tool: ToolId) {
   else if (tool === "protect" && tab) protecting = tab;
   else if (tool === "export-images" && tab) exporting = tab;
   else if (tool === "compress" && tab) compressing = tab;
+  else if (tool === "flatten" && tab) flattenFlow(tab);
   else if (tool === "images-to-pdf") imagesToPdf = [];
   else if (tool === "merge") merging = true;
   else if (tool === "repair") repairFlow();
+}
+
+/** Flattens a document's annotations and form fields, after asking. */
+async function flattenFlow(tab: Tab) {
+  if (tab.redactions.length) {
+    showFinished(i18n.t("organize-redactions-first"));
+    return;
+  }
+  const answer = await ask(i18n.t("flatten-title"), i18n.t("flatten-text"), [
+    { id: "flatten", label: i18n.t("flatten-run"), primary: true },
+    { id: "cancel", label: i18n.t("cancel") },
+  ]);
+  if (answer !== "flatten") return;
+  try {
+    annotate.open = false;
+    await flatten(tab);
+    showFinished(i18n.t("flatten-done"));
+  } catch (e) {
+    error = toRivetError(e);
+  }
 }
 
 /** A file that failed to open as damaged, offered for repair in the error message. */

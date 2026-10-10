@@ -315,6 +315,8 @@ pub struct Document {
     pub(crate) owner_password: Option<String>,
     /// Made by PDFRivet (merged, images to PDF…): saving names it as the creator.
     pub(crate) created_here: bool,
+    /// The form fields were flattened: saving drops the form's field list.
+    pub(crate) forms_flattened: Cell<bool>,
 }
 
 impl Document {
@@ -345,6 +347,7 @@ impl Document {
             protection: None,
             owner_password: None,
             created_here: false,
+            forms_flattened: Cell::new(false),
         }
     }
 
@@ -843,7 +846,14 @@ impl Document {
         let outline = self.edited_outline.as_deref();
         let replies = self.has_replies.get();
         let text_boxes = self.has_text_boxes.get();
-        if has_deleted || self.needs_prune.get() || outline.is_some() || replies || text_boxes {
+        let drop_form = self.forms_flattened.get();
+        if has_deleted
+            || self.needs_prune.get()
+            || outline.is_some()
+            || replies
+            || text_boxes
+            || drop_form
+        {
             let redacted: Vec<u32> = self.redacted.borrow().iter().copied().collect();
             match crate::prune::prune(
                 &bytes,
@@ -852,6 +862,7 @@ impl Document {
                 outline,
                 replies,
                 text_boxes,
+                drop_form,
             )? {
                 Some(pruned) => bytes = pruned,
                 // Password-protected: deleted annotations can't be left out of the

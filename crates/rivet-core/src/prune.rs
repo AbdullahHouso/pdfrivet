@@ -21,7 +21,8 @@ use crate::{Error, ErrorCode, OutlineItem, Result};
 /// An edited `outline` replaces the file's bookmarks. With `replies`, replies
 /// added in PDFRivet are linked to the annotations they answer. With
 /// `text_boxes`, text boxes get the `/IT` name that tells readers they grow
-/// with their text.
+/// with their text. With `drop_form`, the form's field list goes (its fields
+/// were flattened into the pages).
 pub(crate) fn prune(
     bytes: &[u8],
     deleted_key: &str,
@@ -29,6 +30,7 @@ pub(crate) fn prune(
     outline: Option<&[OutlineItem]>,
     replies: bool,
     text_boxes: bool,
+    drop_form: bool,
 ) -> Result<Option<Vec<u8>>> {
     let failed = |e: &dyn std::fmt::Display| Error::new(ErrorCode::SaveFailed, e.to_string());
     let mut doc = Document::load_mem(bytes).map_err(|e| failed(&e))?;
@@ -51,7 +53,11 @@ pub(crate) fn prune(
     if let Some(items) = outline {
         crate::outline::write(&mut doc, items).map_err(|e| failed(&e))?;
     }
-    if doc.prune_objects().is_empty() && outline.is_none() && !replies && !text_boxes {
+    if drop_form && let Ok(catalog) = doc.catalog_mut() {
+        catalog.remove(b"AcroForm");
+    }
+    if doc.prune_objects().is_empty() && outline.is_none() && !replies && !text_boxes && !drop_form
+    {
         return Ok(Some(bytes.to_vec()));
     }
     doc.renumber_objects();

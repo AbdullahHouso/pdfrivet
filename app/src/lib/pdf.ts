@@ -379,6 +379,11 @@ export function unlockOwner(docId: number, password: string): Promise<boolean> {
   return invoke("unlock_owner", { docId, password });
 }
 
+/** Flattens annotations and form fields into the pages (one undo step, like a page change). */
+export function flattenDocument(docId: number): Promise<PagesChanged> {
+  return invoke("flatten_document", { docId });
+}
+
 /** Undo/redo of a page change: back to a kept state; returns the state it replaced. */
 export function swapSnapshot(docId: number, snapshot: number): Promise<PagesChanged> {
   return invoke("swap_snapshot", { docId, snapshot });

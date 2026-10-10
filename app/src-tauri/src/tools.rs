@@ -158,6 +158,18 @@ pub(crate) async fn unlock_owner(
     blocking(move || engine.unlock_owner(doc_id, password)).await
 }
 
+/// Flattens annotations and form fields into the pages; undoable like a page change.
+#[tauri::command]
+pub(crate) async fn flatten_document(
+    doc_id: DocId,
+    state: State<'_, AppState>,
+) -> Result<Changed, Error> {
+    let engine = state.engine()?.clone();
+    blocking(move || engine.flatten(doc_id))
+        .await
+        .map(|(snapshot, info)| Changed { snapshot, info })
+}
+
 /// Undo or redo of a page change (see `Engine::swap_snapshot`).
 #[tauri::command]
 pub(crate) async fn swap_snapshot(

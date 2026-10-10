@@ -7,7 +7,7 @@ import type { PageSlot } from "./bindings/PageSlot";
 import { commentsOf } from "./comments.svelte";
 import type { PagesStep, RotateStep } from "./history.svelte";
 import { forgetBookmarks } from "./outlineLoad";
-import { arrangePages, rotatePages, swapSnapshot } from "./pdf";
+import { arrangePages, flattenDocument, rotatePages, swapSnapshot } from "./pdf";
 import type { Tab } from "./tabs.svelte";
 
 /** The pages changed: the tab shows the document as it is now. */
@@ -21,6 +21,13 @@ function refresh(tab: Tab, info: DocInfo) {
 /** Rearranges the pages (see pages.rs); one undo step. */
 export async function arrange(tab: Tab, slots: PageSlot[]) {
   const { snapshot, info } = await arrangePages(tab.docId, slots);
+  tab.history.record({ kind: "pages", snapshot });
+  refresh(tab, info);
+}
+
+/** Flattens annotations and form fields into the pages; one undo step. */
+export async function flatten(tab: Tab) {
+  const { snapshot, info } = await flattenDocument(tab.docId);
   tab.history.record({ kind: "pages", snapshot });
   refresh(tab, info);
 }

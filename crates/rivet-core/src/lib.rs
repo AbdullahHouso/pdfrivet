@@ -15,6 +15,7 @@ mod direction;
 mod document;
 mod engine;
 mod error;
+mod flatten;
 pub mod fonts;
 mod forms;
 mod geometry;

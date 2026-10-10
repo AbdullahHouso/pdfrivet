@@ -395,6 +395,21 @@ impl Engine {
         })
     }
 
+    /// Flattens every page's annotations and form fields (see `flatten.rs`).
+    /// Returns the state before, for undo, and the new facts.
+    pub fn flatten(&self, doc: DocId) -> Result<(SnapshotId, DocInfo)> {
+        self.task(move |w| {
+            let target = w.doc_mut(doc)?;
+            let before = target.snapshot()?;
+            if let Err(e) = target.flatten() {
+                let _ = target.restore(before);
+                return Err(e);
+            }
+            w.structure_changed(doc);
+            Ok((w.keep_snapshot(doc, before), w.doc(doc)?.info()?))
+        })
+    }
+
     /// Turns pages by quarter turns (clockwise; negative: counter-clockwise).
     pub fn rotate_pages(&self, doc: DocId, pages: Vec<u32>, turns: i32) -> Result<DocInfo> {
         self.task(move |w| {

@@ -11,6 +11,7 @@ export type ToolId =
   | "compress"
   | "export-images"
   | "protect"
+  | "flatten"
   | "merge"
   | "images-to-pdf"
   | "repair";
@@ -73,6 +74,14 @@ export const TOOLS: ToolInfo[] = [
     id: "protect",
     label: "protect-tool",
     icon: "lock",
+    group: "document",
+    needsDocument: true,
+    needsAssemble: false,
+  },
+  {
+    id: "flatten",
+    label: "flatten-tool",
+    icon: "flatten",
     group: "document",
     needsDocument: true,
     needsAssemble: false,

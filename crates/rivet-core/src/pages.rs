@@ -293,6 +293,7 @@ impl Document {
             redacted: self.redacted.borrow().clone(),
             needs_prune: self.needs_prune.get(),
             edited_outline: self.edited_outline.clone(),
+            forms_flattened: self.forms_flattened.get(),
         })
     }
 
@@ -307,6 +308,7 @@ impl Document {
         *self.redacted.borrow_mut() = snapshot.redacted;
         self.needs_prune.set(snapshot.needs_prune);
         self.edited_outline = snapshot.edited_outline;
+        self.forms_flattened.set(snapshot.forms_flattened);
         self.unsaved_changes.set(true);
         Ok(())
     }
@@ -319,6 +321,7 @@ pub struct Snapshot {
     redacted: BTreeSet<u32>,
     needs_prune: bool,
     edited_outline: Option<Vec<OutlineItem>>,
+    forms_flattened: bool,
 }
 
 impl Snapshot {
