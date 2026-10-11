@@ -50,6 +50,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Shortcuts no longer act on the document behind an open dialog (Ctrl+A in Settings selected the page's text; Ctrl+O opened a file).
 - Zooming with Ctrl+wheel or a touchpad pinch now zooms where the pointer is, across as well as up and down.
 - Fit page no longer shows scrollbars for a page that fits (with display scaling such as 125 % on Windows).
+- Arabic typed into a form field now keeps its letters joined at any zoom. Before, the word could fall apart into separate letters (more so in small fields). The field's background and border stay as they were. Limits: the text is drawn in PDFRivet's own font, left or right aligned by its direction (a field set to centre is not centred), and password fields are not redrawn.
 
 ## [0.2.0] – 2026-10-10
 

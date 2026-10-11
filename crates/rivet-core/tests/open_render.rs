@@ -321,6 +321,91 @@ fn fills_in_and_saves_a_form() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The normal appearance stream (decompressed) of the form field called `name`.
+fn field_appearance(path: &std::path::Path, name: &str) -> String {
+    let doc = lopdf::Document::load(path).unwrap();
+    let widget = doc
+        .objects
+        .values()
+        .filter_map(|o| o.as_dict().ok())
+        .find(|d| d.get(b"T").and_then(lopdf::Object::as_str).ok() == Some(name.as_bytes()))
+        .expect("field not found");
+    let normal = widget
+        .get(b"AP")
+        .unwrap()
+        .as_dict()
+        .unwrap()
+        .get(b"N")
+        .unwrap();
+    let stream = match normal {
+        lopdf::Object::Reference(id) => doc.get_object(*id).unwrap().as_stream().unwrap(),
+        other => other.as_stream().unwrap(),
+    };
+    String::from_utf8_lossy(
+        &stream
+            .decompressed_content()
+            .unwrap_or(stream.content.clone()),
+    )
+    .into_owned()
+}
+
+#[test]
+fn draws_arabic_in_a_form_field_as_joined_outlines() {
+    let _serial = serial();
+    let mut doc = pdf().open(&fixture("forms.pdf"), None).unwrap();
+    let name = field(&doc.form_fields(0).unwrap(), "name").index;
+    let arabic = "تجربة الكتابة بالعربي";
+    doc.change_field(
+        0,
+        name,
+        &FieldChange::Text {
+            value: arabic.into(),
+        },
+    )
+    .unwrap();
+
+    let dir = temp_dir("form-arabic");
+    let out = dir.join("filled.pdf");
+    doc.save(&out).unwrap();
+    let content = field_appearance(&out, "name");
+    // PDFium writes one `Tj` per glyph, and those fall apart at small sizes.
+    // The text is shaped outlines now, and the field keeps its look.
+    assert!(!content.contains("Tj"), "text left as glyphs: {content}");
+    assert!(content.contains(" c "), "no outlines: {content}");
+    assert!(
+        content.contains("0.800 0.843 1.000 rg"),
+        "lost the background: {content}"
+    );
+
+    // The value is still the text typed, for other readers and for editing.
+    let reopened = pdf().open(&out, None).unwrap();
+    let after = reopened.form_fields(0).unwrap();
+    assert!(
+        matches!(field(&after, "name").field, FieldKind::Text { ref value, .. } if value == arabic)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn keeps_pdfiums_drawing_for_latin_text_in_a_form_field() {
+    let _serial = serial();
+    let mut doc = pdf().open(&fixture("forms.pdf"), None).unwrap();
+    let name = field(&doc.form_fields(0).unwrap(), "name").index;
+    doc.change_field(
+        0,
+        name,
+        &FieldChange::Text {
+            value: "Rivet".into(),
+        },
+    )
+    .unwrap();
+    let dir = temp_dir("form-latin");
+    let out = dir.join("filled.pdf");
+    doc.save(&out).unwrap();
+    assert!(field_appearance(&out, "name").contains("Tj"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn saves_over_the_open_file() {
     let _serial = serial();

@@ -21,7 +21,7 @@ use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{Error, ErrorCode, Result, geometry::PageGeometry, textstrings::Texts};
+use crate::{Error, ErrorCode, Result, formtext, geometry::PageGeometry, textstrings::Texts};
 
 /// What kind of field this is, with its current value.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
@@ -179,6 +179,16 @@ pub(crate) fn apply(
     };
     // Leaving the field commits the value and rebuilds its appearance.
     session.commit();
+    // PDFium draws Arabic one glyph at a time and the joins fall apart at small
+    // sizes, so right-to-left text is drawn by us (see `formtext`).
+    if ok
+        && let FieldChange::Text { value } = change
+        && let PdfFormField::Text(text) = field
+        && !text.is_password()
+        && formtext::needs_redraw(value)
+    {
+        session.redraw_text(index, value, text.is_multiline());
+    }
     if ok {
         Ok(())
     } else {
@@ -252,6 +262,20 @@ impl<'a> FormSession<'a> {
             self.bindings
                 .FORM_SetIndexSelected(self.form, self.page, option as i32, 1)
                 != 0
+        }
+    }
+
+    /// Redraws a committed text field's appearance with shaped text.
+    fn redraw_text(&self, index: u32, value: &str, multiline: bool) {
+        // SAFETY: the annotation handle is opened and closed within this block,
+        // and only used while the page is alive.
+        unsafe {
+            let annot = self.bindings.FPDFPage_GetAnnot(self.page, index as i32);
+            if annot.is_null() {
+                return;
+            }
+            formtext::redraw(self.bindings, annot, value, multiline);
+            self.bindings.FPDFPage_CloseAnnot(annot);
         }
     }
 
