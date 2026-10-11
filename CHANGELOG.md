@@ -48,6 +48,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Opening PDFRivet (or a PDF with it) no longer flashes a white window, then the start page, before the document; with two screens, the window no longer appears on one screen and jumps to the other. It now appears once, where you left it, with the document in it.
 - After jumping to a page with small pages in view, the page you jumped to is the one highlighted in the thumbnails.
 - Shortcuts no longer act on the document behind an open dialog (Ctrl+A in Settings selected the page's text; Ctrl+O opened a file).
+- Zooming with Ctrl+wheel or a touchpad pinch now zooms where the pointer is, across as well as up and down.
+- Fit page no longer shows scrollbars for a page that fits (with display scaling such as 125 % on Windows).
 
 ## [0.2.0] – 2026-10-10
 

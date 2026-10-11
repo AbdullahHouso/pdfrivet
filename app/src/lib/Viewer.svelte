@@ -30,9 +30,11 @@ import {
   pageAtPoint,
   rotatedSize,
   rotateRect,
+  scrollLeftFor,
   scrollTopFor,
   unrotatePoint,
   visibleRange,
+  withAnchorX,
 } from "./layout";
 import PageView from "./PageView.svelte";
 import { prefetch } from "./pageCanvasCache";
@@ -62,8 +64,12 @@ let { tab, onerror, oncontextmenu }: Props = $props();
 
 let scroller: HTMLElement;
 let content: HTMLElement;
-let viewportWidth = $state(0);
-let viewportHeight = $state(0);
+// The window's exact size, rounded down. With display scaling it can be
+// fractional, and clientWidth rounds it to the nearest pixel: up to half a
+// pixel too big, which made content sized to it (fit page) scroll.
+let viewport = $state<DOMRectReadOnly>();
+let viewportWidth = $derived(Math.floor(viewport?.width ?? 0));
+let viewportHeight = $derived(Math.floor(viewport?.height ?? 0));
 let scrollTop = $state(0);
 
 let columns = $derived<1 | 2>(tab.pageLayout === "double" ? 2 : 1);
@@ -104,7 +110,12 @@ let mounted = $derived.by(() => {
   return pages;
 });
 let contentWidth = $derived(Math.max(layout.totalWidth, viewportWidth));
-let offsetX = $derived((contentWidth - layout.totalWidth) / 2);
+let offsetX = $derived(offsetXOf(layout));
+
+/** Where pages start across: centred when narrower than the window. */
+function offsetXOf(l: Layout): number {
+  return (Math.max(l.totalWidth, viewportWidth) - l.totalWidth) / 2;
+}
 
 // Where to keep the view steady when the zoom changes (cursor or centre).
 let pendingAnchor: Anchor | null = null;
@@ -137,8 +148,9 @@ export function step(direction: 1 | -1, atBottom = false) {
 }
 
 /** Zooms around a point of the viewport (default: its centre). */
-export function zoomTo(zoom: number, offsetY = viewportHeight / 2) {
-  pendingAnchor = anchorAt(layout, scroller.scrollTop, offsetY);
+export function zoomTo(zoom: number, offsetY = viewportHeight / 2, cursorX = viewportWidth / 2) {
+  const anchor = anchorAt(layout, scroller.scrollTop, offsetY);
+  pendingAnchor = withAnchorX(layout, anchor, scroller.scrollLeft + cursorX, offsetX, cursorX);
   tab.zoomMode = "custom";
   tab.zoom = clampZoom(zoom);
 }
@@ -184,6 +196,8 @@ $effect.pre(() => {
     if (queuedAnchor !== anchor) return;
     queuedAnchor = null;
     scroller.scrollTop = scrollTopFor(layout, anchor);
+    const left = scrollLeftFor(layout, anchor, offsetX);
+    if (left !== null) scroller.scrollLeft = left;
   });
 });
 
@@ -321,7 +335,7 @@ function onWheel(e: WheelEvent) {
   if (e.ctrlKey) {
     e.preventDefault();
     const rect = scroller.getBoundingClientRect();
-    zoomTo(tab.zoom * Math.exp(-e.deltaY * 0.0025), e.clientY - rect.top);
+    zoomTo(tab.zoom * Math.exp(-e.deltaY * 0.0025), e.clientY - rect.top, e.clientX - rect.left);
     return;
   }
   if (tab.continuous || e.deltaY === 0) return;
@@ -614,8 +628,7 @@ function onFieldChange() {
   role="document"
   tabindex="-1"
   bind:this={scroller}
-  bind:clientWidth={viewportWidth}
-  bind:clientHeight={viewportHeight}
+  bind:contentRect={viewport}
   onscroll={onScroll}
   onwheel={onWheel}
   onkeydown={onKeyDown}

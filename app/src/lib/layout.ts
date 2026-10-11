@@ -211,6 +211,8 @@ export interface Anchor {
   fraction: number;
   /** Distance of the anchor from the top of the viewport, in px. */
   offset: number;
+  /** Across: the page under the cursor and the point on it (0..1 from its left, beyond for the gaps). */
+  x?: { page: number; fraction: number; offset: number };
 }
 
 export function anchorAt(layout: Layout, scrollTop: number, offsetInViewport: number): Anchor {
@@ -222,6 +224,38 @@ export function anchorAt(layout: Layout, scrollTop: number, offsetInViewport: nu
   // document), remember that gap so it is kept too.
   const gapAbove = Math.max(0, layout.tops[page] - y);
   return { page, fraction, offset: offsetInViewport + gapAbove };
+}
+
+/**
+ * Adds the horizontal part of an anchor: `x` is the point in the content
+ * (pages start at `offsetX`), `offsetInViewport` its distance from the left
+ * of the viewport. The nearest page in the anchor's row is used.
+ */
+export function withAnchorX(
+  layout: Layout,
+  anchor: Anchor,
+  x: number,
+  offsetX: number,
+  offsetInViewport: number,
+): Anchor {
+  const row = layout.rows[layout.rowOf[anchor.page]];
+  if (!row) return anchor;
+  let page = row.first;
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = row.first; i <= row.last; i++) {
+    const left = offsetX + layout.lefts[i];
+    const distance = Math.max(0, left - x, x - (left + layout.widths[i]));
+    if (distance < best) [page, best] = [i, distance];
+  }
+  const fraction = (x - offsetX - layout.lefts[page]) / (layout.widths[page] || 1);
+  return { ...anchor, x: { page, fraction, offset: offsetInViewport } };
+}
+
+/** The scrollLeft that puts the anchor back at the same place across the viewport. */
+export function scrollLeftFor(layout: Layout, anchor: Anchor, offsetX: number): number | null {
+  if (!anchor.x) return null;
+  const { page, fraction, offset } = anchor.x;
+  return Math.max(0, offsetX + (layout.lefts[page] ?? 0) + fraction * (layout.widths[page] ?? 0) - offset);
 }
 
 /** The scrollTop that puts `anchor` back at the same place in the viewport. */

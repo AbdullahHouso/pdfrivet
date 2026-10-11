@@ -12,6 +12,7 @@ import {
   pageAtPoint,
   rotateRect,
   SIDEBAR_MIN,
+  scrollLeftFor,
   scrollTopFor,
   stepZoom,
   THUMB_GAP,
@@ -19,6 +20,7 @@ import {
   thumbnailGrid,
   unrotatePoint,
   visibleRange,
+  withAnchorX,
 } from "./layout";
 
 const A4 = { width: 595, height: 842 };
@@ -100,6 +102,22 @@ describe("zoom steps and anchoring", () => {
     const again = anchorAt(after, scrollTop, 250);
     expect(again.page).toBe(7);
     expect(again.fraction).toBeCloseTo(anchor.fraction);
+  });
+
+  it("keeps the point under the cursor in place across, in two-page rows", () => {
+    const pages = Array(4).fill(A4);
+    const before = computeLayout(pages, 0.5, 0, { columns: 2 });
+    const after = computeLayout(pages, 1.5, 0, { columns: 2 });
+    const viewport = 1200;
+    const offsetBefore = (viewport - before.totalWidth) / 2; // centred, no scrolling
+    // The cursor 100 px into the right-hand page of the second row.
+    const cursor = offsetBefore + before.lefts[3] + 100;
+    const anchor = withAnchorX(before, anchorAt(before, before.tops[3], 0), cursor, offsetBefore, cursor);
+    expect(anchor.x?.page).toBe(3);
+    const left = scrollLeftFor(after, anchor, 0) ?? -1;
+    // The same spot of page 3 is under the cursor again: 3× further into it.
+    expect(after.lefts[3] + 300 - left).toBeCloseTo(cursor);
+    expect(scrollLeftFor(after, anchorAt(after, 0, 0), 0)).toBeNull();
   });
 });
 
