@@ -117,8 +117,18 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   saving over it works on Windows, and it can be moved while PDFRivet shows it.
 - **Saving** writes `.<name>.rivet-saving` next to the target, flushes it to disk and renames
   it over the target, so a crash never leaves a half-written PDF.
+- **Right-to-left values are redrawn by us** (`formtext.rs`). PDFium writes a field's text as
+  one `Td`/`Tj` per glyph with rounded advances, and a renderer that snaps each glyph to its
+  own pixel opens gaps in Arabic joins at small sizes (the more so the smaller the field). After
+  PDFium commits a value with RTL letters (not in password fields), `formtext::redraw` reads
+  the appearance's path objects (background and border; text objects are dropped), and writes
+  a new appearance with them plus the value as shaped outlines from `textlayout` (the same as
+  page text boxes), clipped to the field and coloured and sized from `/DA`. If the appearance
+  holds anything but paths and text, or draws outside the field, PDFium's is left alone.
+  Limits: the bundled font, not the field's, and `/Q` (alignment) is not read.
 - Known PDFium limitation: in fields mixing Arabic and Latin text, PDFium may order numbers
-  differently from the typed order (Chrome shares this).
+  differently from the typed order (Chrome shares this). Redrawn fields follow the Unicode
+  bidi rules instead.
 
 ## Text selection
 
