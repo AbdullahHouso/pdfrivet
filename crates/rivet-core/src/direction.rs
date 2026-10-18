@@ -16,6 +16,11 @@ fn is_rtl_letter(c: char) -> bool {
         && c.is_alphabetic()
 }
 
+/// Whether any letter of `text` belongs to a right-to-left script.
+pub(crate) fn has_rtl_letter(text: &str) -> bool {
+    text.chars().any(is_rtl_letter)
+}
+
 /// Decides from text: right-to-left if most letters come from RTL scripts.
 pub(crate) fn is_rtl_text(text: &str) -> bool {
     let (mut rtl, mut ltr) = (0usize, 0usize);

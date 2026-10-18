@@ -21,7 +21,7 @@ use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{Error, ErrorCode, Result, geometry::PageGeometry, textstrings::Texts};
+use crate::{Error, ErrorCode, Result, formtext, geometry::PageGeometry, textstrings::Texts};
 
 /// What kind of field this is, with its current value.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
@@ -179,6 +179,15 @@ pub(crate) fn apply(
     };
     // Leaving the field commits the value and rebuilds its appearance.
     session.commit();
+    // PDFium draws Arabic one glyph at a time and the joins fall apart at small
+    // sizes, so right-to-left text is drawn by us (see `formtext`).
+    if ok
+        && let FieldChange::Text { .. } = change
+        && let PdfFormField::Text(text) = field
+        && !text.is_password()
+    {
+        session.redraw_text(index, text.is_multiline());
+    }
     if ok {
         Ok(())
     } else {
@@ -252,6 +261,55 @@ impl<'a> FormSession<'a> {
             self.bindings
                 .FORM_SetIndexSelected(self.form, self.page, option as i32, 1)
                 != 0
+        }
+    }
+
+    /// Redraws a committed text field's appearance with shaped text, if its
+    /// value needs it. The value is read back from the field: PDFium may have
+    /// stored less than was typed (a field's `/MaxLen` cuts it short).
+    fn redraw_text(&self, index: u32, multiline: bool) {
+        // SAFETY: the annotation handle is opened and closed within this block,
+        // and only used while the page is alive.
+        unsafe {
+            let annot = self.bindings.FPDFPage_GetAnnot(self.page, index as i32);
+            if annot.is_null() {
+                return;
+            }
+            let value = self.value_of(annot);
+            if formtext::needs_redraw(&value) {
+                formtext::redraw(self.bindings, annot, &value, multiline);
+            }
+            self.bindings.FPDFPage_CloseAnnot(annot);
+        }
+    }
+
+    /// The value stored in the field of `annot`.
+    ///
+    /// # Safety
+    /// `annot` must be an open annotation handle of this session's page.
+    unsafe fn value_of(&self, annot: FPDF_ANNOTATION) -> String {
+        // SAFETY: the buffer is sized by PDFium's own answer (in bytes, with the
+        // terminating NUL); the second call only writes into it.
+        unsafe {
+            let needed = self.bindings.FPDFAnnot_GetFormFieldValue(
+                self.form,
+                annot,
+                std::ptr::null_mut(),
+                0,
+            );
+            if needed < 2 {
+                return String::new();
+            }
+            let mut buffer = vec![0u16; needed as usize / 2];
+            self.bindings.FPDFAnnot_GetFormFieldValue(
+                self.form,
+                annot,
+                buffer.as_mut_ptr(),
+                needed,
+            );
+            String::from_utf16_lossy(&buffer)
+                .trim_end_matches('\0')
+                .to_owned()
         }
     }
 

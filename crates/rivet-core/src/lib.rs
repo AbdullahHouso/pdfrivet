@@ -18,6 +18,7 @@ mod error;
 mod flatten;
 pub mod fonts;
 mod forms;
+mod formtext;
 mod geometry;
 mod images;
 mod incremental;
