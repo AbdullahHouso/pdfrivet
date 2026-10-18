@@ -18,7 +18,7 @@ getrandom = "0.4.3"
 # pages are saved as.
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif", "tiff"] }
 lopdf = { version = "0.45.0", default-features = false }
-lru = "0.18.5"
+lru = "0.19.0"
 # Installed fonts are memory-mapped while scanning, so only the tables read are loaded.
 memmap2 = "0.9.11"
 pdfium-render = "0.9.4"
