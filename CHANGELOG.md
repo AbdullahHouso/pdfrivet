@@ -51,6 +51,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Zooming with Ctrl+wheel or a touchpad pinch now zooms where the pointer is, across as well as up and down.
 - Fit page no longer shows scrollbars for a page that fits (with display scaling such as 125 % on Windows).
 - Arabic typed into a form field now keeps its letters joined at any zoom. Before, the word could fall apart into separate letters (more so in small fields). The field's background and border stay as they were. Limits: the text is drawn in PDFRivet's own font, left or right aligned by its direction (a field set to centre is not centred), and password fields are not redrawn.
+- Reading a page at a time, turning to the next page no longer sometimes takes seconds in big, image-heavy files: the page you turn to is drawn before anything else (thumbnails, pages prepared ahead), and the next page is prepared ahead at high zoom on high-DPI screens too.
 
 ## [0.2.0] – 2026-10-10
 

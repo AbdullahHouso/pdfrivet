@@ -44,17 +44,20 @@ Query parameters: `scale`, `rot` (0/90/180/270, view only) and `thumb=1` for thu
 - **Visible range:** the viewer calls `set_visible_pages`; the engine answers renders for
   pages far outside that range with `Cancelled` (HTTP 204) instead of rendering them.
   Thumbnails (`thumb=1`) are exempt.
-- **Newest first:** the engine drains its queue and renders the most recent requests first.
+- **Most urgent, then newest first:** the engine renders one page at a time and looks at new
+  requests after each, picking cache checks first, then pages on screen, then thumbnails, then
+  pages prepared ahead (`prefetch=1`, in the order asked); among equals the newest. A page that
+  just came on screen waits for one render at most, never for a queue of others.
 - **Render cache:** a 48 MB LRU of rendered pages in the engine (`cache.rs`).
 - **Progressive pages:** a page coming into view first asks the cache (`cached=1`); if it was
   rendered before at that size it appears sharp at once. Otherwise a quick low-resolution
   preview shows while the sharp page renders. When zooming, the old pixels are stretched
   until the new render arrives.
 - **Pages in the webview** (`pageCanvasCache.ts`): a page leaving the screen keeps its canvas
-  (32 MB budget), and a page coming back paints it in the same frame. Getting pixels from the
+  (32 MB budget, or three pages when pages are bigger), and a page coming back paints it in the same frame. Getting pixels from the
   engine, even from its cache, means sending megabytes through the webview, which showed the
   empty page for a moment. Reading a page at a time, the next and previous rows are rendered
-  ahead into it.
+  ahead into it, once the shown page has painted.
 - **PDFium's own caches:** PDFium keeps fonts, images and other data of every page it has
   shown until the document is closed (about 20 MB per 100 pages in image-heavy files). After
   100 pages the engine quietly reopens the document from the same bytes

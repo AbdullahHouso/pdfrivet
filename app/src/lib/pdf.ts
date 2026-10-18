@@ -247,6 +247,8 @@ export interface RenderOptions {
   thumbnail?: boolean;
   /** Only return the page if it's already rendered at this size (never renders). */
   cachedOnly?: boolean;
+  /** A page about to be shown: rendered after everything else that waits. */
+  prefetch?: boolean;
   signal?: AbortSignal;
 }
 
@@ -259,6 +261,7 @@ export async function renderPage(docId: number, page: number, opts: RenderOption
   let url = `${PROTOCOL_BASE}/page/${docId}/${page}?scale=${opts.scale.toFixed(3)}&rot=${opts.rotation}`;
   if (opts.thumbnail) url += "&thumb=1";
   if (opts.cachedOnly) url += "&cached=1";
+  if (opts.prefetch) url += "&prefetch=1";
   const response = await fetch(url, { signal: opts.signal });
   if (response.status === 204) return null;
   if (!response.ok) {

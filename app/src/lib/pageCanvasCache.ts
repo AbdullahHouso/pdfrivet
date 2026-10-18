@@ -10,6 +10,11 @@ import { renderPage } from "./pdf";
 
 /** Memory for kept pages: a few pages at any zoom. */
 const BUDGET = 32 * 1024 * 1024;
+/**
+ * Grows with big pages (high zoom on a high-DPI screen), so the shown page's
+ * neighbours prepared ahead still fit: page at a time, they'd be dropped otherwise.
+ */
+let budget = BUDGET;
 
 interface Entry {
   canvas: HTMLCanvasElement;
@@ -26,7 +31,7 @@ const key = (docId: number, page: number, rotation: Degrees, revision: number) =
 
 function evict() {
   for (const [k, e] of entries) {
-    if (used <= BUDGET) break;
+    if (used <= budget) break;
     entries.delete(k);
     used -= e.bytes;
   }
@@ -42,7 +47,8 @@ export function keep(
   scale: number,
 ) {
   const bytes = canvas.width * canvas.height * 4;
-  if (bytes === 0 || bytes > BUDGET / 2) return;
+  if (bytes === 0) return;
+  budget = Math.max(BUDGET, 3 * bytes);
   const k = key(docId, page, rotation, revision);
   const old = entries.get(k);
   if (old) used -= old.bytes;
@@ -69,7 +75,7 @@ export async function prefetch(docId: number, page: number, rotation: Degrees, r
   if ((e && Math.abs(e.scale - scale) < 0.01) || pending.has(k)) return;
   pending.add(k);
   try {
-    const pixels = await renderPage(docId, page, { scale, rotation });
+    const pixels = await renderPage(docId, page, { scale, rotation, prefetch: true });
     if (!pixels) return;
     const canvas = document.createElement("canvas");
     canvas.width = pixels.width;

@@ -244,30 +244,40 @@ $effect(() => {
   untrack(() => revealHit(hit));
 });
 
-// Page at a time: prepare the next and previous pages (or spreads) shortly
-// after a page is shown, so turning to them is instant.
+// Page at a time: prepare the next and previous pages (or spreads) once the
+// shown page is painted, so turning to them is instant. Next first: it's the
+// likelier turn, and the engine prepares pages in the order asked.
 $effect(() => {
   if (tab.continuous) return;
   const { rows, rowOf } = fullLayout;
   const row = rowOf[tab.page];
   const rotation = tab.rotation;
-  const pages = [rows[row + 1], rows[row - 1]]
-    .filter((r) => r !== undefined)
-    .flatMap((r) => Array.from({ length: r.last - r.first + 1 }, (_, i) => r.first + i));
+  const pagesOf = (r: { first: number; last: number }) =>
+    Array.from({ length: r.last - r.first + 1 }, (_, i) => r.first + i);
+  const shown = pagesOf(rows[row]);
+  const pages = [rows[row + 1], rows[row - 1]].filter((r) => r !== undefined).flatMap(pagesOf);
   const widths = fullLayout.widths;
-  const timer = setTimeout(() => {
-    for (const page of pages) {
-      const scale = (widths[page] * window.devicePixelRatio) / rotatedSize(tab.info.pageSizes[page], rotation).width;
-      prefetch(
-        tab.docId,
-        page,
-        rotation,
-        untrack(() => tab.pageRevision(page)),
-        scale,
-      );
-    }
-  }, 120);
-  return () => clearTimeout(timer);
+  let cancelled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  Promise.all(shown.map((page) => untrack(() => tab.whenPainted(page)))).then(() => {
+    if (cancelled) return;
+    timer = setTimeout(() => {
+      for (const page of pages) {
+        const scale = (widths[page] * window.devicePixelRatio) / rotatedSize(tab.info.pageSizes[page], rotation).width;
+        prefetch(
+          tab.docId,
+          page,
+          rotation,
+          untrack(() => tab.pageRevision(page)),
+          scale,
+        );
+      }
+    }, 120);
+  });
+  return () => {
+    cancelled = true;
+    clearTimeout(timer);
+  };
 });
 
 // Tell the engine what is visible, so it skips pages we scrolled past.

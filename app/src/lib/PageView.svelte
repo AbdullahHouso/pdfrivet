@@ -3,7 +3,7 @@
 // stays sharp, and re-renders shortly after the size changes (while zooming
 // the old pixels are stretched, so nothing flickers).
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { onDestroy } from "svelte";
+import { onDestroy, untrack } from "svelte";
 import AnnotationLayer from "./AnnotationLayer.svelte";
 import type { LinkTarget } from "./bindings/LinkTarget";
 import type { PageLink } from "./bindings/PageLink";
@@ -157,10 +157,12 @@ $effect(() => {
   const rev = revision;
   const sameSize = Math.abs(scale - paintedScale) < 0.01 && rot === paintedRotation;
   if (sameSize && rev === paintedRevision) return;
+  // Not a dependency: painting the preview must not restart the sharp render.
+  const wasRendered = untrack(() => rendered);
 
   // Shown a moment ago (or prepared ahead): paint those pixels now, in this
   // frame, so the empty page never shows.
-  if (!rendered && !thumbnail) {
+  if (!wasRendered && !thumbnail) {
     const kept = take(docId, index, rot, rev, scale);
     if (kept) {
       canvas.width = kept.canvas.width;
@@ -183,7 +185,7 @@ $effect(() => {
       // show it straight away. Otherwise show a quick low-resolution preview
       // while the sharp page renders.
       let pixels: PagePixels | null = null;
-      if (!rendered && !thumbnail) {
+      if (!wasRendered && !thumbnail) {
         pixels = await renderPage(docId, index, { scale, rotation: rot, cachedOnly: true, signal });
         if (!pixels && scale > 0.4 && !signal.aborted) {
           const preview = await renderPage(docId, index, { scale: 0.25, rotation: rot, signal });
@@ -203,7 +205,7 @@ $effect(() => {
     }
   };
   // Render right away the first time and after an edit; while zooming, wait until it settles.
-  const timer = setTimeout(run, rendered && !sameSize ? 120 : 0);
+  const timer = setTimeout(run, wasRendered && !sameSize ? 120 : 0);
   return () => {
     clearTimeout(timer);
     controller.abort();

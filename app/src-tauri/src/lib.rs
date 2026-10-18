@@ -532,7 +532,7 @@ fn pdfium_dir(app: &tauri::App) -> PathBuf {
     }
 }
 
-/// Handles `rivet://localhost/page/<doc>/<page>?scale=<f32>&rot=<degrees>[&thumb=1][&cached=1]`.
+/// Handles `rivet://localhost/page/<doc>/<page>?scale=<f32>&rot=<degrees>[&thumb=1][&cached=1][&prefetch=1]`.
 ///
 /// The body is an 8-byte header (width and height as little-endian u32)
 /// followed by raw RGBA pixels, ready for `ImageData` on a canvas.
@@ -601,6 +601,9 @@ fn page_protocol(engine: &Engine, uri: &http::Uri) -> http::Response<Vec<u8>> {
         ["page", doc, page] => match (doc.parse(), page.parse()) {
             (Ok(doc), Ok(page)) if query("cached").is_some() => {
                 engine.cached(doc, page, scale, rotation)
+            }
+            (Ok(doc), Ok(page)) if query("prefetch").is_some() => {
+                engine.prefetch(doc, page, scale, rotation)
             }
             (Ok(doc), Ok(page)) if query("thumb").is_some() => {
                 engine.render_thumbnail(doc, page, scale, rotation)

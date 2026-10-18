@@ -6,8 +6,11 @@
 //! - The UI tells the engine which pages are visible ([`Engine::set_visible_pages`]).
 //!   Render requests for pages that scrolled far away are answered with
 //!   [`ErrorCode::Cancelled`] instead of being rendered.
-//! - Waiting render requests are served newest first, so the page you are
-//!   looking at now wins over pages you scrolled past.
+//! - Waiting render requests are served by urgency, then newest first: the
+//!   page you are looking at now wins over pages you scrolled past, over
+//!   thumbnails, and over pages prepared ahead ([`Engine::prefetch`]). The
+//!   engine picks again after every render, so a page that just came on
+//!   screen waits for one render at most.
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -54,6 +57,22 @@ enum Purpose {
     Print,
     /// Only answered from the cache; never rendered.
     Cached,
+    /// A page about to be shown, prepared ahead: like `View`, but only when
+    /// nothing else waits.
+    Prefetch,
+}
+
+impl Purpose {
+    /// Which waiting render goes first: lower first.
+    fn urgency(self) -> u8 {
+        match self {
+            // Answered at once, and the UI waits on it before anything else.
+            Purpose::Cached => 0,
+            Purpose::View | Purpose::Print => 1,
+            Purpose::Thumbnail => 2,
+            Purpose::Prefetch => 3,
+        }
+    }
 }
 
 struct RenderRequest {
@@ -191,6 +210,19 @@ impl Engine {
         area: [u32; 4],
     ) -> Result<RenderedPage> {
         self.call(|reply| Request::RenderRegion(doc, page, scale, rotation, area, reply))
+    }
+
+    /// Renders a page that is about to be shown (the next page when turning
+    /// pages), once nothing more urgent waits; cached like [`Engine::render`].
+    /// Pages prepared ahead are served in the order they were asked for.
+    pub fn prefetch(
+        &self,
+        doc: DocId,
+        page: u32,
+        scale: f32,
+        rotation: Rotation,
+    ) -> Result<RenderedPage> {
+        self.render_request(doc, page, scale, rotation, Purpose::Prefetch)
     }
 
     /// Renders a page regardless of what is visible (used for thumbnails).
@@ -603,6 +635,21 @@ impl Engine {
     }
 }
 
+/// The waiting render to do next: the most urgent; among equals the newest
+/// (where the view is now), except pages prepared ahead, which go in the order
+/// they were asked for (the UI asks for the likeliest next page first).
+fn next_render(renders: &[RenderRequest]) -> Option<usize> {
+    (0..renders.len()).min_by_key(|&i| {
+        let purpose = renders[i].purpose;
+        let age = if purpose == Purpose::Prefetch {
+            i
+        } else {
+            renders.len() - i
+        };
+        (purpose.urgency(), age)
+    })
+}
+
 struct Worker {
     pdf: Pdf,
     docs: HashMap<DocId, Document>,
@@ -682,27 +729,35 @@ impl Worker {
 
     /// Runs until every [`Engine`] handle has been dropped.
     fn run(mut self, rx: mpsc::Receiver<Request>) {
-        while let Ok(first) = rx.recv() {
-            // Take everything that is already waiting. Other requests run in
-            // order; renders run newest first.
-            let mut renders = Vec::new();
-            for request in std::iter::once(first).chain(rx.try_iter()) {
+        let mut renders: Vec<RenderRequest> = Vec::new();
+        loop {
+            // Take everything that is waiting (or wait for something). Other
+            // requests run in order; renders go one at a time, most urgent first,
+            // looking at new requests again after each.
+            let incoming: Vec<Request> = if renders.is_empty() {
+                self.release_memory();
+                let Ok(first) = rx.recv() else { break };
+                std::iter::once(first).chain(rx.try_iter()).collect()
+            } else {
+                rx.try_iter().collect()
+            };
+            for request in incoming {
                 match request {
                     Request::Render(r) => renders.push(r),
                     other => self.handle(other),
                 }
             }
-            for render in renders.into_iter().rev() {
+            if let Some(next) = next_render(&renders) {
+                let render = renders.remove(next);
                 let result = self.render(&render);
                 let _ = render.reply.send(result);
             }
-            self.release_memory();
         }
     }
 
     /// Reopens documents that have shown many pages, so PDFium's per-document
-    /// caches don't keep growing (see `Document::release_memory`). Runs between
-    /// batches of requests, so it never delays a page that is waiting.
+    /// caches don't keep growing (see `Document::release_memory`). Runs when
+    /// no render is waiting, so it never delays a page.
     fn release_memory(&mut self) {
         for (id, doc) in &mut self.docs {
             if doc.should_release_memory()
@@ -870,7 +925,7 @@ impl Worker {
         if let Some(&(first, last)) = self
             .visible
             .get(&r.doc)
-            .filter(|_| r.purpose == Purpose::View)
+            .filter(|_| matches!(r.purpose, Purpose::View | Purpose::Prefetch))
         {
             let near = r.page + VISIBLE_MARGIN >= first && r.page <= last + VISIBLE_MARGIN;
             if !near {
@@ -908,5 +963,39 @@ impl Worker {
 
     fn doc_mut(&mut self, id: DocId) -> Result<&mut Document> {
         self.docs.get_mut(&id).ok_or_else(|| not_open(id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn request(page: u32, purpose: Purpose) -> RenderRequest {
+        RenderRequest {
+            doc: 1,
+            page,
+            scale: 1.0,
+            rotation: Rotation::None,
+            purpose,
+            reply: mpsc::channel().0,
+        }
+    }
+
+    #[test]
+    fn renders_most_urgent_first_then_newest() {
+        let mut waiting = vec![
+            request(0, Purpose::Prefetch),
+            request(1, Purpose::Prefetch),
+            request(2, Purpose::Thumbnail),
+            request(3, Purpose::View),
+            request(4, Purpose::View),
+            request(5, Purpose::Cached),
+        ];
+        let mut order = Vec::new();
+        while let Some(next) = next_render(&waiting) {
+            order.push(waiting.remove(next).page);
+        }
+        // Prepared-ahead pages keep the order they were asked in.
+        assert_eq!(order, [5, 4, 3, 2, 0, 1]);
     }
 }
