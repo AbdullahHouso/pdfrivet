@@ -182,12 +182,11 @@ pub(crate) fn apply(
     // PDFium draws Arabic one glyph at a time and the joins fall apart at small
     // sizes, so right-to-left text is drawn by us (see `formtext`).
     if ok
-        && let FieldChange::Text { value } = change
+        && let FieldChange::Text { .. } = change
         && let PdfFormField::Text(text) = field
         && !text.is_password()
-        && formtext::needs_redraw(value)
     {
-        session.redraw_text(index, value, text.is_multiline());
+        session.redraw_text(index, text.is_multiline());
     }
     if ok {
         Ok(())
@@ -265,8 +264,10 @@ impl<'a> FormSession<'a> {
         }
     }
 
-    /// Redraws a committed text field's appearance with shaped text.
-    fn redraw_text(&self, index: u32, value: &str, multiline: bool) {
+    /// Redraws a committed text field's appearance with shaped text, if its
+    /// value needs it. The value is read back from the field: PDFium may have
+    /// stored less than was typed (a field's `/MaxLen` cuts it short).
+    fn redraw_text(&self, index: u32, multiline: bool) {
         // SAFETY: the annotation handle is opened and closed within this block,
         // and only used while the page is alive.
         unsafe {
@@ -274,8 +275,41 @@ impl<'a> FormSession<'a> {
             if annot.is_null() {
                 return;
             }
-            formtext::redraw(self.bindings, annot, value, multiline);
+            let value = self.value_of(annot);
+            if formtext::needs_redraw(&value) {
+                formtext::redraw(self.bindings, annot, &value, multiline);
+            }
             self.bindings.FPDFPage_CloseAnnot(annot);
+        }
+    }
+
+    /// The value stored in the field of `annot`.
+    ///
+    /// # Safety
+    /// `annot` must be an open annotation handle of this session's page.
+    unsafe fn value_of(&self, annot: FPDF_ANNOTATION) -> String {
+        // SAFETY: the buffer is sized by PDFium's own answer (in bytes, with the
+        // terminating NUL); the second call only writes into it.
+        unsafe {
+            let needed = self.bindings.FPDFAnnot_GetFormFieldValue(
+                self.form,
+                annot,
+                std::ptr::null_mut(),
+                0,
+            );
+            if needed < 2 {
+                return String::new();
+            }
+            let mut buffer = vec![0u16; needed as usize / 2];
+            self.bindings.FPDFAnnot_GetFormFieldValue(
+                self.form,
+                annot,
+                buffer.as_mut_ptr(),
+                needed,
+            );
+            String::from_utf16_lossy(&buffer)
+                .trim_end_matches('\0')
+                .to_owned()
         }
     }
 

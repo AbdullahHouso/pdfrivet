@@ -387,6 +387,54 @@ fn draws_arabic_in_a_form_field_as_joined_outlines() {
 }
 
 #[test]
+fn draws_only_what_a_form_field_keeps() {
+    let _serial = serial();
+    // The "name" field, limited to 5 characters.
+    let dir = temp_dir("form-maxlen");
+    let source = dir.join("maxlen.pdf");
+    let mut file = lopdf::Document::load(fixture("forms.pdf")).unwrap();
+    let id = file
+        .objects
+        .iter()
+        .find(|(_, o)| {
+            o.as_dict()
+                .ok()
+                .and_then(|d| d.get(b"T").and_then(lopdf::Object::as_str).ok())
+                == Some(b"name".as_slice())
+        })
+        .map(|(id, _)| *id)
+        .unwrap();
+    file.get_object_mut(id)
+        .unwrap()
+        .as_dict_mut()
+        .unwrap()
+        .set("MaxLen", 5);
+    file.save(&source).unwrap();
+
+    let draw = |value: &str, saved: &str| {
+        let mut doc = pdf().open(&source, None).unwrap();
+        let name = field(&doc.form_fields(0).unwrap(), "name").index;
+        doc.change_field(
+            0,
+            name,
+            &FieldChange::Text {
+                value: value.into(),
+            },
+        )
+        .unwrap();
+        let out = dir.join(saved);
+        doc.save(&out).unwrap();
+        field_appearance(&out, "name").matches(" c ").count()
+    };
+    // PDFium keeps "تجربة" of the longer text, and only that is drawn.
+    let kept = draw("تجربة", "kept.pdf");
+    let cut = draw("تجربة كتابة بالعربي", "cut.pdf");
+    assert!(kept > 0);
+    assert_eq!(cut, kept, "drew more than the field keeps");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn keeps_pdfiums_drawing_for_latin_text_in_a_form_field() {
     let _serial = serial();
     let mut doc = pdf().open(&fixture("forms.pdf"), None).unwrap();
