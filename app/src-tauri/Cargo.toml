@@ -51,7 +51,7 @@ webview2-com = "0.39.1"
 
 # HTML to PDF on Linux: WebKitGTK printing to a file (src/html_pdf.rs); the versions wry uses.
 [target.'cfg(target_os = "linux")'.dependencies]
-gtk = "0.18.2"
+gtk = "0.19.0"
 webkit2gtk = { version = "2.0.2", features = ["v2_38"] }
 
 # macOS: asking Launch Services which app opens PDFs (src/default_app.rs).
