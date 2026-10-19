@@ -14,7 +14,9 @@ import {
   SIDEBAR_MIN,
   scrollLeftFor,
   scrollTopFor,
+  splitWidth,
   stepZoom,
+  syncedAnchor,
   THUMB_GAP,
   THUMB_LABEL,
   thumbnailGrid,
@@ -235,5 +237,22 @@ describe("sidebar width", () => {
     expect(clampSidebar(900, 1600)).toBe(400);
     // Small windows still allow 240 px.
     expect(clampSidebar(300, 800)).toBe(240);
+  });
+});
+
+describe("side by side", () => {
+  it("keeps both panes usable", () => {
+    expect(splitWidth(0.5, 1000)).toBe(500);
+    expect(splitWidth(0.1, 1000)).toBe(280);
+    expect(splitWidth(0.95, 1000)).toBe(720);
+    // Too narrow for two minimum panes: halves.
+    expect(splitWidth(0.2, 400)).toBe(200);
+  });
+
+  it("scrolls the other pane to the matching place, the same pages apart", () => {
+    const at = { page: 3, fraction: 0.4, offset: 20 };
+    expect(syncedAnchor(at, 2, 10)).toEqual({ page: 5, fraction: 0.4, offset: 20 });
+    expect(syncedAnchor(at, -5, 10)).toEqual({ page: 0, fraction: 0, offset: 0 });
+    expect(syncedAnchor(at, 10, 10)).toEqual({ page: 9, fraction: 1, offset: 20 });
   });
 });

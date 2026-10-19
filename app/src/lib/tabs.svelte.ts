@@ -231,6 +231,45 @@ export class Tab {
 let nextId = 1;
 let list = $state<Tab[]>([]);
 let activeId = $state<number | null>(null);
+/** The tab that was active before the current one (for "Side by side"). */
+let previousId: number | null = null;
+
+/**
+ * Two tabs shown side by side (`start` is on the left, or on the right in
+ * right-to-left languages). The active tab is the focused pane: the toolbar,
+ * sidebar and shortcuts act on it.
+ */
+export interface Split {
+  start: number;
+  end: number;
+  /** Scrolling one pane scrolls the other. */
+  sync: boolean;
+}
+let split = $state<Split | null>(null);
+
+function setActive(id: number | null) {
+  if (id === activeId) return;
+  if (activeId !== null) previousId = activeId;
+  activeId = id;
+}
+
+/** Shows `id` in the focused pane when two tabs are side by side (the other pane stays). */
+function showInFocusedPane(id: number) {
+  if (split && id !== split.start && id !== split.end) {
+    if (split.start === activeId) split.start = id;
+    else split.end = id;
+    split.sync = false;
+  }
+  setActive(id);
+}
+
+/** A tab is going away: side by side ends, and the other pane's tab stays shown. */
+function leaveSplit(id: number): number | null {
+  if (!split || (id !== split.start && id !== split.end)) return null;
+  const other = id === split.start ? split.end : split.start;
+  split = null;
+  return other;
+}
 
 function samePath(a: string, b: string) {
   return a.toLowerCase() === b.toLowerCase();
@@ -243,17 +282,51 @@ export const tabs = {
   get active(): Tab | null {
     return list.find((t) => t.id === activeId) ?? null;
   },
+  /** The tabs shown: two when side by side, else the active one (none on the start page). */
+  get panes(): Tab[] {
+    const ids = split ? [split.start, split.end] : activeId === null ? [] : [activeId];
+    return ids.map((id) => list.find((t) => t.id === id)).filter((t) => t !== undefined);
+  },
+  get split(): Split | null {
+    return split;
+  },
+  /** Shows tab `id` beside the active tab (the active one stays on the start side). */
+  showBeside(id: number) {
+    const active = activeId;
+    if (active === null || id === active || !list.some((t) => t.id === id)) return;
+    split = { start: active, end: id, sync: false };
+  },
+  /** The tab to show beside the active one when none is chosen: the one used before it. */
+  get besideCandidate(): Tab | null {
+    const others = list.filter((t) => t.id !== activeId);
+    return others.find((t) => t.id === previousId) ?? others.at(-1) ?? null;
+  },
+  /** Back to one tab: the focused one. */
+  endSplit() {
+    split = null;
+  },
+  swapPanes() {
+    if (split) split = { ...split, start: split.end, end: split.start };
+  },
+  setSync(on: boolean) {
+    if (split) split.sync = on;
+  },
+  /** Makes one of the two panes the focused one. */
+  focusPane(id: number) {
+    if (split && (id === split.start || id === split.end)) setActive(id);
+  },
   findByPath(path: string): Tab | undefined {
     return list.find((t) => samePath(t.path, path));
   },
   add(docId: number, path: string, info: DocInfo): Tab {
     const tab = new Tab(nextId++, docId, path, info);
     list = [...list, tab];
-    activeId = tab.id;
+    showInFocusedPane(tab.id);
     return tab;
   },
+  /** Shows a tab; side by side, it takes the place of the focused pane's tab. */
   activate(id: number) {
-    if (list.some((t) => t.id === id)) activeId = id;
+    if (list.some((t) => t.id === id)) showInFocusedPane(id);
   },
   /** The start page is shown as a tab of its own (the + button), next to the open documents. */
   get home(): boolean {
@@ -261,21 +334,22 @@ export const tabs = {
   },
   /** Shows the start page (recent files, open a file) without closing anything. */
   showHome() {
-    activeId = null;
+    split = null;
+    setActive(null);
   },
   /** Leaves the start page for the last document. */
   closeHome() {
-    if (activeId === null) activeId = list.at(-1)?.id ?? null;
+    if (activeId === null) setActive(list.at(-1)?.id ?? null);
   },
   /** Activates the next (+1) or previous (-1) tab, wrapping around. */
   cycle(direction: 1 | -1) {
     if (activeId === null) {
-      activeId = (direction > 0 ? list[0] : list.at(-1))?.id ?? null;
+      setActive((direction > 0 ? list[0] : list.at(-1))?.id ?? null);
       return;
     }
     if (list.length < 2) return;
     const index = list.findIndex((t) => t.id === activeId);
-    activeId = list[(index + direction + list.length) % list.length].id;
+    this.activate(list[(index + direction + list.length) % list.length].id);
   },
   /** Shows a tab handed over from another window (its document is already open). */
   adopt(state: TabState, info: DocInfo): Tab {
@@ -297,7 +371,8 @@ export const tabs = {
     if (index < 0) return;
     list.splice(index, 1);
     list = [...list];
-    if (activeId === id) activeId = list[Math.min(index, list.length - 1)]?.id ?? null;
+    const other = leaveSplit(id);
+    if (activeId === id) setActive(other ?? list[Math.min(index, list.length - 1)]?.id ?? null);
   },
   /** Closes a tab right away (callers ask about unsaved changes first). */
   async close(id: number) {
@@ -305,7 +380,8 @@ export const tabs = {
     if (index < 0) return;
     const [tab] = list.splice(index, 1);
     list = [...list];
-    if (activeId === id) activeId = list[Math.min(index, list.length - 1)]?.id ?? null;
+    const other = leaveSplit(id);
+    if (activeId === id) setActive(other ?? list[Math.min(index, list.length - 1)]?.id ?? null);
     tab.search.clear();
     forgetPageText(tab.docId);
     forgetPages(tab.docId);

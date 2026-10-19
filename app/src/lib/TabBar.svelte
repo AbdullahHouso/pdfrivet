@@ -1,4 +1,5 @@
 <script lang="ts">
+import ContextMenu, { type MenuItem } from "./ContextMenu.svelte";
 import Icon from "./Icon.svelte";
 import { i18n } from "./i18n.svelte";
 import { pop } from "./motion";
@@ -7,8 +8,36 @@ import { type Tab, tabs } from "./tabs.svelte";
 interface Props {
   /** Closes a tab (asking about unsaved changes first). */
   onclose: (tab: Tab) => void;
+  /** Files can be shown side by side (documents open in tabs). */
+  cansplit: boolean;
 }
-let { onclose }: Props = $props();
+let { onclose, cansplit }: Props = $props();
+
+let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
+
+function shown(tab: Tab): boolean {
+  const split = tabs.split;
+  return split !== null && (split.start === tab.id || split.end === tab.id);
+}
+
+function showMenu(e: MouseEvent, tab: Tab) {
+  e.preventDefault();
+  const items: MenuItem[] = [];
+  if (shown(tab)) {
+    items.push({ label: i18n.t("close-side-by-side"), action: () => tabs.endSplit() });
+  } else if (cansplit && tabs.list.length > 1) {
+    items.push({
+      label: i18n.t("show-side-by-side"),
+      action: () => {
+        // This tab beside the one you're on; for the one you're on, the one used before it.
+        const beside = tab.id === tabs.active?.id ? tabs.besideCandidate : tab;
+        if (beside) tabs.showBeside(beside.id);
+      },
+    });
+  }
+  items.push({ label: i18n.t("close-tab", { name: tab.title }), action: () => onclose(tab) });
+  menu = { x: e.clientX, y: e.clientY, items };
+}
 </script>
 
 <div class="tabbar" role="tablist" aria-label={i18n.t("open-documents")}>
@@ -18,12 +47,14 @@ let { onclose }: Props = $props();
       in:pop
       class="tab"
       class:active
+      class:shown={!active && shown(tab)}
       role="tab"
       tabindex={active ? 0 : -1}
       aria-selected={active}
       title={tab.path}
       onclick={() => tabs.activate(tab.id)}
       onauxclick={(e) => e.button === 1 && onclose(tab)}
+      oncontextmenu={(e) => showMenu(e, tab)}
       onkeydown={(e) => (e.key === "Enter" || e.key === " ") && tabs.activate(tab.id)}
     >
       <Icon name="file" />
@@ -65,6 +96,10 @@ let { onclose }: Props = $props();
   </button>
 </div>
 
+{#if menu}
+  <ContextMenu {...menu} onclose={() => (menu = null)} />
+{/if}
+
 <style>
   .tabbar {
     display: flex;
@@ -96,6 +131,11 @@ let { onclose }: Props = $props();
   }
   .tab:hover {
     background: var(--hover);
+  }
+  /* Side by side: the other pane's tab. */
+  .tab.shown {
+    border-color: var(--border);
+    color: var(--text);
   }
   .tab.active {
     font-weight: 500;

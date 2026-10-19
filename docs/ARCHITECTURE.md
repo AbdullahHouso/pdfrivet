@@ -68,6 +68,14 @@ Query parameters: `scale`, `rot` (0/90/180/270, view only) and `thumb=1` for thu
 
 - Each tab (`tabs.svelte.ts`) keeps its page, zoom, rotation and scroll position. Only the
   active tab's viewer is mounted, so background tabs use no page memory.
+- **Side by side** (`tabs.split`): two tabs' viewers are mounted next to each other. The
+  focused pane *is* the active tab, so the toolbar, sidebar, find bar, comments and shortcuts
+  need no changes; focusing a pane (`tabs.focusPane`) switches them. Activating another tab puts
+  it in the focused pane; closing either tab, the start page, Organize pages and separate-windows
+  mode end it. App keeps a viewer handle per tab (`viewers[id]`). Sync scrolling passes
+  `Viewer`'s `onscrolled` anchor (page + fraction) to the other pane's `follow`, keeping the page
+  gap from when it was turned on (`syncedAnchor`); a short guard stops the panes echoing each
+  other. The webview's page cache budget scales with the panes on screen (`setPaneCount`).
 - `tauri-plugin-single-instance`: launching PDFRivet again (e.g. double-clicking a PDF) sends the
   file to the running window. Files are queued in Rust and the UI is told with an
   `open-files` event (`take_pending_files`). macOS delivers files via `RunEvent::Opened`.

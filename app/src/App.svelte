@@ -30,6 +30,7 @@ import Icon from "./lib/Icon.svelte";
 import { i18n } from "./lib/i18n.svelte";
 import { isTyping, modalOpen, shortcutKey } from "./lib/keys";
 import {
+  type Anchor,
   COMMENTS_DEFAULT,
   COMMENTS_MIN,
   commentsMax,
@@ -37,14 +38,19 @@ import {
   rotatedSize,
   SIDEBAR_DEFAULT,
   SIDEBAR_MIN,
+  SPLIT_DEFAULT,
+  SPLIT_MIN,
   sidebarMax,
+  splitWidth,
   stepZoom,
+  syncedAnchor,
 } from "./lib/layout";
 import { fade, out, rise } from "./lib/motion";
 import OrganizeView from "./lib/organize/OrganizeView.svelte";
 import PasswordDialog from "./lib/PasswordDialog.svelte";
 import PrintDialog from "./lib/PrintDialog.svelte";
 import PropertiesDialog from "./lib/PropertiesDialog.svelte";
+import { setPaneCount } from "./lib/pageCanvasCache";
 import { arrange, flatten } from "./lib/pageEdits";
 import { pageList } from "./lib/pageRange";
 import {
@@ -108,7 +114,11 @@ let commentsWidth = $derived(
 let sidebarWidth = $derived(
   Math.round(Math.min(Math.max(sidebarDrag ?? settings.sidebarWidth, sidebarMin), sidebarMax(windowWidth))),
 );
-let findBar: FindBar | undefined = $state();
+// One viewer and find bar per file on screen (two side by side); the toolbar
+// and shortcuts use the active (focused) one's.
+let viewers = $state<Record<number, Viewer>>({});
+let findBars = $state<Record<number, FindBar>>({});
+let findBar = $derived(tabs.active ? findBars[tabs.active.id] : undefined);
 let showAbout = $state(false);
 let showSettings = $state(false);
 let dragging = $state(false);
@@ -121,9 +131,43 @@ let question = $state<{ title: string; message: string; choices: Choice[]; answe
 /** Pages being prepared for printing, with a way to cancel. */
 let printing = $state<(PrintProgress & { controller: AbortController }) | null>(null);
 
-let viewer: Viewer | undefined = $state();
 let toolbar: Toolbar | undefined = $state();
 let active = $derived(tabs.active);
+let viewer = $derived(active ? viewers[active.id] : undefined);
+
+// Side by side: the panes' total width, and the first pane's (live while dragging the divider).
+let panesWidth = $state(0);
+let splitDrag = $state<number | null>(null);
+let startPaneWidth = $derived(splitDrag ?? splitWidth(settings.splitRatio, panesWidth));
+let canSplit = $derived(tabs.list.length > 1 && settings.documentWindows === "tabs");
+$effect(() => setPaneCount(tabs.panes.length));
+
+/** The toolbar's Side by side button: the file you're on beside the one you used before it, or back to one. */
+function toggleSplit() {
+  if (tabs.split) {
+    tabs.endSplit();
+    return;
+  }
+  const beside = tabs.besideCandidate;
+  if (beside && canSplit) tabs.showBeside(beside.id);
+}
+
+// Scrolling in step: the pages stay as far apart as when it was turned on.
+let syncOffset = 0;
+function setSync(on: boolean) {
+  const split = tabs.split;
+  if (!split) return;
+  const [start, end] = tabs.panes;
+  syncOffset = end.page - start.page;
+  tabs.setSync(on);
+}
+function followOther(from: Tab, anchor: Anchor) {
+  const [start, end] = tabs.panes;
+  if (!start || !end) return;
+  const other = from === start ? end : start;
+  const offset = from === start ? syncOffset : -syncOffset;
+  viewers[other.id]?.follow(syncedAnchor(anchor, offset, other.info.pageCount));
+}
 
 const fileName = (path: string) => path.split(/[\\/]/).at(-1) ?? path;
 
@@ -243,7 +287,7 @@ function closeFind(tab: Tab) {
   tab.findOpen = false;
   tab.search.clear();
   // Back to the pages, so the keyboard scrolls them again.
-  document.querySelector<HTMLElement>(".scroller")?.focus({ preventScroll: true });
+  viewers[tab.id]?.focus();
 }
 
 /** F3 / Shift+F3: the next or previous result, or open the find bar. */
@@ -486,6 +530,8 @@ async function adoptTab(state: TabState) {
  */
 async function switchDocumentWindows(mode: DocumentWindows) {
   if (mode === "windows") {
+    // A window per file: side by side has no place there.
+    tabs.endSplit();
     const others = tabs.list.filter((t) => t.id !== tabs.active?.id);
     let n = 1;
     for (const tab of others) {
@@ -556,6 +602,9 @@ function organize(tab: Tab) {
   closeFind(tab);
   annotate.open = false;
   tab.selection = null;
+  // Organizing takes the whole window.
+  tabs.focusPane(tab.id);
+  tabs.endSplit();
   tab.organizing = true;
 }
 
@@ -704,12 +753,13 @@ async function toggleFullscreen() {
 }
 
 // Remember where you are in each document and how you view it (saved shortly
-// after you stop moving).
+// after you stop moving), in both panes side by side.
 $effect(() => {
-  if (!active) return;
-  const path = active.path;
-  const view = active.view();
-  const timer = setTimeout(() => settings.updateView(path, view), 800);
+  const views = tabs.panes.map((t) => [t.path, t.view()] as const);
+  if (views.length === 0) return;
+  const timer = setTimeout(() => {
+    for (const [path, view] of views) settings.updateView(path, view);
+  }, 800);
   return () => clearTimeout(timer);
 });
 
@@ -909,7 +959,7 @@ onMount(() => {
 <!-- With a window per document the tab bar is hidden, unless this window
      still has several tabs from before the setting changed. -->
 {#if tabs.list.length > 1 || (tabs.list.length > 0 && settings.documentWindows === "tabs")}
-  <TabBar onclose={closeTab} />
+  <TabBar onclose={closeTab} cansplit={canSplit} />
 {/if}
 
 <Toolbar
@@ -949,6 +999,9 @@ onMount(() => {
     if (active) active.continuous = on;
   }}
   ontool={runTool}
+  split={tabs.split !== null}
+  cansplit={canSplit}
+  onsplit={toggleSplit}
 />
 
 {#if active && annotate.open}
@@ -990,8 +1043,8 @@ onMount(() => {
 
 <main>
   {#if active}
-    {#key active.id}
-      {#if active.organizing}
+    {#if active.organizing}
+      {#key active.id}
         {@const tab = active}
         <OrganizeView
           {tab}
@@ -1000,75 +1053,135 @@ onMount(() => {
           onask={ask}
           onextract={(pages) => extractFlow(tab, pages)}
         />
-      {:else}
+      {/key}
+    {:else}
       {#if sidebarOpen}
-        <div class="sidebar-wrap" in:fade out:out>
-          <Sidebar
-            bind:this={sidebar}
-            tab={active}
-            width={sidebarWidth}
-            ongoto={goTo}
-            bind:pane={sidebarPane}
-            onfind={() => active && openFind(active)}
-            onerror={(e) => (error = e)}
-            ontool={(tool, page) => {
-              if (!active) return;
-              if (tool === "extract") extractFlow(active, [page]);
-              else if (tool === "organize") organize(active);
-            }}
-          />
-          <Splitter
-            bind:value={() => sidebarWidth, (w) => (sidebarDrag = w)}
-            min={sidebarMin}
-            max={sidebarMax(windowWidth)}
-            defaultValue={SIDEBAR_DEFAULT}
-            edge="end"
-            label={i18n.t("resize-sidebar")}
-            oncommit={(w) => {
-              sidebarDrag = null;
-              settings.sidebarWidth = w;
-            }}
-          />
-        </div>
+        {#key active.id}
+          <div class="sidebar-wrap" in:fade out:out>
+            <Sidebar
+              bind:this={sidebar}
+              tab={active}
+              width={sidebarWidth}
+              ongoto={goTo}
+              bind:pane={sidebarPane}
+              onfind={() => active && openFind(active)}
+              onerror={(e) => (error = e)}
+              ontool={(tool, page) => {
+                if (!active) return;
+                if (tool === "extract") extractFlow(active, [page]);
+                else if (tool === "organize") organize(active);
+              }}
+            />
+            <Splitter
+              bind:value={() => sidebarWidth, (w) => (sidebarDrag = w)}
+              min={sidebarMin}
+              max={sidebarMax(windowWidth)}
+              defaultValue={SIDEBAR_DEFAULT}
+              edge="end"
+              label={i18n.t("resize-sidebar")}
+              oncommit={(w) => {
+                sidebarDrag = null;
+                settings.sidebarWidth = w;
+              }}
+            />
+          </div>
+        {/key}
       {/if}
-      {@const tab = active}
-      <Viewer bind:this={viewer} {tab} onerror={(e) => (error = e)} oncontextmenu={(e) => showPageMenu(tab, e)} />
+      <!-- One pane, or two files side by side (the focused one is the active tab). -->
+      <div class="panes" bind:clientWidth={panesWidth}>
+        {#each tabs.panes as tab, i (tab.id)}
+          {@const split = tabs.split}
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div
+            class="pane"
+            class:split={split !== null}
+            class:focused={split !== null && tab === active}
+            style:flex-basis={split && i === 0 ? `${startPaneWidth}px` : null}
+            onpointerdowncapture={() => tabs.focusPane(tab.id)}
+            onfocusin={() => tabs.focusPane(tab.id)}
+          >
+            {#if split}
+              <div class="pane-head">
+                <Icon name="file" />
+                <span class="pane-name" dir="auto" title={tab.path}>{tab.title}</span>
+                {#if i === 1}
+                  <button class="icon" aria-pressed={split.sync} onclick={() => setSync(!split.sync)}
+                    aria-label={i18n.t("sync-scrolling")} title={i18n.t("sync-scrolling")}>
+                    <Icon name="link" />
+                  </button>
+                  <button class="icon" onclick={() => tabs.endSplit()}
+                    aria-label={i18n.t("close-side-by-side")} title={i18n.t("close-side-by-side")}>
+                    <Icon name="close" />
+                  </button>
+                {/if}
+              </div>
+            {/if}
+            <div class="pane-body">
+              <Viewer
+                bind:this={viewers[tab.id]}
+                {tab}
+                autofocus={tab === active}
+                onscrolled={split?.sync ? (anchor) => followOther(tab, anchor) : undefined}
+                onerror={(e) => (error = e)}
+                oncontextmenu={(e) => showPageMenu(tab, e)}
+              />
+              {#if tab.findOpen}
+                <FindBar
+                  bind:this={findBars[tab.id]}
+                  {tab}
+                  onclose={() => closeFind(tab)}
+                  onshowall={() => {
+                    tabs.focusPane(tab.id);
+                    sidebarOpen = true;
+                    sidebarPane = "search";
+                  }}
+                />
+              {/if}
+            </div>
+            {#if split && i === 0}
+              <Splitter
+                bind:value={() => startPaneWidth, (w) => (splitDrag = w)}
+                min={Math.min(SPLIT_MIN, panesWidth / 2)}
+                max={Math.max(panesWidth / 2, panesWidth - SPLIT_MIN)}
+                defaultValue={Math.round(panesWidth * SPLIT_DEFAULT)}
+                edge="end"
+                label={i18n.t("side-by-side")}
+                oncommit={(w) => {
+                  splitDrag = null;
+                  if (panesWidth > 0) settings.splitRatio = w / panesWidth;
+                }}
+              />
+            {/if}
+          </div>
+        {/each}
+      </div>
       {#if commentsOpen}
-        <div class="comments-wrap" in:fade out:out>
-          <Splitter
-            bind:value={() => commentsWidth, (w) => (commentsDrag = w)}
-            min={COMMENTS_MIN}
-            max={commentsMax(windowWidth)}
-            defaultValue={COMMENTS_DEFAULT}
-            edge="start"
-            label={i18n.t("resize-comments")}
-            oncommit={(w) => {
-              commentsDrag = null;
-              settings.commentsWidth = w;
-            }}
-          />
-          <CommentsPanel
-            {tab}
-            width={commentsWidth}
-            onreveal={(page, rect) => viewer?.revealRect(page, rect)}
-            onclose={() => (commentsOpen = false)}
-            onerror={(e) => (error = e)}
-          />
-        </div>
+        {#key active.id}
+          {@const tab = active}
+          <div class="comments-wrap" in:fade out:out>
+            <Splitter
+              bind:value={() => commentsWidth, (w) => (commentsDrag = w)}
+              min={COMMENTS_MIN}
+              max={commentsMax(windowWidth)}
+              defaultValue={COMMENTS_DEFAULT}
+              edge="start"
+              label={i18n.t("resize-comments")}
+              oncommit={(w) => {
+                commentsDrag = null;
+                settings.commentsWidth = w;
+              }}
+            />
+            <CommentsPanel
+              {tab}
+              width={commentsWidth}
+              onreveal={(page, rect) => viewer?.revealRect(page, rect)}
+              onclose={() => (commentsOpen = false)}
+              onerror={(e) => (error = e)}
+            />
+          </div>
+        {/key}
       {/if}
-      {#if tab.findOpen}
-        <FindBar
-          bind:this={findBar}
-          {tab}
-          onclose={() => closeFind(tab)}
-          onshowall={() => {
-            sidebarOpen = true;
-            sidebarPane = "search";
-          }}
-        />
-      {/if}
-      {/if}
-    {/key}
+    {/if}
   {:else}
     <StartScreen onopen={pickFiles} onopenpath={openRecent} ontool={startTool} />
   {/if}
@@ -1321,6 +1434,67 @@ onMount(() => {
   .print-progress progress {
     width: 160px;
     accent-color: var(--accent);
+  }
+  .panes {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+  }
+  .pane {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .pane.split:first-child {
+    flex-grow: 0;
+    flex-shrink: 0;
+  }
+  .pane.split + .pane.split {
+    border-inline-start: 1px solid var(--border);
+  }
+  .pane-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+  .pane-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding-inline: 10px 4px;
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface);
+    border-block-end: 2px solid transparent;
+  }
+  .pane-head :global(.icon) {
+    flex: none;
+    width: 14px;
+    height: 14px;
+  }
+  .pane.focused .pane-head {
+    color: var(--text);
+    border-block-end-color: var(--accent);
+  }
+  .pane-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pane-head button.icon {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+  }
+  .pane-head button :global(svg) {
+    width: 14px;
+    height: 14px;
   }
   /* Holds the comments panel (and its splitter) so it can fade in and out. */
   .comments-wrap {

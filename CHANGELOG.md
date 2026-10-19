@@ -35,6 +35,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Password protection (Tools menu): require a password to open the file, restrict printing, copying, changes, forms and comments (with a separate permissions password), or remove the protection. Files are protected with AES-256. Changing a restricted file's protection asks for its permissions password, as in Acrobat.
 
 ### Added
+- Side by side: show two open files next to each other (the toolbar's Side by side button, or right-click a tab), for reading a book beside its answers or comparing two versions. Drag the divider to share the width; click a file to work on it. Sync scrolling (off at first) moves both together, keeping the pages as far apart as they were.
 - PDFRivet offers to become your default PDF app when another app opens PDF files (once, after you open a file; "Not now" waits a week). Settings → General shows which app opens your PDFs. On Windows this opens PDFRivet's page in the Windows settings, and the installer's last page has a link to it.
 
 ### Changed

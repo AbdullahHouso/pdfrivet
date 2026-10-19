@@ -50,7 +50,7 @@ import { fade, out, pop, rise } from "./motion";
 import { getAnnotations, type RivetError, setAnnotationHidden, toRivetError } from "./pdf";
 import { settings, type ToolStyle } from "./settings.svelte";
 import TextBoxEditor from "./TextBoxEditor.svelte";
-import type { Lifted, Tab } from "./tabs.svelte";
+import { type Lifted, type Tab, tabs } from "./tabs.svelte";
 import { stepSize, TEXT_PADDING } from "./textBox";
 
 interface Props {
@@ -610,6 +610,8 @@ function onDoubleClick(e: MouseEvent) {
 function onWindowKey(e: KeyboardEvent) {
   const a = selected;
   if (a?.kind.kind !== "freeText" || !a.editable || e.key !== "Enter" || annotate.textEdit) return;
+  // Side by side, Enter belongs to the focused pane.
+  if (tabs.active !== tab) return;
   const t = e.target as HTMLElement | null;
   if (t?.closest("input, textarea, select, button, [contenteditable]") || modalOpen()) return;
   e.preventDefault();

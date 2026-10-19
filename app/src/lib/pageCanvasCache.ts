@@ -15,6 +15,13 @@ const BUDGET = 32 * 1024 * 1024;
  * neighbours prepared ahead still fit: page at a time, they'd be dropped otherwise.
  */
 let budget = BUDGET;
+/** Documents on screen at once (two side by side): each keeps its pages around. */
+let panes = 1;
+
+/** How many viewers are shown (see `budget`). */
+export function setPaneCount(count: number) {
+  panes = Math.max(1, count);
+}
 
 interface Entry {
   canvas: HTMLCanvasElement;
@@ -48,7 +55,7 @@ export function keep(
 ) {
   const bytes = canvas.width * canvas.height * 4;
   if (bytes === 0) return;
-  budget = Math.max(BUDGET, 3 * bytes);
+  budget = Math.max(BUDGET, 3 * bytes * panes);
   const k = key(docId, page, rotation, revision);
   const old = entries.get(k);
   if (old) used -= old.bytes;

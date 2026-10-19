@@ -413,3 +413,24 @@ export const COMMENTS_DEFAULT = 300;
 export function commentsMax(windowWidth: number): number {
   return Math.max(320, Math.round(windowWidth / 4));
 }
+
+/** Side by side: the narrowest a pane may get, and how the first pane's width is kept. */
+export const SPLIT_MIN = 280;
+export const SPLIT_DEFAULT = 0.5;
+/** The first pane's width for a share of the space (each pane at least SPLIT_MIN when it fits). */
+export function splitWidth(ratio: number, total: number): number {
+  const min = Math.min(SPLIT_MIN, total / 2);
+  return Math.round(Math.min(Math.max(ratio * total, min), total - min));
+}
+
+/**
+ * Scrolling in step: where the other pane goes when one pane is at `anchor`.
+ * The pages stay as far apart as when syncing started (`pageOffset`, other
+ * minus this), within the other document's `pageCount` pages.
+ */
+export function syncedAnchor(anchor: Anchor, pageOffset: number, pageCount: number): Anchor {
+  const page = anchor.page + pageOffset;
+  if (page < 0) return { page: 0, fraction: 0, offset: 0 };
+  if (page > pageCount - 1) return { page: Math.max(0, pageCount - 1), fraction: 1, offset: anchor.offset };
+  return { page, fraction: anchor.fraction, offset: anchor.offset };
+}

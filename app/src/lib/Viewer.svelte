@@ -59,8 +59,12 @@ interface Props {
   onerror?: (e: RivetError) => void;
   /** Right-click on the pages (for the selection's menu). */
   oncontextmenu?: (e: MouseEvent) => void;
+  /** Take the keyboard focus when shown (side by side, only the focused pane does). */
+  autofocus?: boolean;
+  /** The user scrolled or turned the page: where the view is now (for scrolling in step). */
+  onscrolled?: (anchor: Anchor) => void;
 }
-let { tab, onerror, oncontextmenu }: Props = $props();
+let { tab, onerror, oncontextmenu, autofocus = true, onscrolled }: Props = $props();
 
 let scroller: HTMLElement;
 let content: HTMLElement;
@@ -138,6 +142,22 @@ export function goToPage(page: number, atBottom = false) {
       scroller.scrollTop = atBottom ? scroller.scrollHeight : 0;
     });
   }
+}
+
+/** Gives the pages the keyboard focus (PageUp/PageDown, arrows, Space). */
+export function focus() {
+  scroller.focus({ preventScroll: true });
+}
+
+// Scrolling in step with another pane: the scrolls `follow` causes aren't
+// reported back, or the two panes would keep moving each other.
+let followUntil = 0;
+
+/** Goes where another pane is (see `onscrolled`). */
+export function follow(anchor: Anchor) {
+  followUntil = performance.now() + 150;
+  if (tab.continuous) scroller.scrollTop = scrollTopFor(layout, anchor);
+  else if (fullLayout.rows[fullLayout.rowOf[anchor.page]]?.first !== tab.page) goToPage(anchor.page);
 }
 
 /** Moves one row (page or spread) forward (+1) or back (-1). */
@@ -288,7 +308,16 @@ $effect(() => {
 
 // Focus the pages so PageUp/PageDown, arrows and Space scroll right away.
 $effect(() => {
-  scroller.focus({ preventScroll: true });
+  if (autofocus) scroller.focus({ preventScroll: true });
+});
+
+// Page at a time, a page turn is what moves the view (for scrolling in step).
+$effect(() => {
+  const page = tab.page;
+  if (tab.continuous || !onscrolled) return;
+  untrack(() => {
+    if (performance.now() >= followUntil) onscrolled({ page, fraction: 0, offset: 0 });
+  });
 });
 
 // Restore the tab's scroll position (or its saved page) once laid out.
@@ -313,6 +342,7 @@ function onScroll() {
   tab.scrollLeft = scroller.scrollLeft;
   if (jumpedTo && Math.abs(scrollTop - jumpedTo.top) > 1) jumpedTo = null;
   if (tab.continuous) tab.page = jumpedTo?.page ?? currentPage(layout, scrollTop, viewportHeight);
+  if (tab.continuous && onscrolled && performance.now() >= followUntil) onscrolled(anchorAt(layout, scrollTop, 0));
 }
 
 // Page at a time: scrolling past the end of a page turns to the next one.

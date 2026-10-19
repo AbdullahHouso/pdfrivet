@@ -41,6 +41,11 @@ interface Props {
   onpagetone: (tone: PageTone) => void;
   /** A tool from the Tools menu (see tools/tools.ts). */
   ontool: (tool: ToolId) => void;
+  /** Two files are shown side by side. */
+  split: boolean;
+  /** Another file is open to show beside this one (and documents open in tabs). */
+  cansplit: boolean;
+  onsplit: () => void;
 }
 let props: Props = $props();
 let tab = $derived(props.tab);
@@ -204,6 +209,10 @@ function run(command: () => void) {
       <span class="sep" aria-hidden="true"></span>
 
       <div class="group">
+        <button class="icon" onclick={props.onsplit} disabled={!props.cansplit && !props.split} aria-pressed={props.split}
+          aria-label={i18n.t("side-by-side")} title={i18n.t("side-by-side-hint")}>
+          <Icon name="side-by-side" />
+        </button>
         <button class="icon" popovertarget="view-menu" aria-label={i18n.t("page-display")} title={i18n.t("page-display")}>
           <Icon name={tab.pageLayout === "double" ? "two-pages" : "one-page"} />
         </button>

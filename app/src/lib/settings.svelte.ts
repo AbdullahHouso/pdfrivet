@@ -76,6 +76,7 @@ let animations = $state(!lessMotion);
 let toolStyles = $state<Record<string, ToolStyle>>({});
 // Panel widths in px (clamped to the window when shown) and thumbnails per row.
 let sidebarWidth = $state(200);
+let splitRatio = $state(0.5);
 let commentsWidth = $state(300);
 let thumbnailColumns = $state(1);
 // How new text boxes look (font, size, positions, direction); colour is in toolStyles.
@@ -164,6 +165,9 @@ function apply(key: string, value: unknown) {
     case "sidebarWidth":
       sidebarWidth = value as number;
       break;
+    case "splitRatio":
+      splitRatio = value as number;
+      break;
     case "commentsWidth":
       commentsWidth = value as number;
       break;
@@ -202,6 +206,7 @@ export const settings = {
       animations = (await store.get<boolean>("animations")) ?? animations;
       toolStyles = (await store.get<Record<string, ToolStyle>>("toolStyles")) ?? {};
       sidebarWidth = (await store.get<number>("sidebarWidth")) ?? sidebarWidth;
+      splitRatio = (await store.get<number>("splitRatio")) ?? splitRatio;
       commentsWidth = (await store.get<number>("commentsWidth")) ?? commentsWidth;
       thumbnailColumns = (await store.get<number>("thumbnailColumns")) ?? thumbnailColumns;
       textStyle = { ...defaultTextStyle(), ...((await store.get<TextStyle>("textStyle")) ?? {}) };
@@ -360,6 +365,14 @@ export const settings = {
   set sidebarWidth(value: number) {
     sidebarWidth = value;
     save("sidebarWidth", value);
+  },
+  /** Side by side: the first pane's share of the width (0..1). */
+  get splitRatio() {
+    return splitRatio;
+  },
+  set splitRatio(value: number) {
+    splitRatio = value;
+    save("splitRatio", value);
   },
   /** Width of the comments panel, in px. */
   get commentsWidth() {

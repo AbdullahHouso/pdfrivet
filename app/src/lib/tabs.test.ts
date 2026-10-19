@@ -54,3 +54,69 @@ describe("moving tabs between windows", () => {
     expect(moved.page).toBe(9);
   });
 });
+
+describe("side by side", () => {
+  async function closeAll() {
+    for (const t of [...tabs.list]) await tabs.close(t.id);
+  }
+
+  it("shows a tab beside the active one, and focusing a pane makes it active", async () => {
+    await closeAll();
+    const a = tabs.add(1, "/a.pdf", info);
+    const b = tabs.add(2, "/b.pdf", info);
+    tabs.activate(a.id);
+    expect(tabs.besideCandidate?.id).toBe(b.id);
+    tabs.showBeside(b.id);
+    expect(tabs.panes.map((t) => t.id)).toEqual([a.id, b.id]);
+    expect(tabs.split?.sync).toBe(false);
+    tabs.focusPane(b.id);
+    expect(tabs.active?.id).toBe(b.id);
+    expect(tabs.panes.map((t) => t.id)).toEqual([a.id, b.id]);
+  });
+
+  it("shows another tab in the focused pane, keeping the other", async () => {
+    await closeAll();
+    const a = tabs.add(1, "/a.pdf", info);
+    const b = tabs.add(2, "/b.pdf", info);
+    const c = tabs.add(3, "/c.pdf", info);
+    tabs.activate(a.id);
+    tabs.showBeside(b.id);
+    tabs.focusPane(b.id);
+    tabs.activate(c.id);
+    expect(tabs.panes.map((t) => t.id)).toEqual([a.id, c.id]);
+    expect(tabs.active?.id).toBe(c.id);
+    // A file opened meanwhile goes to the focused pane too.
+    const d = tabs.add(4, "/d.pdf", info);
+    expect(tabs.panes.map((t) => t.id)).toEqual([a.id, d.id]);
+  });
+
+  it("ends when either tab closes, showing the other", async () => {
+    await closeAll();
+    const a = tabs.add(1, "/a.pdf", info);
+    const b = tabs.add(2, "/b.pdf", info);
+    tabs.add(3, "/c.pdf", info);
+    tabs.activate(a.id);
+    tabs.showBeside(b.id);
+    await tabs.close(a.id);
+    expect(tabs.split).toBeNull();
+    expect(tabs.active?.id).toBe(b.id);
+
+    tabs.showBeside(tabs.list[1].id);
+    await tabs.close(tabs.list[1].id);
+    expect(tabs.split).toBeNull();
+    expect(tabs.active?.id).toBe(b.id);
+  });
+
+  it("ends on the start page", async () => {
+    await closeAll();
+    const a = tabs.add(1, "/a.pdf", info);
+    const b = tabs.add(2, "/b.pdf", info);
+    tabs.showBeside(a.id);
+    expect(tabs.panes).toHaveLength(2);
+    tabs.showHome();
+    expect(tabs.split).toBeNull();
+    expect(tabs.panes).toHaveLength(0);
+    tabs.closeHome();
+    expect(tabs.panes.map((t) => t.id)).toEqual([b.id]);
+  });
+});
