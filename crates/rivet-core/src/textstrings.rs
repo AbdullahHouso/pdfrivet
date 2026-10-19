@@ -142,7 +142,7 @@ fn collect(doc: &lopdf::Document) -> Vec<Vec<u8>> {
 /// contents, images…), except object streams, which hold other objects.
 /// (lopdf keeps the changed `object` for most objects, and the returned one
 /// for those inside object streams.)
-fn without_stream_data(
+pub(crate) fn without_stream_data(
     id: lopdf::ObjectId,
     object: &mut Object,
 ) -> Option<(lopdf::ObjectId, Object)> {

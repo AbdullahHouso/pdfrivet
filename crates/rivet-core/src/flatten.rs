@@ -5,6 +5,10 @@
 //! without rewriting what's already there (rewriting it would lose colours;
 //! see AGENTS.md). Hidden annotations, like ones deleted in PDFRivet that are
 //! kept for undo, are left out.
+//!
+//! Right-to-left field values are drawn as outlines (see `formtext`), which
+//! can't be searched or copied, so the same text is added under them as
+//! invisible text (see `hiddentext`).
 
 #![allow(unsafe_code)]
 
@@ -28,9 +32,26 @@ impl Document {
         }
         let bindings = self.pdfium.bindings();
         let mut changed = 0;
+        let mut drawn = Vec::new();
         for index in 0..self.page_count() {
             let page = self.load_page(index)?;
             let handle = bindings.get_handle_from_page(&page);
+            // Fields we drew before are drawn again, to know where their letters are.
+            if let Some(form) = self.inner.form() {
+                // SAFETY: the form and page handles belong to this document and
+                // `page`, alive until the end of this iteration.
+                let again = unsafe {
+                    crate::formtext::redo_drawn(
+                        bindings,
+                        bindings.get_handle_from_form(form),
+                        handle,
+                    )
+                };
+                let texts = self.prepare_fields_also(&page, &again);
+                if !texts.is_empty() {
+                    drawn.push((index, texts));
+                }
+            }
             // SAFETY: `handle` belongs to `page`, which lives until the end of
             // this iteration; we're on the PDFium thread.
             match unsafe { bindings.FPDFPage_Flatten(handle, FLAT_NORMAL_DISPLAY) } {
@@ -51,7 +72,13 @@ impl Document {
             self.unsaved_changes.set(true);
             // PDFium asks for pages to be loaded again after flattening; reopening
             // the document from its current bytes does that for every page.
-            let now = self.snapshot()?;
+            let mut now = self.snapshot()?;
+            if !drawn.is_empty()
+                && !self.properties().encrypted
+                && let Some(bytes) = crate::hiddentext::add(&now.bytes, &drawn)
+            {
+                now.bytes = std::sync::Arc::new(bytes);
+            }
             self.restore(now)?;
         }
         Ok(changed)

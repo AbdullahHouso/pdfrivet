@@ -123,10 +123,16 @@ pub(crate) struct PlacedGlyph {
     /// box's top-left corner (y downwards).
     pub x: f32,
     pub y: f32,
+    /// Where the glyph's characters start in [`Layout::text`] (bytes).
+    pub cluster: usize,
+    /// How far the glyph moves the pen, in points.
+    pub advance: f32,
 }
 
 /// Laid-out text.
 pub(crate) struct Layout {
+    /// The text laid out (line breaks made `\n`); glyph clusters point into it.
+    pub text: String,
     pub fonts: Vec<Arc<LoadedFont>>,
     pub glyphs: Vec<PlacedGlyph>,
     /// The box's size in points.
@@ -158,8 +164,13 @@ struct Shaped {
 
 /// Lays out `text` in `style`. Newlines start new paragraphs.
 pub(crate) fn layout(text: &str, style: &TextStyle) -> Layout {
+    layout_in(text, style, fonts::load(&style.font, style.bold))
+}
+
+/// Lays out `text` in `style`, with `primary` as the main font instead of
+/// `style.font` (letters it lacks still come from the fallbacks).
+pub(crate) fn layout_in(text: &str, style: &TextStyle, primary: Arc<LoadedFont>) -> Layout {
     let size = style.size.max(1.0);
-    let primary = fonts::load(&style.font, style.bold);
     let mut all = vec![primary];
     all.extend(fonts::fallbacks(style.bold));
     let line_height = size * LINE_HEIGHT;
@@ -182,7 +193,10 @@ pub(crate) fn layout(text: &str, style: &TextStyle) -> Layout {
     let mut lines: Vec<(Vec<PlacedGlyph>, f32, bool)> = Vec::new();
     let mut first_rtl = None;
     let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+    let mut para_start = 0;
     for para in normalized.split('\n') {
+        let offset = para_start;
+        para_start += para.len() + 1;
         let bidi = BidiInfo::new(para, forced);
         let base_rtl = bidi
             .paragraphs
@@ -200,7 +214,10 @@ pub(crate) fn layout(text: &str, style: &TextStyle) -> Layout {
         };
         for range in breaks {
             let range = trim_end(para, range);
-            let (glyphs, width) = shape_line(para, range, &bidi, &font_of, &all, size);
+            let (mut glyphs, width) = shape_line(para, range, &bidi, &font_of, &all, size);
+            for g in &mut glyphs {
+                g.cluster += offset;
+            }
             lines.push((glyphs, width, base_rtl));
         }
     }
@@ -236,6 +253,7 @@ pub(crate) fn layout(text: &str, style: &TextStyle) -> Layout {
         line_widths.push(line_width);
     }
     Layout {
+        text: normalized,
         fonts: all,
         glyphs,
         width,
@@ -456,6 +474,8 @@ fn shape_line(
                     glyph: g.glyph,
                     x: x + g.dx,
                     y: -g.dy,
+                    cluster: g.cluster,
+                    advance: g.advance,
                 });
                 x += g.advance;
             }

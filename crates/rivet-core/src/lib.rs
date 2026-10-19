@@ -20,6 +20,7 @@ pub mod fonts;
 mod forms;
 mod formtext;
 mod geometry;
+mod hiddentext;
 mod images;
 mod incremental;
 mod links;

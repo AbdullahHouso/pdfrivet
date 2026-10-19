@@ -308,6 +308,28 @@ pub(crate) fn load(font: &TextFont, bold: bool) -> Arc<LoadedFont> {
     loaded
 }
 
+/// An installed font family (its regular face), if there is one; unlike
+/// [`load`], nothing takes its place when it's missing.
+pub(crate) fn find_installed(family: &str) -> Option<Arc<LoadedFont>> {
+    static FOUND: OnceLock<Mutex<HashMap<String, Option<Arc<LoadedFont>>>>> = OnceLock::new();
+    let found = FOUND.get_or_init(Default::default);
+    let key = family.to_lowercase();
+    if let Some(font) = found.lock().ok().and_then(|f| f.get(&key).cloned()) {
+        return font;
+    }
+    let font = load_system(family, false).map(Arc::new);
+    if let Ok(mut f) = found.lock() {
+        f.insert(key, font.clone());
+    }
+    font
+}
+
+/// A font from a font program's bytes (one embedded in a PDF), if it can be
+/// shaped and drawn (TrueType or OpenType).
+pub(crate) fn from_bytes(data: Vec<u8>) -> Option<Arc<LoadedFont>> {
+    LoadedFont::new(FontData::Owned(Arc::new(data)), 0, None, false).map(Arc::new)
+}
+
 fn load_system(family: &str, bold: bool) -> Option<LoadedFont> {
     let target = if bold { 700.0 } else { 400.0 };
     let face = system()

@@ -1,6 +1,6 @@
 use std::{
     cell::{Cell, OnceCell, RefCell},
-    collections::BTreeSet,
+    collections::{BTreeSet, HashSet},
     io::Cursor,
     path::Path,
     sync::{Arc, OnceLock},
@@ -317,6 +317,12 @@ pub struct Document {
     pub(crate) created_here: bool,
     /// The form fields were flattened: saving drops the form's field list.
     pub(crate) forms_flattened: Cell<bool>,
+    /// Text fields typed into: their right-to-left values are drawn by us
+    /// wherever PDFium draws them again (see `formtext`).
+    pub(crate) typed_fields: RefCell<HashSet<String>>,
+    /// What the file says about its form that PDFium doesn't, read when
+    /// first needed (see `formtext`).
+    pub(crate) form_facts: OnceCell<crate::formtext::FormFacts>,
 }
 
 impl Document {
@@ -348,6 +354,8 @@ impl Document {
             owner_password: None,
             created_here: false,
             forms_flattened: Cell::new(false),
+            typed_fields: RefCell::new(HashSet::new()),
+            form_facts: OnceCell::new(),
         }
     }
 
@@ -775,9 +783,53 @@ impl Document {
     /// Changes a form field (see [`FieldChange`]).
     pub fn change_field(&self, page: u32, field: u32, change: &FieldChange) -> Result<()> {
         let pdf_page = self.load_page(page)?;
-        forms::apply(self.pdfium, &self.inner, &pdf_page, field, change)?;
+        if let Some(name) = forms::apply(self.pdfium, &self.inner, &pdf_page, field, change)? {
+            self.typed_fields.borrow_mut().insert(name);
+        }
         self.unsaved_changes.set(true);
+        self.prepare_fields(&pdf_page);
         Ok(())
+    }
+
+    /// Gets a page's form fields ready to draw: right-to-left values that
+    /// PDFium drew (typed in here, or every field of a `/NeedAppearances`
+    /// form) are drawn our way (see `formtext`). Returns what was drawn.
+    pub(crate) fn prepare_fields(&self, page: &PdfPage) -> Vec<crate::formtext::DrawnText> {
+        self.prepare_fields_also(page, &[])
+    }
+
+    /// Like [`Document::prepare_fields`], also for the fields named in `also`.
+    pub(crate) fn prepare_fields_also(
+        &self,
+        page: &PdfPage,
+        also: &[String],
+    ) -> Vec<crate::formtext::DrawnText> {
+        let Some(form) = self.inner.form() else {
+            return Vec::new();
+        };
+        let typed = self.typed_fields.borrow();
+        let facts = || self.form_facts();
+        let mut wanted = |name: &str| {
+            typed.contains(name) || also.iter().any(|a| a == name) || facts().need_appearances
+        };
+        crate::formtext::prepare_page(self.pdfium, form, page, &mut wanted, &facts)
+    }
+
+    /// What the file says about its form: whether it asks readers to draw
+    /// its fields, and which widgets are turned.
+    fn form_facts(&self) -> &crate::formtext::FormFacts {
+        self.form_facts.get_or_init(|| {
+            let options = lopdf::LoadOptions {
+                password: Some(self.password.clone().unwrap_or_default()),
+                filter: Some(crate::textstrings::without_stream_data),
+                ..lopdf::LoadOptions::default()
+            };
+            let doc = match &self.source {
+                Source::Memory(bytes) => lopdf::Document::load_mem_with_options(bytes, options),
+                Source::File => lopdf::Document::load_with_options(&self.path, options),
+            };
+            doc.map(|doc| form_facts(&doc)).unwrap_or_default()
+        })
     }
 
     /// Saves the document (including filled-in forms) to `path`.
@@ -971,6 +1023,7 @@ impl Document {
     /// the UI passes zoom × device pixel ratio.
     pub fn render_page(&self, index: u32, scale: f32, rotation: Rotation) -> Result<RenderedPage> {
         let page = self.load_page(index)?;
+        self.prepare_fields(&page);
         let config = PdfRenderConfig::new()
             .scale_page_by_factor(scale.clamp(0.05, 16.0))
             .rotate(rotation.to_pdfium(), true)
@@ -1004,6 +1057,7 @@ impl Document {
         height: u32,
     ) -> Result<RenderedPage> {
         let page = self.load_page(index)?;
+        self.prepare_fields(&page);
         let (width, height) = (width.clamp(1, 8192), height.clamp(1, 8192));
         let config = PdfRenderConfig::new()
             .scale_page_by_factor(scale.clamp(0.05, 16.0))
@@ -1045,6 +1099,38 @@ impl Document {
                 format!("page {index} of {}", self.page_count()),
             ))
         }
+    }
+}
+
+/// Reads [`crate::formtext::FormFacts`] from a parsed file.
+fn form_facts(doc: &lopdf::Document) -> crate::formtext::FormFacts {
+    let resolve = |o: &lopdf::Object| doc.dereference(o).ok().map(|(_, o)| o.clone());
+    let need_appearances = (|| {
+        let form = resolve(doc.catalog().ok()?.get(b"AcroForm").ok()?)?;
+        resolve(form.as_dict().ok()?.get(b"NeedAppearances").ok()?)?
+            .as_bool()
+            .ok()
+    })()
+    .unwrap_or(false);
+    let number = |o: &lopdf::Object| resolve(o).and_then(|o| o.as_float().ok());
+    let turned = doc
+        .objects
+        .values()
+        .filter_map(|o| o.as_dict().ok())
+        .filter(|d| d.get(b"Subtype").and_then(lopdf::Object::as_name).ok() == Some(b"Widget"))
+        .filter_map(|d| {
+            let mk = resolve(d.get(b"MK").ok()?)?;
+            let r = number(mk.as_dict().ok()?.get(b"R").ok()?)?.rem_euclid(360.0) as u16;
+            let rect = resolve(d.get(b"Rect").ok()?)?;
+            let n: Vec<f32> = rect.as_array().ok()?.iter().filter_map(number).collect();
+            let [x1, y1, x2, y2] = n[..] else { return None };
+            let rect = [x1.min(x2), y1.min(y2), x1.max(x2), y1.max(y2)];
+            (r.is_multiple_of(90) && r != 0).then_some((rect, r))
+        })
+        .collect();
+    crate::formtext::FormFacts {
+        need_appearances,
+        turned,
     }
 }
 

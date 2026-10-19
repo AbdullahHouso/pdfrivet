@@ -50,7 +50,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Shortcuts no longer act on the document behind an open dialog (Ctrl+A in Settings selected the page's text; Ctrl+O opened a file).
 - Zooming with Ctrl+wheel or a touchpad pinch now zooms where the pointer is, across as well as up and down.
 - Fit page no longer shows scrollbars for a page that fits (with display scaling such as 125 % on Windows).
-- Arabic typed into a form field now keeps its letters joined at any zoom. Before, the word could fall apart into separate letters (more so in small fields). The field's background and border stay as they were. Limits: the text is drawn in PDFRivet's own font, left or right aligned by its direction (a field set to centre is not centred), and password fields are not redrawn.
+- Arabic typed into a form field now keeps its letters joined at any zoom, in PDFRivet and in other readers. Before, words fell apart into separate letters. It works in every kind of form, including ones that ask readers to draw their fields and fields shown on several pages, in the form's own font when that font has the letters. The field keeps its background and border (dashed ones too), centred fields stay centred, turned fields stay turned, and text too long for an auto-sized field gets smaller. After Flatten, that Arabic can still be searched and copied. Password fields and fields with a box per letter keep their usual look.
 - Reading a page at a time, turning to the next page no longer sometimes takes seconds in big, image-heavy files: the page you turn to is drawn before anything else (thumbnails, pages prepared ahead), and the next page is prepared ahead at high zoom on high-DPI screens too.
 
 ## [0.2.0] – 2026-10-10

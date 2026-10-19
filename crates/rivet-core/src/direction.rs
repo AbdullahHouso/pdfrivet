@@ -10,7 +10,7 @@ const ENOUGH_LETTERS: usize = 2_000;
 
 /// True for letters of right-to-left scripts (Hebrew, Arabic, Syriac, Thaana,
 /// N'Ko and their presentation forms).
-fn is_rtl_letter(c: char) -> bool {
+pub(crate) fn is_rtl_letter(c: char) -> bool {
     matches!(c as u32,
         0x0590..=0x08FF | 0xFB1D..=0xFDFF | 0xFE70..=0xFEFF | 0x10800..=0x10FFF | 0x1E800..=0x1EFFF)
         && c.is_alphabetic()

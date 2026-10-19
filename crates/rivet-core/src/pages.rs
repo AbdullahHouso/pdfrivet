@@ -316,7 +316,7 @@ impl Document {
 
 /// A whole document at one moment, for undoing changes to its pages.
 pub struct Snapshot {
-    bytes: Arc<Vec<u8>>,
+    pub(crate) bytes: Arc<Vec<u8>>,
     deleted_on: BTreeSet<u32>,
     redacted: BTreeSet<u32>,
     needs_prune: bool,

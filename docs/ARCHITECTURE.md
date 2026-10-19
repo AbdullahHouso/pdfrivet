@@ -120,15 +120,28 @@ Rust types marked `#[derive(TS)]` are exported to `app/src/lib/bindings/` when
   saving over it works on Windows, and it can be moved while PDFRivet shows it.
 - **Saving** writes `.<name>.rivet-saving` next to the target, flushes it to disk and renames
   it over the target, so a crash never leaves a half-written PDF.
-- **Right-to-left values are redrawn by us** (`formtext.rs`). PDFium writes a field's text as
-  one `Td`/`Tj` per glyph with rounded advances, and a renderer that snaps each glyph to its
-  own pixel opens gaps in Arabic joins at small sizes (the more so the smaller the field). After
-  PDFium commits a value with RTL letters (not in password fields), `formtext::redraw` reads
-  the appearance's path objects (background and border; text objects are dropped), and writes
-  a new appearance with them plus the value as shaped outlines from `textlayout` (the same as
-  page text boxes), clipped to the field and coloured and sized from `/DA`. If the appearance
-  holds anything but paths and text, or draws outside the field, PDFium's is left alone.
-  Limits: the bundled font, not the field's, and `/Q` (alignment) is not read.
+- **Right-to-left values are drawn by us** (`formtext.rs`). PDFium writes a field's text as
+  one `Td`/`Tj` per glyph, moving by advances that don't match the glyphs it draws, so Arabic
+  joins have real gaps (at every zoom, in every reader). Where PDFium has drawn a text field
+  with RTL letters, `formtext::fix_page` keeps its background and border (its path objects,
+  dashes included) and replaces its text with shaped outlines from `textlayout`, clipped to
+  the field. PDFium's drawing tells how the field wants its text: size and colour (from `/DA`,
+  inherited), the font (the one PDFium used, embedded or installed, when it has every Arabic
+  letter of the value; otherwise ours), and centring or right alignment (where PDFium put the
+  text; `/Q 0`, the default, puts each paragraph on its start side). Auto-sized text shrinks
+  to fit. Password and comb fields keep PDFium's drawing, as does an appearance holding
+  anything but paths and text.
+- **When:** PDFium draws fields again on its own: every widget of a field whose value changed,
+  on any page, and every field of a `/NeedAppearances` form whenever a page is loaded into the
+  form engine (inside `FPDF_FFLDraw`). So `Document::prepare_fields` loads the page into the
+  form engine itself before each render and redraws fields typed into in this session, or all
+  of them in a `/NeedAppearances` form. That flag and turned widgets (`/MK /R`; PDFium's
+  appearance objects are unturned) are read from the file once, with lopdf (`form_facts`).
+- **Flattening** turns these outlines into page content, which can't be searched or copied.
+  So `flatten.rs` has PDFium draw those fields again (removing the appearance makes it), redraws
+  them knowing where every glyph goes, and `hiddentext.rs` adds the value under the outlines as
+  invisible text (render mode 3, Helvetica with a `ToUnicode` map, as OCR layers do). Not for
+  password-protected files (lopdf would have to re-encrypt them).
 - Known PDFium limitation: in fields mixing Arabic and Latin text, PDFium may order numbers
   differently from the typed order (Chrome shares this). Redrawn fields follow the Unicode
   bidi rules instead.

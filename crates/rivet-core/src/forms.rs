@@ -136,14 +136,15 @@ fn choice(options: &PdfFormFieldOptions, texts: &Texts) -> FieldKind {
     }
 }
 
-/// Applies a change to the field with annotation `index` on `page`.
+/// Applies a change to the field with annotation `index` on `page`. Returns
+/// the field's full name when its text changed (see `formtext`).
 pub(crate) fn apply(
     pdfium: &Pdfium,
     document: &PdfDocument,
     page: &PdfPage,
     index: u32,
     change: &FieldChange,
-) -> Result<()> {
+) -> Result<Option<String>> {
     let annotation = page.annotations().get(index as PdfPageAnnotationIndex)?;
     let field = annotation.as_form_field().ok_or_else(|| {
         Error::new(
@@ -179,17 +180,8 @@ pub(crate) fn apply(
     };
     // Leaving the field commits the value and rebuilds its appearance.
     session.commit();
-    // PDFium draws Arabic one glyph at a time and the joins fall apart at small
-    // sizes, so right-to-left text is drawn by us (see `formtext`).
-    if ok
-        && let FieldChange::Text { .. } = change
-        && let PdfFormField::Text(text) = field
-        && !text.is_password()
-    {
-        session.redraw_text(index, text.is_multiline());
-    }
     if ok {
-        Ok(())
+        Ok(matches!(change, FieldChange::Text { .. }).then(|| session.name(index)))
     } else {
         Err(Error::new(
             ErrorCode::Internal,
@@ -264,52 +256,18 @@ impl<'a> FormSession<'a> {
         }
     }
 
-    /// Redraws a committed text field's appearance with shaped text, if its
-    /// value needs it. The value is read back from the field: PDFium may have
-    /// stored less than was typed (a field's `/MaxLen` cuts it short).
-    fn redraw_text(&self, index: u32, multiline: bool) {
+    /// The full name of the field with annotation `index`.
+    fn name(&self, index: u32) -> String {
         // SAFETY: the annotation handle is opened and closed within this block,
         // and only used while the page is alive.
         unsafe {
             let annot = self.bindings.FPDFPage_GetAnnot(self.page, index as i32);
             if annot.is_null() {
-                return;
-            }
-            let value = self.value_of(annot);
-            if formtext::needs_redraw(&value) {
-                formtext::redraw(self.bindings, annot, &value, multiline);
-            }
-            self.bindings.FPDFPage_CloseAnnot(annot);
-        }
-    }
-
-    /// The value stored in the field of `annot`.
-    ///
-    /// # Safety
-    /// `annot` must be an open annotation handle of this session's page.
-    unsafe fn value_of(&self, annot: FPDF_ANNOTATION) -> String {
-        // SAFETY: the buffer is sized by PDFium's own answer (in bytes, with the
-        // terminating NUL); the second call only writes into it.
-        unsafe {
-            let needed = self.bindings.FPDFAnnot_GetFormFieldValue(
-                self.form,
-                annot,
-                std::ptr::null_mut(),
-                0,
-            );
-            if needed < 2 {
                 return String::new();
             }
-            let mut buffer = vec![0u16; needed as usize / 2];
-            self.bindings.FPDFAnnot_GetFormFieldValue(
-                self.form,
-                annot,
-                buffer.as_mut_ptr(),
-                needed,
-            );
-            String::from_utf16_lossy(&buffer)
-                .trim_end_matches('\0')
-                .to_owned()
+            let name = formtext::field_name(self.bindings, self.form, annot);
+            self.bindings.FPDFPage_CloseAnnot(annot);
+            name
         }
     }
 
