@@ -72,6 +72,9 @@ CI (`.github/workflows/ci.yml`) runs them on Linux and Windows on every push to 
   remembers its own view (page, zoom, layout, scrolling, page colour) in the recent-files list.
 - **Latest stable versions** of everything (dependencies, toolchain, actions); pin exact versions
   for anything new. Renovate opens update PRs; hold back majors that break the toolchain.
+  Exception: `gtk`, `webkit2gtk`, `webview2-com`, `windows` and `objc2*` in `app/src-tauri` follow
+  the versions Tauri's wry/tao use (`cargo tree -i <crate>` shows one version only); Renovate
+  skips them, so bump them by hand after a Tauri update.
 - `unsafe_code` is denied workspace-wide; allow it only per item/module with a `SAFETY:` comment.
 - Platform-specific code goes behind `cfg` blocks; a change for one platform must keep the other
   two compiling.

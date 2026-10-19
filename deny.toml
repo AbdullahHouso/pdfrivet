@@ -11,6 +11,17 @@ ignore = [
     # proc-macro-error is unmaintained. It comes from Tauri's Linux GTK bindings
     # (gtk-rs 0.18), so it goes away when Tauri upgrades them.
     { id = "RUSTSEC-2024-0370", reason = "transitive via tauri -> gtk 0.18; build-time only" },
+    # zip 4 comes from tauri-plugin-updater 2.x (the fix, zip 9, is only in the 3.0 alphas).
+    # The advisories are about extracting untrusted archives; the updater only
+    # extracts update bundles whose signature it has already checked.
+    { id = "RUSTSEC-2026-0367", reason = "zip 4 via tauri-plugin-updater 2.x; only signed update bundles are extracted" },
+    { id = "RUSTSEC-2026-0368", reason = "zip 4 via tauri-plugin-updater 2.x; only signed update bundles are extracted" },
+    { id = "RUSTSEC-2026-0369", reason = "zip 4 via tauri-plugin-updater 2.x; only signed update bundles are extracted" },
+    # zbus_names/zvariant were merged into zbus 6; Tauri's Linux plugins (opener,
+    # single-instance) still use zbus 5. Unmaintained, no known vulnerability.
+    { id = "RUSTSEC-2026-0370", reason = "zvariant via zbus 5 in Tauri plugins (Linux); unmaintained only" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names via zbus 5 in Tauri plugins (Linux); unmaintained only" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive via zbus 5 in Tauri plugins (Linux); unmaintained only" },
 ]
 
 [licenses]

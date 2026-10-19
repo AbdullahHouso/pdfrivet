@@ -10,6 +10,12 @@
       "groupName": "tauri"
     },
     {
+      "description": "Platform crates that must stay on the versions Tauri's own (wry/tao) use: they share window and webview handles with Tauri, and gtk/webkit2gtk link the same system library. Update them by hand when Tauri moves (see AGENTS.md).",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["gtk", "webkit2gtk", "webview2-com", "windows", "objc2", "objc2-*"],
+      "enabled": false
+    },
+    {
       "description": "Group Svelte tooling",
       "matchPackageNames": ["svelte", "svelte-check", "@sveltejs/*", "vite", "vitest"],
       "groupName": "svelte and vite"
