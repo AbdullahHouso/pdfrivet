@@ -65,4 +65,4 @@ objc2-web-kit = { version = "0.3.2", features = ["std", "objc2-app-kit", "WKWebV
 
 # Self-update exists only on desktop.
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
-tauri-plugin-updater = "2.13.2"
+tauri-plugin-updater = "2.14.0"
