@@ -46,49 +46,52 @@ function when(ms: number): string {
     <p class="hint">{i18n.t("drop-hint")}</p>
   </div>
 
-  <section class="tools" aria-labelledby="tools-heading">
-    <h2 id="tools-heading">{i18n.t("tools")}</h2>
-    <ul>
-      {#each TOOLS as tool (tool.id)}
-        <li>
-          <button class="tool" onclick={() => ontool(tool.id)}>
-            <Icon name={tool.icon} />
-            <span>{i18n.t(tool.label).replace(/…$/, "")}</span>
-          </button>
-        </li>
-      {/each}
-    </ul>
-  </section>
-
-  {#if settings.recent.length > 0}
-    <section class="recent" aria-labelledby="recent-heading">
-      <h2 id="recent-heading">{i18n.t("recent-files")}</h2>
+  <!-- Recent files first (the start side), tools beside them; stacked when narrow. -->
+  <div class="columns" class:both={settings.recent.length > 0}>
+    {#if settings.recent.length > 0}
+      <section class="recent" aria-labelledby="recent-heading">
+        <h2 id="recent-heading">{i18n.t("recent-files")}</h2>
+        <ul>
+          {#each settings.recent as file (file.path)}
+            {@const gone = missing.has(file.path)}
+            <li class:gone>
+              <button class="open" onclick={() => onopenpath(file.path)} title={file.path}>
+                <Icon name="file" />
+                <span class="text">
+                  <span class="title" dir="auto">{file.title}</span>
+                  <span class="path" dir="ltr">{file.path}</span>
+                </span>
+                <span class="when">{gone ? i18n.t("file-missing") : when(file.lastOpened)}</span>
+              </button>
+              <button class="remove" onclick={() => settings.removeRecent(file.path)}
+                aria-label={i18n.t("remove-from-recent", { name: file.title })} title={i18n.t("remove-from-recent", { name: file.title })}>
+                <Icon name="close" />
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+    <section class="tools" aria-labelledby="tools-heading">
+      <h2 id="tools-heading">{i18n.t("tools")}</h2>
       <ul>
-        {#each settings.recent as file (file.path)}
-          {@const gone = missing.has(file.path)}
-          <li class:gone>
-            <button class="open" onclick={() => onopenpath(file.path)} title={file.path}>
-              <Icon name="file" />
-              <span class="text">
-                <span class="title" dir="auto">{file.title}</span>
-                <span class="path" dir="ltr">{file.path}</span>
-              </span>
-              <span class="when">{gone ? i18n.t("file-missing") : when(file.lastOpened)}</span>
-            </button>
-            <button class="remove" onclick={() => settings.removeRecent(file.path)}
-              aria-label={i18n.t("remove-from-recent", { name: file.title })} title={i18n.t("remove-from-recent", { name: file.title })}>
-              <Icon name="close" />
+        {#each TOOLS as tool (tool.id)}
+          <li>
+            <button class="tool" onclick={() => ontool(tool.id)}>
+              <Icon name={tool.icon} />
+              <span>{i18n.t(tool.label).replace(/…$/, "")}</span>
             </button>
           </li>
         {/each}
       </ul>
     </section>
-  {/if}
+  </div>
 </div>
 
 <style>
   .start {
     flex: 1;
+    container-type: inline-size;
     overflow: auto;
     display: flex;
     flex-direction: column;
@@ -125,9 +128,23 @@ function when(ms: number): string {
     font-size: 13px;
     color: var(--muted);
   }
-  .recent,
-  .tools {
+  .columns {
     width: min(640px, 100%);
+    display: grid;
+    gap: 40px;
+  }
+  .columns.both {
+    width: min(1040px, 100%);
+  }
+  @container (min-width: 820px) {
+    .columns.both {
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+      gap: 24px;
+      align-items: start;
+    }
+  }
+  section {
+    min-width: 0;
   }
   .tools ul {
     padding: 0;
