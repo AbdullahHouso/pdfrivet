@@ -6,10 +6,11 @@
 
 <p align="center"><strong>A free, fast PDF reader and editor for Windows, Linux and macOS.</strong></p>
 
-> **0.2** is out: get it from [pdfrivet.com](https://pdfrivet.com). It adds text selection and
-> search, annotations, signatures, text boxes, redaction, bookmarks and comments.
+> **0.3** is out: get it from [pdfrivet.com](https://pdfrivet.com). It adds page tools
+> (organize, merge, split, extract, flatten), compress, password protection, repair,
+> conversion to and from images and web pages, and two files side by side.
 
-## What it can do (0.2)
+## What it can do (0.3)
 
 - **Select, copy and search** text, with Arabic-aware search (diacritics, letter forms, digits)
 - **Annotate**: highlight, underline, strike out, pen, shapes, lines and arrows, sticky notes, eraser, undo and redo
@@ -17,6 +18,11 @@
 - **Sign** with a drawn signature or one from a photo, saved for next time
 - **Redact** text and areas for good
 - **Bookmark** pages and edit the document's bookmarks; **comment** on annotations and reply
+- **Organize pages**: reorder, rotate, delete, duplicate and insert, with undo
+- **Merge**, **split** and **extract** pages; **flatten** annotations and forms into the pages
+- **Compress**, **password-protect** (AES-256, with permissions) and **repair** damaged files
+- **Convert**: pages to PNG or JPEG, images to PDF, web pages and HTML to PDF
+- Show two files **side by side**, with optional synced scrolling
 - Open several PDFs in **tabs**, from the app, by drag and drop, or with "Open with" in your file manager
 - **Continuous scrolling** that stays fast on documents with thousands of pages
 - **Zoom** (fit page, fit width, actual size, Ctrl + wheel, pinch) and **rotate** the view
@@ -47,7 +53,7 @@ translations (left-to-right and right-to-left alike) are welcome; see [CONTRIBUT
 | M0 ✅ | – | Foundations: engine, app shell, EN/AR UI, CI |
 | M1 ✅ | 0.1 | Reader + forms: tabs, continuous scroll, zoom, thumbnails, outline, links, form filling, save, printing, document properties, in-app updates |
 | M2 + M4 ✅ | 0.2 | Text selection, copy and search; annotations, signatures, text boxes, redaction, bookmarks and comments |
-| M3 | 0.3 | Page tools: organize (reorder, rotate, delete, insert), extract, merge, split, compress, password protection, repair, flatten; PDF to images, images to PDF, web pages and HTML to PDF |
+| M3 ✅ | 0.3 | Page tools: organize (reorder, rotate, delete, insert), extract, merge, split, compress, password protection, repair, flatten; PDF to images, images to PDF, web pages and HTML to PDF |
 | Next | – | Export to text and Office formats, OCR, more languages |
 
 ## Installing

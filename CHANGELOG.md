@@ -7,40 +7,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 
 ## [Unreleased]
 
+## [0.3.0] – 2026-10-19
+
+PDFRivet now works on whole files: organize, merge, split and extract pages, compress,
+protect with a password, repair, flatten, and convert to and from images and web pages.
+Two open files can also be shown side by side.
+
 ### Pages
 - Organize pages (Tools menu, or right-click a thumbnail): every page as a big thumbnail. Drag pages into a new order, turn them, delete or duplicate them, add blank pages or pages from another PDF, with undo while you work. Done applies everything at once, and Ctrl+Z undoes it all in one step. Works the same in right-to-left layouts.
-- Right-click a thumbnail to turn that page, delete it, or extract it into a new file.
+- Right-click a thumbnail to turn that page, delete it, or extract it into a new file. Turning pages here changes the file; the toolbar's rotate button still only turns your view.
 - Extract pages (Tools menu): save some pages as a new PDF, and optionally delete them from this one.
-- Deleted pages really leave the saved file, as with redaction. Bookmarks follow their pages; bookmarks of deleted pages go.
-- Turning pages here changes the file; the toolbar's rotate button still only turns your view.
 - Merge PDFs (Tools menu or the start page): put files in order, take all or some pages of each, unlock password-protected ones, and get one PDF with a bookmark per file (each file's own bookmarks under it). Form fields keep working; fields with the same name in different files are renamed so they don't share a value.
-- The start page has the tools too, beside your recent files (stacked in a narrow window).
 - Split (Tools menu): into a file every few pages, one per page range ("1-3, 4-10"), or one per bookmark (named after it). Files go next to the document or into a folder you choose, and never overwrite existing ones.
 - Extracted and split files keep the document's title and author, and the bookmarks and form fields of their pages.
-
+- Deleted pages really leave the saved file, as with redaction. Bookmarks follow their pages; bookmarks of deleted pages go.
 - Flatten (Tools menu): comments, drawings, signatures and form fields become part of the pages, so they look the same everywhere and can't be changed. One Ctrl+Z undoes it.
 
 ### Convert
 - Export as images (Tools menu): save all or some pages as PNG or JPEG at 72–600 dpi, into a folder, with progress (Stop anytime).
 - Images to PDF (Tools menu, the start page, or drop pictures on the window): JPEG, PNG, WebP, BMP, GIF and TIFF pictures become pages, in the order you choose, on A4, US Letter or pages the size of each picture, with or without a margin. JPEG photos go in unchanged (no quality lost); phone photos taken sideways are turned upright.
-
-- Compress (Tools menu): a smaller copy of the document. Lossless packs the file tighter and stores repeated fonts and drawings once (often a fifth smaller, nothing changes); Recommended and Strongest also scale pictures down to 150 or 100 dpi and store photos as JPEG. Drawings and screenshots stay sharp; pictures it can't redo faithfully are left as they are.
-
 - Web page or HTML to PDF (Tools menu): type a web address or pick an HTML file; it's printed to PDF by your system's own web engine (A4 or US Letter, portrait or landscape, margins, backgrounds). Web pages load the way a browser visit does, in a separate window without your browser's logins that can't reach anything in PDFRivet.
 
-### Repair
+### Compress, protect, repair
+- Compress (Tools menu): a smaller copy of the document. Lossless packs the file tighter and stores repeated fonts and drawings once (often a fifth smaller, nothing changes); Recommended and Strongest also scale pictures down to 150 or 100 dpi and store photos as JPEG. Drawings and screenshots stay sharp; pictures it can't redo faithfully are left as they are.
+- Password protection (Tools menu): require a password to open the file, restrict printing, copying, changes, forms and comments (with a separate permissions password), or remove the protection. Files are protected with AES-256. Changing a restricted file's protection asks for its permissions password, as in Acrobat.
 - Repair a PDF (Tools menu, or "Try to repair" when a file won't open): saves a mended copy of a damaged file, with the pages that could be recovered.
 
-### Protect
-- Password protection (Tools menu): require a password to open the file, restrict printing, copying, changes, forms and comments (with a separate permissions password), or remove the protection. Files are protected with AES-256. Changing a restricted file's protection asks for its permissions password, as in Acrobat.
-
-### Added
+### Reading
 - Side by side: show two open files next to each other (the toolbar's Side by side button, or right-click a tab), for reading a book beside its answers or comparing two versions. Drag the divider to share the width; click a file to work on it. Sync scrolling (off at first) moves both together, keeping the pages as far apart as they were.
+- The start page has the tools too, beside your recent files (stacked in a narrow window).
+- Pinch to zoom on a touchpad zooms the pages.
 - PDFRivet offers to become your default PDF app when another app opens PDF files (once, after you open a file; "Not now" waits a week). Settings → General shows which app opens your PDFs. On Windows this opens PDFRivet's page in the Windows settings, and the installer's last page has a link to it.
 
 ### Changed
 - Saved files name PDFRivet as their producer and get an updated modification date. The program the document was made in (Creator) is kept.
-- Pinch to zoom on a touchpad zooms the pages.
 - The interface's labels and buttons can no longer be selected like text.
 
 ### Fixed
@@ -53,6 +53,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com), and versions 
 - Fit page no longer shows scrollbars for a page that fits (with display scaling such as 125 % on Windows).
 - Arabic typed into a form field now keeps its letters joined at any zoom, in PDFRivet and in other readers. Before, words fell apart into separate letters. It works in every kind of form, including ones that ask readers to draw their fields and fields shown on several pages, in the form's own font when that font has the letters. The field keeps its background and border (dashed ones too), centred fields stay centred, turned fields stay turned, and text too long for an auto-sized field gets smaller. After Flatten, that Arabic can still be searched and copied. Password fields and fields with a box per letter keep their usual look.
 - Reading a page at a time, turning to the next page no longer sometimes takes seconds in big, image-heavy files: the page you turn to is drawn before anything else (thumbnails, pages prepared ahead), and the next page is prepared ahead at high zoom on high-DPI screens too.
+
+### Good to know
+- Password-protected files can't be compressed yet: remove the protection, compress, then protect the new file.
 
 ## [0.2.0] – 2026-10-10
 
