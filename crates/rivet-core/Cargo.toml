@@ -24,7 +24,7 @@ memmap2 = "0.9.11"
 pdfium-render = "0.9.4"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
-skrifa = "0.48.0"
+skrifa = "0.49.0"
 thiserror = "2.0.21"
 ts-rs = "12.0.1"
 unicode-bidi = "0.3.18"
