@@ -10,7 +10,7 @@ description = "PDF engine for Rivet: open, render and edit PDFs (built on PDFium
 [dependencies]
 # Text boxes: shaping text (Arabic joining, ligatures, right-to-left order)
 # with HarfRust, and reading fonts (names, outlines) with skrifa.
-harfrust = "0.14.0"
+harfrust = "0.15.0"
 # The random key of password-protected files (already used by lopdf's encryption).
 getrandom = "0.4.3"
 # Image types (signature pictures arrive as raw RGBA pixels), the JPEG
