@@ -13,7 +13,7 @@ use std::{
 use anyhow::{Context, Result, bail};
 
 /// The PDFium release we build against. Bump this (and test!) to update PDFium.
-const PDFIUM_RELEASE: &str = "chromium/8100";
+const PDFIUM_RELEASE: &str = "chromium/8111";
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
